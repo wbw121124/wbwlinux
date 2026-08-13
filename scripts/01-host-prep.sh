@@ -47,22 +47,24 @@ done
 ln -sv usr/bin "$LFS_ROOT/bin" 2>/dev/null || true
 
 # --- download all sources (skip if already present, e.g. restored) ----
+# 95 of 96 files are bundled in tools/x86_64/sources (checked into git);
+# only the linux kernel tarball (147 MB, over GitHub's 100 MB file limit)
+# is downloaded here from kernel.org's CDN.
 if [ -z "${SKIP_DOWNLOAD:-}" ] && [ ! -f "$SOURCES/.downloaded" ]; then
-    log "==> downloading $(wc -l < "$SCRIPTS_DIR/../tools/x86_64/wget-list") files"
-    cd "$SOURCES"
-    wget -q -nc --no-verbose --timeout=30 --tries=3 \
-        --input-file="$SCRIPTS_DIR/../tools/x86_64/wget-list" \
-        || warn "wget reported errors (will be caught by md5 check)"
-    # retry loop for any missing/zero-length files
-    for attempt in 1 2 3; do
-        local_missing=0
-        while IFS= read -r url; do
-            fname="${url##*/}"
-            [ -s "$fname" ] || { local_missing=$((local_missing + 1)); wget -q -nc --timeout=30 --tries=2 -O "$fname" "$url" || true; }
-        done < "$SCRIPTS_DIR/../tools/x86_64/wget-list"
-        [ "$local_missing" -eq 0 ] && break
-        sleep 5
-    done
+    log "==> copying bundled sources from repository"
+    cp -v "$SCRIPTS_DIR"/../tools/x86_64/sources/* "$SOURCES/" 2>/dev/null || true
+
+    if [ ! -s "$SOURCES/linux-$LFS_KERNEL_VER.tar.xz" ]; then
+        log "==> downloading linux-$LFS_KERNEL_VER.tar.xz (147 MB, exceeds git limit)"
+        wget -q --timeout=30 --tries=3 -O "$SOURCES/linux-$LFS_KERNEL_VER.tar.xz" \
+            "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-$LFS_KERNEL_VER.tar.xz" \
+            || wget -q -O "$SOURCES/linux-$LFS_KERNEL_VER.tar.xz" \
+                "https://www.kernel.org/pub/linux/kernel/v6.x/linux-$LFS_KERNEL_VER.tar.xz" \
+            || true
+    fi
+    [ -s "$SOURCES/linux-$LFS_KERNEL_VER.tar.xz" ] || \
+        die "kernel tarball download failed"
+
     log "==> verifying md5sums"
     if ! ( cd "$SOURCES" && md5sum -c "$SCRIPTS_DIR/../tools/x86_64/md5sums" > md5.log ); then
         warn "md5 verification FAILED - see $SOURCES/md5.log"
