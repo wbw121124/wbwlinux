@@ -8,6 +8,11 @@ on:
 env:
   RUNNER_OS: ubuntu-latest
 
+permissions:
+  actions: read
+  contents: read
+  packages: read
+
 jobs:
   # ---------------------------------------------------------------
   # Job 1: host prep + cross toolchain (LFS ch5 + ch6)
