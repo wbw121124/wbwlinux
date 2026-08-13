@@ -85,6 +85,36 @@ jobs:
           ls -la /mnt/lfs/usr/bin 2>&1 | head -25
           readlink -f /mnt/lfs/usr/bin/env 2>&1
 
+      - name: CHROOT gcc smoke test (TEMP diag - why cannot create executables)
+        run: |
+          sudo bash <<'DIAG'
+          set +e
+          mkdir -pv /mnt/lfs/{dev,proc,sys,run}
+          mount --bind /dev /mnt/lfs/dev 2>/dev/null
+          mount --bind /dev/pts /mnt/lfs/dev/pts 2>/dev/null
+          mount --bind /proc /mnt/lfs/proc 2>/dev/null
+          mount --bind /sys /mnt/lfs/sys 2>/dev/null
+          mount --bind /run /mnt/lfs/run 2>/dev/null
+          echo "=== interp of gcc/cc1/ld ==="
+          readelf -l /mnt/lfs/usr/bin/gcc 2>&1 | grep -A1 interpreter
+          readelf -l /mnt/lfs/usr/libexec/gcc/x86_64-lfs-linux-gnu/15.2.0/cc1 2>&1 | grep -A1 interpreter
+          readelf -l /mnt/lfs/usr/bin/ld 2>&1 | grep -A1 interpreter
+          echo "=== loader --list deps of gcc driver ==="
+          chroot /mnt/lfs /usr/lib/ld-linux-x86-64.so.2 --list /usr/bin/gcc 2>&1
+          echo "=== chroot gcc -v ==="
+          chroot /mnt/lfs /usr/bin/env -i HOME=/root PATH=/usr/bin:/usr/sbin /bin/bash -c "gcc -v 2>&1"
+          echo "=== which progs will gcc exec ==="
+          chroot /mnt/lfs /usr/bin/env -i HOME=/root PATH=/usr/bin:/usr/sbin /bin/bash -c "gcc -print-prog-name=cc1; gcc -print-prog-name=collect2; gcc -print-prog-name=as; gcc -print-prog-name=ld; gcc -print-file-name=crt1.o; gcc -print-file-name=Scrt1.o; gcc -print-search-dirs"
+          echo "=== chroot smoke compile ==="
+          chroot /mnt/lfs /usr/bin/env -i HOME=/root PATH=/usr/bin:/usr/sbin /bin/bash -c "printf 'int main(){return 0;}\n' > /tmp/t.c; gcc /tmp/t.c -o /tmp/t 2>&1; echo gcc_rc=\$?; if [ -x /tmp/t ]; then /tmp/t && echo SMOKE-OK || echo SMOKE-RUNFAIL; else echo NO-BINARY; fi"
+          echo "=== key files ==="
+          chroot /mnt/lfs /usr/bin/env -i HOME=/root PATH=/usr/bin:/usr/sbin /bin/bash -c "ls -ld /lib64 /lib /usr/lib; ls -l /lib64/ld-linux-x86-64.so.2 /usr/lib/ld-linux-x86-64.so.2 /usr/lib/libc.so.6 /usr/lib/crt1.o /usr/lib/Scrt1.o /usr/lib/libgcc_s.so.1 2>&1; ls -l /usr/libexec/gcc/x86_64-lfs-linux-gnu/15.2.0/cc1 /usr/libexec/gcc/x86_64-lfs-linux-gnu/15.2.0/collect2 /usr/bin/gcc /usr/bin/ld 2>&1"
+          echo "=== ld.so.conf ==="
+          cat /mnt/lfs/etc/ld.so.conf 2>&1
+          for d in dev/pts dev/shm dev run proc sys; do umount /mnt/lfs/$d 2>/dev/null; done
+          true
+          DIAG
+
       - name: Build base system in chroot
         run: bash scripts/03-chroot-base.sh
 
