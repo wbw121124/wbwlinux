@@ -28,11 +28,17 @@ pkg_run() {
         rm -rf "$dir"
         tar xf "$tarball"
         cd "$dir"
-        bash -c "$body"
+        bash -e -c "$body"
     )
     local rc=$?
+    if [ $rc -ne 0 ]; then
+        mkdir -p "$SOURCES/.diag"
+        find "$SOURCES/$dir" -maxdepth 2 -name config.log \
+            -exec cp -v {} "$SOURCES/.diag/$dir.config.log" \; 2>/dev/null || true
+        rm -rf "$SOURCES/$dir"
+        die "build of '$dir' failed (rc=$rc); config.log kept at $SOURCES/.diag/$dir.config.log"
+    fi
     rm -rf "$SOURCES/$dir"
-    [ $rc -eq 0 ] || die "build of '$dir' failed (rc=$rc)"
 }
 
 # ---------------------------------------------------------------------------
@@ -44,7 +50,7 @@ shell_run() {
     local body
     body="$(cat)"
     log "==> run: $(echo "$body" | head -1 | cut -c1-100)"
-    ( cd "$SOURCES" && bash -c "$body" )
+    ( cd "$SOURCES" && bash -e -c "$body" )
 }
 
 # ---------------------------------------------------------------------------
@@ -59,7 +65,7 @@ chroot_wrap() {
         HOME=/root TERM="$TERM" PS1='(lfs) \u:\w\$ ' \
         PATH=/usr/bin:/usr/sbin \
         MAKEFLAGS="$MAKEFLAGS" \
-        /bin/bash --login -c "$body"
+        /bin/bash --login -e -c "$body"
 }
 
 # ---------------------------------------------------------------------------

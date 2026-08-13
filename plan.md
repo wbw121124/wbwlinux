@@ -20,16 +20,21 @@
    - libstdc++ 头被装到 `/mnt/lfs/tools/x86_64-lfs-linux-gnu/include/c++/15.2.0`（tools 前缀，非 /usr）——怀疑 `--with-gxx-include-dir` 或 gcc_tooldir 解析问题。
 
 ## 待办任务
-- [ ] 1. 修 `scripts/stages/10-host-stage.sh` gcc pass2 configure（6.18 节，332-349 行），对照 LFS-CN ch6.18 补齐：
+- [x] 1. 修 `scripts/stages/10-host-stage.sh` gcc pass2 configure（6.18 节，332-352 行），对照 LFS-CN ch6.18 补齐：
   - `--disable-fixincludes`
   - `CXX_FOR_TARGET="$LFS_TGT-gcc -nostdinc++"`（文档强调：不用宿主编译器构建目标运行库）
   - `target_configargs=gcc_cv_target_thread_file=posix`
-- [ ] 2. 核对 pass2 无 `--with-gxx-include-dir`（头不应装到 /tools）；`LDFLAGS_FOR_TARGET=-L$PWD/$LFS_TGT/libgcc` 已有。
-- [ ] 3. 查 `scripts/common.sh` 中 pkg_run/run_build 的 make 错误处理，加失败即退（set -e / $? 检查）→ 杜绝静默失败。
-- [ ] 4. pass2 `make DESTDIR=$LFS install` 后加断言：`ls -l $LFS/usr/lib/gcc/x86_64-lfs-linux-gnu/15.2.0/{crtbeginS.o,libgcc.a,libgcc_s.so}`，缺失即 fail。
+- [x] 2. 核对 pass2 无 `--with-gxx-include-dir`（头不应装到 /tools）；`LDFLAGS_FOR_TARGET=-L$PWD/$LFS_TGT/libgcc` 已有。（5.6 libstdc++ 的 `--with-gxx-include-dir=/tools/...` 按书保留）
+- [x] 3. `scripts/common.sh`：pkg_run/shell_run/chroot_wrap 的 body 改 `bash -e -c`（原 `bash -c` 只返回最后一条命令退出码 → run#13/14 中 pass2 `make` 失败被后续 `ln -sv` 成功掩盖）；失败时保留 config.log 到 `$SOURCES/.diag/`。
+- [x] 4. pass2 `make DESTDIR=$LFS install` 后加断言：`$LFS/usr/lib/gcc/$LFS_TGT/15.2.0/{crtbeginS.o,libgcc.a,libgcc_s.so}`，缺失即 die。
 - [ ] 5. 提交推送 → run#15（改 scripts/ → ccache key 变化 → toolchain 全量重编，耗时较长）。
 - [ ] 6. base 越过 gettext-1.0 后继续 ch8 长跑，逐个处理后续失败。
 - [ ] 7. （可选）清理 `D:\wbw121124` 遗留 `ghlog.py tail --latest` 进程（PID 4732）。
+
+## run#15 前置修补（set -e 引入的误报面）
+- ch8 glibc：`grep "Timed out" ...` 无超时即 rc=1 → 加 `|| true`。
+- ch8 binutils：`grep '^FAIL:' ...` 无失败即 rc=1 → 加 `|| true`。
+- ch8 GMP：删除损坏行 `ABI=32 ./configure ...`（原静默失败，set -e 下会阻断 8.22）。
 
 ## 注意事项
 - **ccache key**：`ccache-${{ hashFiles('scripts/**', 'tools/x86_64/md5sums') }}`；改 `scripts/` 下任何文件 → ccache 全 miss → toolchain 重编。改 `.github/workflows/build-lfs-iso.yml` 不触发 key 变化。

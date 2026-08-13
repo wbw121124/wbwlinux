@@ -337,6 +337,7 @@ cd       build
     --with-build-sysroot=$LFS  \
     --enable-default-pie       \
     --enable-default-ssp       \
+    --disable-fixincludes      \
     --disable-nls              \
     --disable-multilib         \
     --disable-libatomic        \
@@ -346,8 +347,19 @@ cd       build
     --disable-libssp           \
     --disable-libvtv           \
     --enable-languages=c,c++   \
-    LDFLAGS_FOR_TARGET=-L$PWD/$LFS_TGT/libgcc
+    CXX_FOR_TARGET="$LFS_TGT-gcc -nostdinc++" \
+    LDFLAGS_FOR_TARGET=-L$PWD/$LFS_TGT/libgcc \
+    target_configargs=gcc_cv_target_thread_file=posix
 make
 make DESTDIR=$LFS install
+# 6.18 assertion: pass2 must install the libgcc runtime artifacts
+# (run#13/14: configure-target-libgcc failed silently, crtbeginS.o/libgcc
+#  were never installed -> 'cannot find crtbeginS.o' at first link)
+GCC_LIBGCC_DIR="$LFS/usr/lib/gcc/$LFS_TGT/15.2.0"
+for f in crtbeginS.o libgcc.a libgcc_s.so; do
+    [ -e "$GCC_LIBGCC_DIR/$f" ] \
+        || die "pass2 libgcc artifact missing: $GCC_LIBGCC_DIR/$f"
+done
+log "==> pass2 libgcc assertion OK: $GCC_LIBGCC_DIR/{crtbeginS.o,libgcc.a,libgcc_s.so}"
 ln -sv gcc $LFS/usr/bin/cc
 CMD

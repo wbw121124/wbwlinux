@@ -24,7 +24,7 @@ echo "rootsbindir=/usr/sbin" > configparms
              --enable-stack-protector=strong \
              --enable-kernel=5.4
 make
-grep "Timed out" $(find -name \*.out)
+grep "Timed out" $(find -name \*.out) || true
 touch /etc/ld.so.conf
 sed '/test-installation/s@$(PERL)@echo not running@' -i ../Makefile
 rm -f /usr/sbin/nscd
@@ -331,7 +331,7 @@ cd       build
              --with-system-zlib  \
              --enable-default-hash-style=gnu
 make tooldir=/usr
-grep '^FAIL:' $(find -name '*.log')
+grep '^FAIL:' $(find -name '*.log') || true
 make tooldir=/usr install
 rm -rfv /usr/lib/lib{bfd,ctf,ctf-nobfd,gprofng,opcodes,sframe}.a \
         /usr/share/doc/gprofng/
@@ -339,7 +339,6 @@ CMD
 
 # --- 8.22. GMP-6.3.0
 pkg_run 'gmp-6.3.0' <<'CMD'
-ABI=32 ./configure ...
 sed -i '/long long t1;/,+1s/()/(...)/' configure
 ./configure --prefix=/usr    \
             --enable-cxx     \
