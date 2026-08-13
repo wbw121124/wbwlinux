@@ -14,9 +14,9 @@ export SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export STAGES_DIR="$SCRIPTS_DIR/stages"
 export CONFIG_DIR="$(dirname "$SCRIPTS_DIR")/config"
 
-# Parallelism: GitHub hosted runners have 2 vCPUs
+# Parallelism: GitHub hosted runners have 2 vCPUs; oversubscribe by one
 export NPROC="$(nproc)"
-export MAKEFLAGS="-j$NPROC"
+export MAKEFLAGS="-j$((NPROC >= 2 ? NPROC + 1 : NPROC))"
 
 # Package versions for extras (BLFS 13.0 / upstream binaries)
 export NODE_VER=v24.19.0

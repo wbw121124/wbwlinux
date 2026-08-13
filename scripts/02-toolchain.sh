@@ -22,7 +22,7 @@ log "==> mounting virtual kernel file systems"
 mount_kernfs
 
 # --- environment for the host-side cross build (LFS 4.4 equivalent) ---
-export PATH="$LFS_ROOT/tools/bin:$PATH"
+export PATH="$LFS_ROOT/ccache-wrap:$LFS_ROOT/tools/bin:$PATH"
 export CONFIG_SITE="$LFS_ROOT/usr/share/config.site"
 export LC_ALL=POSIX
 export LFS="$LFS_ROOT"

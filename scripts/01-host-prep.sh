@@ -25,7 +25,7 @@ if command -v apt-get >/dev/null 2>&1; then
         binutils bison gawk gcc g++ make patch python3 texinfo \
         wget xz-utils zstd xorriso mtools dosfstools cpio squashfs-tools \
         grub-common grub-pc-bin grub-efi-amd64-bin \
-        gnupg curl ca-certificates
+        gnupg curl ca-certificates ccache
     apt-get clean
 fi
 
@@ -33,6 +33,17 @@ for tool in gcc make bison gawk python3 wget xz zstd xorriso mksquashfs cpio; do
     command -v "$tool" >/dev/null 2>&1 || die "host tool '$tool' missing"
 done
 log "==> host prerequisites OK"
+
+# --- ccache wrapper links (host-side toolchain builds) --------------
+# Invoked as gcc/g++/cc/c++ or as the cross $LFS_TGT-*; ccache finds the
+# real compiler by searching PATH, skipping its own link dir.
+mkdir -pv "$LFS_ROOT/ccache-wrap"
+for t in gcc g++ cc c++ \
+         x86_64-lfs-linux-gnu-gcc x86_64-lfs-linux-gnu-g++ \
+         x86_64-lfs-linux-gnu-cc x86_64-lfs-linux-gnu-c++; do
+    ln -sf "$(command -v ccache)" "$LFS_ROOT/ccache-wrap/$t"
+done
+log "==> ccache wrappers ready"
 
 # --- directory layout (LFS 4.2) ---------------------------------------
 mkdir -pv "$LFS_ROOT"
