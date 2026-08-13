@@ -105,10 +105,17 @@ jobs:
           chroot /mnt/lfs /usr/bin/env -i HOME=/root PATH=/usr/bin:/usr/sbin /bin/bash -c "gcc -v 2>&1"
           echo "=== which progs will gcc exec ==="
           chroot /mnt/lfs /usr/bin/env -i HOME=/root PATH=/usr/bin:/usr/sbin /bin/bash -c "gcc -print-prog-name=cc1; gcc -print-prog-name=collect2; gcc -print-prog-name=as; gcc -print-prog-name=ld; gcc -print-file-name=crt1.o; gcc -print-file-name=Scrt1.o; gcc -print-search-dirs"
-          echo "=== chroot smoke compile ==="
-          chroot /mnt/lfs /usr/bin/env -i HOME=/root PATH=/usr/bin:/usr/sbin /bin/bash -c "printf 'int main(){return 0;}\n' > /tmp/t.c; gcc /tmp/t.c -o /tmp/t 2>&1; echo gcc_rc=\$?; if [ -x /tmp/t ]; then /tmp/t && echo SMOKE-OK || echo SMOKE-RUNFAIL; else echo NO-BINARY; fi"
+          echo "=== chroot smoke compile (v) ==="
+          chroot /mnt/lfs /usr/bin/env -i HOME=/root PATH=/usr/bin:/usr/sbin /bin/bash -c "mkdir -p /tmp; cd /tmp; printf 'int main(){return 0;}\n' > t.c; gcc -v t.c -o t 2>&1; echo gcc_rc=\$?; if [ -x /tmp/t ]; then /tmp/t && echo SMOKE-OK || echo SMOKE-RUNFAIL; else echo NO-BINARY; fi"
+          echo "=== binutils runtime (chroot) ==="
+          chroot /mnt/lfs /usr/bin/env -i HOME=/root PATH=/usr/bin:/usr/sbin /bin/bash -c "ld --version 2>&1 | head -3; echo ld_rc=\$?; as --version 2>&1 | head -2; echo as_rc=\$?; ls -l /usr/x86_64-lfs-linux-gnu/bin/ 2>&1"
+          echo "=== loader --list ld (NEEDED libs resolvable?) ==="
+          chroot /mnt/lfs /usr/lib/ld-linux-x86-64.so.2 --list /usr/bin/ld 2>&1
+          echo "=== libgcc / libbfd locations ==="
+          ls -l /mnt/lfs/usr/lib/libgcc_s.so* /mnt/lfs/usr/lib/libbfd* /mnt/lfs/usr/lib/libctf* /mnt/lfs/usr/lib/libsframe* 2>&1
+          find /mnt/lfs/usr -name 'libgcc.a' -o -name 'libgcc_eh.a' -o -name 'libgcc_s.so*' 2>/dev/null
           echo "=== key files ==="
-          chroot /mnt/lfs /usr/bin/env -i HOME=/root PATH=/usr/bin:/usr/sbin /bin/bash -c "ls -ld /lib64 /lib /usr/lib; ls -l /lib64/ld-linux-x86-64.so.2 /usr/lib/ld-linux-x86-64.so.2 /usr/lib/libc.so.6 /usr/lib/crt1.o /usr/lib/Scrt1.o /usr/lib/libgcc_s.so.1 2>&1; ls -l /usr/libexec/gcc/x86_64-lfs-linux-gnu/15.2.0/cc1 /usr/libexec/gcc/x86_64-lfs-linux-gnu/15.2.0/collect2 /usr/bin/gcc /usr/bin/ld 2>&1"
+          chroot /mnt/lfs /usr/bin/env -i HOME=/root PATH=/usr/bin:/usr/sbin /bin/bash -c "ls -ld /lib64 /lib /usr/lib; ls -l /lib64/ld-linux-x86-64.so.2 /usr/lib/ld-linux-x86-64.so.2 /usr/lib/libc.so.6 /usr/lib/crt1.o /usr/lib/Scrt1.o 2>&1; ls -l /usr/libexec/gcc/x86_64-lfs-linux-gnu/15.2.0/cc1 /usr/libexec/gcc/x86_64-lfs-linux-gnu/15.2.0/collect2 /usr/bin/gcc /usr/bin/ld 2>&1"
           echo "=== ld.so.conf ==="
           cat /mnt/lfs/etc/ld.so.conf 2>&1
           for d in dev/pts dev/shm dev run proc sys; do umount /mnt/lfs/$d 2>/dev/null; done
