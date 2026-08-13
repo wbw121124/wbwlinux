@@ -43,7 +43,7 @@ chmod -v a+wt "$SOURCES"
 for i in bin lib sbin; do
     ln -sv usr/$i "$LFS_ROOT/$i"
 done
-[ -d "$LFS_ROOT/lib64" ] || ln -sv usr/lib "$LFS_ROOT/lib64"
+mkdir -pv "$LFS_ROOT/lib64"
 ln -sv usr/bin "$LFS_ROOT/bin" 2>/dev/null || true
 
 # --- download all sources (skip if already present, e.g. restored) ----

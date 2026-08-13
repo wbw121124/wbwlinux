@@ -15,6 +15,7 @@ jobs:
   toolchain:
     name: Toolchain (ch5+ch6)
     runs-on: ubuntu-latest
+    if: false # TEMP: diagnostics run, toolchain skipped
     steps:
       - uses: actions/checkout@v4
 
@@ -47,11 +48,27 @@ jobs:
         with:
           name: snapshot-toolchain
           path: .artifacts
+          run-id: 31664099635
 
       - name: Restore toolchain snapshot
         run: bash scripts/common.sh --restore toolchain
 
+      - name: DIAGNOSE restored tree (TEMP)
+        run: |
+          set +e
+          echo "=== ls /mnt/lfs ==="; ls -la /mnt/lfs 2>&1
+          echo "=== /usr ==="; stat -c '%F %N' /mnt/lfs/usr 2>&1
+          echo "=== /usr/bin ==="; stat -c '%F %N' /mnt/lfs/usr/bin 2>&1
+          echo "=== ls /usr/bin (first 25) ==="; ls -la /mnt/lfs/usr/bin 2>&1 | head -25
+          echo "=== /usr/bin/env ==="; file /mnt/lfs/usr/bin/env 2>&1; readlink -f /mnt/lfs/usr/bin/env 2>&1
+          echo "=== /bin ==="; stat -c '%F %N' /mnt/lfs/bin 2>&1; readlink /mnt/lfs/bin 2>&1
+          echo "=== /lib ==="; stat -c '%F %N' /mnt/lfs/lib 2>&1; readlink /mnt/lfs/lib 2>&1
+          echo "=== /lib64 ==="; stat -c '%F %N' /mnt/lfs/lib64 2>&1; readlink /mnt/lfs/lib64 2>&1
+          echo "=== /tools ==="; ls -la /mnt/lfs/tools 2>&1 | head -10
+          echo "=== ld-linux chain ==="; ls -la /mnt/lfs/usr/lib/ld-linux* 2>&1
+
       - name: Build base system in chroot
+        if: false # TEMP: diagnostics run
         run: bash scripts/03-chroot-base.sh
 
       - name: Snapshot base system
