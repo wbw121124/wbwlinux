@@ -3,11 +3,16 @@
 #     download and verify all LFS source tarballs.
 
 set -euo pipefail
+# re-exec as root if needed (GitHub hosted runners are non-root users)
+if [ "$(id -u)" -ne 0 ]; then
+    exec sudo -E bash "$0" "$@"
+fi
+
 cd "$(dirname "$0")"
 source env.sh
 source common.sh
 
-[ "$(id -u)" -eq 0 ] || die "must run as root (ubuntu-latest runners run as root)"
+[ "$(id -u)" -eq 0 ] || die "must run as root"
 
 log "==> host: $(uname -r) $(uname -m), $(nproc) cores, $(free -g | awk '/Mem:/{print $2}') GB RAM"
 

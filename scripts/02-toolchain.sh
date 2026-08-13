@@ -4,6 +4,11 @@
 #     $LFS_ROOT/tools and $LFS_ROOT/usr, then sets up the chroot filesystems.
 
 set -euo pipefail
+# re-exec as root if needed (GitHub hosted runners are non-root users)
+if [ "$(id -u)" -ne 0 ]; then
+    exec sudo -E bash "$0" "$@"
+fi
+
 cd "$(dirname "$0")"
 source env.sh
 source common.sh

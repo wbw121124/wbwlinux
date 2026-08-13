@@ -121,10 +121,14 @@ umount_kernfs() {
 # ---------------------------------------------------------------------------
 # CLI entry for the workflow: bash common.sh --snapshot <name>
 # ---------------------------------------------------------------------------
-if [ "${1:-}" = "--snapshot" ]; then
+if [ "${1:-}" = "--snapshot" ] || [ "${1:-}" = "--restore" ]; then
+    if [ "$(id -u)" -ne 0 ]; then
+        exec sudo -E bash "$0" "$@"
+    fi
     source "$(dirname "$0")/env.sh"
-    snapshot "${2:?}"
-elif [ "${1:-}" = "--restore" ]; then
-    source "$(dirname "$0")/env.sh"
-    restore "${2:?}"
+    if [ "${1:-}" = "--snapshot" ]; then
+        snapshot "${2:?}"
+    else
+        restore "${2:?}"
+    fi
 fi
