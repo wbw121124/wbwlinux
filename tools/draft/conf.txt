@@ -1,0 +1,124 @@
+### [conf-glibc] 8.5.2. Configuring
+                Glibc
+cat > /etc/nsswitch.conf << "EOF"
+<code class="literal"># Begin /etc/nsswitch.conf
+
+passwd: files systemd
+group: files systemd
+shadow: files systemd
+
+hosts: mymachines resolve [!UNAVAIL=return] files myhostname dns
+networks: files
+
+protocols: files
+services: files
+ethers: files
+rpc: files
+
+# End /etc/nsswitch.conf</code>
+EOF
+
+### [conf-glibc] 8.5.2. Configuring
+                Glibc
+tar -xf ../../tzdata2025c.tar.gz
+
+ZONEINFO=/usr/share/zoneinfo
+mkdir -pv $ZONEINFO/{posix,right}
+
+for tz in etcetera southamerica northamerica europe africa antarctica  \
+          asia australasia backward; do
+    zic -L /dev/null   -d $ZONEINFO       ${tz}
+    zic -L /dev/null   -d $ZONEINFO/posix ${tz}
+    zic -L leapseconds -d $ZONEINFO/right ${tz}
+done
+
+cp -v zone.tab zone1970.tab iso3166.tab $ZONEINFO
+zic -d $ZONEINFO -p America/New_York
+unset ZONEINFO tz
+
+### [conf-glibc] 8.5.2. Configuring
+                Glibc
+tzselect
+
+### [conf-glibc] 8.5.2. Configuring
+                Glibc
+ln -sfv /usr/share/zoneinfo/<em class=
+                "replaceable"><code><xxx></code></em> /etc/localtime
+
+### [conf-glibc] 8.5.2. Configuring
+                Glibc
+cat > /etc/ld.so.conf << "EOF"
+<code class="literal"># Begin /etc/ld.so.conf
+/usr/local/lib
+/opt/lib
+</code>
+EOF
+
+### [conf-glibc] 8.5.2. Configuring
+                Glibc
+cat >> /etc/ld.so.conf << "EOF"
+<code class="literal"># Add an include directory
+include /etc/ld.so.conf.d/*.conf
+</code>
+EOF
+mkdir -pv /etc/ld.so.conf.d
+
+### [conf-shadow] 8.29.2.
+                Configuring Shadow
+pwconv
+
+### [conf-shadow] 8.29.2.
+                Configuring Shadow
+grpconv
+
+### [conf-shadow] 8.29.2.
+                Configuring Shadow
+mkdir -p /etc/default
+useradd -D --gid 999
+
+### [conf-shadow] 8.29.2.
+                Configuring Shadow
+sed -i '/MAIL/s/yes/no/' /etc/default/useradd
+
+### [conf-shadow] 8.29.2.
+                Configuring Shadow
+passwd root
+
+### [conf-vim] 8.75.2. Configuring Vim
+cat > /etc/vimrc << "EOF"
+<code class="literal">" Begin /etc/vimrc
+
+" Ensure defaults are set before customizing settings, not after
+source $VIMRUNTIME/defaults.vim
+let skip_defaults_vim=1
+
+set nocompatible
+set backspace=2
+set mouse=
+syntax on
+if (&term == "xterm") || (&term == "putty")
+  set background=dark
+endif
+
+" End /etc/vimrc</code>
+EOF
+
+### [conf-vim] 8.75.2. Configuring Vim
+vim -c ':options'
+
+### [conf-e2fsprogs] 8.83.2.
+                Configuring E2fsprogs
+sed 's/metadata_csum_seed,//' -i /etc/mke2fs.conf
+
+### [conf-modprobe] 10.3.2.
+                Configuring Linux Module Load Order
+install -v -m755 -d /etc/modprobe.d
+cat > /etc/modprobe.d/usb.conf << "EOF"
+<code class="literal"># Begin /etc/modprobe.d/usb.conf
+
+install ohci_hcd /sbin/modprobe ehci_hcd ; /sbin/modprobe -i ohci_hcd ; true
+install uhci_hcd /sbin/modprobe ehci_hcd ; /sbin/modprobe -i uhci_hcd ; true
+
+# End /etc/modprobe.d/usb.conf</code>
+EOF
+

@@ -1,0 +1,1552 @@
+### [ch-system-man-pages] 8.3. Man-pages-6.17
+rm -v man3/crypt*
+
+### [ch-system-man-pages] 8.3. Man-pages-6.17
+make -R GIT=false prefix=/usr install
+
+### [ch-system-iana-etc] 8.4. Iana-Etc-20260202
+cp -v services protocols /etc
+
+### [ch-system-glibc] 8.5. Glibc-2.43
+patch -Np1 -i ../glibc-fhs-1.patch
+
+### [ch-system-glibc] 8.5. Glibc-2.43
+mkdir -v build
+cd       build
+
+### [ch-system-glibc] 8.5. Glibc-2.43
+echo "rootsbindir=/usr/sbin" > configparms
+
+### [ch-system-glibc] 8.5. Glibc-2.43
+../configure --prefix=/usr                   \
+             --disable-werror                \
+             --disable-nscd                  \
+             libc_cv_slibdir=/usr/lib        \
+             --enable-stack-protector=strong \
+             --enable-kernel=5.4
+
+### [ch-system-glibc] 8.5. Glibc-2.43
+make
+
+### [ch-system-glibc] 8.5. Glibc-2.43
+grep "Timed out" $(find -name \*.out)
+
+### [ch-system-glibc] 8.5. Glibc-2.43
+touch /etc/ld.so.conf
+
+### [ch-system-glibc] 8.5. Glibc-2.43
+sed '/test-installation/s@$(PERL)@echo not running@' -i ../Makefile
+
+### [ch-system-glibc] 8.5. Glibc-2.43
+rm -f /usr/sbin/nscd
+
+### [ch-system-glibc] 8.5. Glibc-2.43
+systemctl disable --now nscd
+
+### [ch-system-glibc] 8.5. Glibc-2.43
+make DESTDIR=$PWD/dest install
+install -vm755 dest/usr/lib/*.so.* /usr/lib
+
+### [ch-system-glibc] 8.5. Glibc-2.43
+DIR=$(dirname $(gcc -print-libgcc-file-name))
+[ -e $DIR/include/limits.h ]    || mv $DIR/include{-fixed,}/limits.h
+[ -e $DIR/include/syslimits.h ] || mv $DIR/include{-fixed,}/syslimits.h
+rm -rfv $DIR/include-fixed/*
+unset DIR
+
+### [ch-system-glibc] 8.5. Glibc-2.43
+make install
+
+### [ch-system-glibc] 8.5. Glibc-2.43
+sed '/RTLDLIST=/s@/usr@@g' -i /usr/bin/ldd
+
+### [ch-system-glibc] 8.5. Glibc-2.43
+localedef -i C -f UTF-8 C.UTF-8
+localedef -i cs_CZ -f UTF-8 cs_CZ.UTF-8
+localedef -i de_DE -f ISO-8859-1 de_DE
+localedef -i de_DE@euro -f ISO-8859-15 de_DE@euro
+localedef -i de_DE -f UTF-8 de_DE.UTF-8
+localedef -i el_GR -f ISO-8859-7 el_GR
+localedef -i en_GB -f ISO-8859-1 en_GB
+localedef -i en_GB -f UTF-8 en_GB.UTF-8
+localedef -i en_HK -f ISO-8859-1 en_HK
+localedef -i en_PH -f ISO-8859-1 en_PH
+localedef -i en_US -f ISO-8859-1 en_US
+localedef -i en_US -f UTF-8 en_US.UTF-8
+localedef -i es_ES -f ISO-8859-15 es_ES@euro
+localedef -i es_MX -f ISO-8859-1 es_MX
+localedef -i fa_IR -f UTF-8 fa_IR
+localedef -i fr_FR -f ISO-8859-1 fr_FR
+localedef -i fr_FR@euro -f ISO-8859-15 fr_FR@euro
+localedef -i fr_FR -f UTF-8 fr_FR.UTF-8
+localedef -i is_IS -f ISO-8859-1 is_IS
+localedef -i is_IS -f UTF-8 is_IS.UTF-8
+localedef -i it_IT -f ISO-8859-1 it_IT
+localedef -i it_IT -f ISO-8859-15 it_IT@euro
+localedef -i it_IT -f UTF-8 it_IT.UTF-8
+localedef -i ja_JP -f EUC-JP ja_JP
+localedef -i ja_JP -f UTF-8 ja_JP.UTF-8
+localedef -i nl_NL@euro -f ISO-8859-15 nl_NL@euro
+localedef -i ru_RU -f KOI8-R ru_RU.KOI8-R
+localedef -i ru_RU -f UTF-8 ru_RU.UTF-8
+localedef -i se_NO -f UTF-8 se_NO.UTF-8
+localedef -i ta_IN -f UTF-8 ta_IN.UTF-8
+localedef -i tr_TR -f UTF-8 tr_TR.UTF-8
+localedef -i zh_CN -f GB18030 zh_CN.GB18030
+localedef -i zh_HK -f BIG5-HKSCS zh_HK.BIG5-HKSCS
+localedef -i zh_TW -f UTF-8 zh_TW.UTF-8
+
+### [ch-system-glibc] 8.5. Glibc-2.43
+make localedata/install-locales
+
+### [ch-system-zlib] 8.6. Zlib-1.3.2
+./configure --prefix=/usr
+
+### [ch-system-zlib] 8.6. Zlib-1.3.2
+make
+
+### [ch-system-zlib] 8.6. Zlib-1.3.2
+make install
+
+### [ch-system-zlib] 8.6. Zlib-1.3.2
+rm -fv /usr/lib/libz.a
+
+### [ch-system-bzip2] 8.7. Bzip2-1.0.8
+patch -Np1 -i ../bzip2-1.0.8-install_docs-1.patch
+
+### [ch-system-bzip2] 8.7. Bzip2-1.0.8
+sed -i 's@\(ln -s -f \)$(PREFIX)/bin/@\1@' Makefile
+
+### [ch-system-bzip2] 8.7. Bzip2-1.0.8
+sed -i "s@(PREFIX)/man@(PREFIX)/share/man@g" Makefile
+
+### [ch-system-bzip2] 8.7. Bzip2-1.0.8
+make -f Makefile-libbz2_so
+make clean
+
+### [ch-system-bzip2] 8.7. Bzip2-1.0.8
+make
+
+### [ch-system-bzip2] 8.7. Bzip2-1.0.8
+make PREFIX=/usr install
+
+### [ch-system-bzip2] 8.7. Bzip2-1.0.8
+cp -av libbz2.so.* /usr/lib
+ln -sfv libbz2.so.1.0.8 /usr/lib/libbz2.so
+
+### [ch-system-bzip2] 8.7. Bzip2-1.0.8
+ln -sfv libbz2.so.1.0.8 /usr/lib/libbz2.so.1
+
+### [ch-system-bzip2] 8.7. Bzip2-1.0.8
+cp -v bzip2-shared /usr/bin/bzip2
+for i in /usr/bin/{bzcat,bunzip2}; do
+  ln -sfv bzip2 $i
+done
+
+### [ch-system-bzip2] 8.7. Bzip2-1.0.8
+rm -fv /usr/lib/libbz2.a
+
+### [ch-system-xz] 8.8. Xz-5.8.2
+./configure --prefix=/usr    \
+            --disable-static \
+            --docdir=/usr/share/doc/xz-5.8.2
+
+### [ch-system-xz] 8.8. Xz-5.8.2
+make
+
+### [ch-system-xz] 8.8. Xz-5.8.2
+make install
+
+### [ch-system-lz4] 8.9. Lz4-1.10.0
+make BUILD_STATIC=no PREFIX=/usr
+
+### [ch-system-lz4] 8.9. Lz4-1.10.0
+make BUILD_STATIC=no PREFIX=/usr install
+
+### [ch-system-zstd] 8.10. Zstd-1.5.7
+make prefix=/usr
+
+### [ch-system-zstd] 8.10. Zstd-1.5.7
+make prefix=/usr install
+
+### [ch-system-zstd] 8.10. Zstd-1.5.7
+rm -v /usr/lib/libzstd.a
+
+### [ch-system-file] 8.11. File-5.46
+./configure --prefix=/usr
+
+### [ch-system-file] 8.11. File-5.46
+make
+
+### [ch-system-file] 8.11. File-5.46
+make install
+
+### [ch-system-readline] 8.12. Readline-8.3
+sed -i '/MV.*old/d' Makefile.in
+sed -i '/{OLDSUFF}/c:' support/shlib-install
+
+### [ch-system-readline] 8.12. Readline-8.3
+sed -i 's/-Wl,-rpath,[^ ]*//' support/shobj-conf
+
+### [ch-system-readline] 8.12. Readline-8.3
+sed -e '270a\
+     else\
+       chars_avail = 1;'      \
+    -e '288i\   result = -1;' \
+    -i.orig input.c
+
+### [ch-system-readline] 8.12. Readline-8.3
+./configure --prefix=/usr    \
+            --disable-static \
+            --with-curses    \
+            --docdir=/usr/share/doc/readline-8.3
+
+### [ch-system-readline] 8.12. Readline-8.3
+make SHLIB_LIBS="-lncursesw"
+
+### [ch-system-readline] 8.12. Readline-8.3
+make install
+
+### [ch-system-readline] 8.12. Readline-8.3
+install -v -m644 doc/*.{ps,pdf,html,dvi} /usr/share/doc/readline-8.3
+
+### [ch-system-pcre2] 8.13. Pcre2-10.47
+./configure --prefix=/usr                       \
+            --docdir=/usr/share/doc/pcre2-10.47 \
+            --enable-unicode                    \
+            --enable-jit                        \
+            --enable-pcre2-16                   \
+            --enable-pcre2-32                   \
+            --enable-pcre2grep-libz             \
+            --enable-pcre2grep-libbz2           \
+            --enable-pcre2test-libreadline      \
+            --disable-static
+
+### [ch-system-pcre2] 8.13. Pcre2-10.47
+make
+
+### [ch-system-pcre2] 8.13. Pcre2-10.47
+make install
+
+### [ch-system-m4] 8.14. M4-1.4.21
+./configure --prefix=/usr
+
+### [ch-system-m4] 8.14. M4-1.4.21
+make
+
+### [ch-system-m4] 8.14. M4-1.4.21
+make install
+
+### [ch-system-bc] 8.15. Bc-7.0.3
+CC='gcc -std=c99' ./configure --prefix=/usr -G -O3 -r
+
+### [ch-system-bc] 8.15. Bc-7.0.3
+make
+
+### [ch-system-bc] 8.15. Bc-7.0.3
+make install
+
+### [ch-system-flex] 8.16. Flex-2.6.4
+./configure --prefix=/usr    \
+            --disable-static \
+            --docdir=/usr/share/doc/flex-2.6.4
+
+### [ch-system-flex] 8.16. Flex-2.6.4
+make
+
+### [ch-system-flex] 8.16. Flex-2.6.4
+make install
+
+### [ch-system-flex] 8.16. Flex-2.6.4
+ln -sv flex   /usr/bin/lex
+ln -sv flex.1 /usr/share/man/man1/lex.1
+
+### [ch-system-tcl] 8.17. Tcl-8.6.17
+SRCDIR=$(pwd)
+cd unix
+./configure --prefix=/usr           \
+            --mandir=/usr/share/man \
+            --disable-rpath
+
+### [ch-system-tcl] 8.17. Tcl-8.6.17
+make
+
+sed -e "s|$SRCDIR/unix|/usr/lib|" \
+    -e "s|$SRCDIR|/usr/include|"  \
+    -i tclConfig.sh
+
+sed -e "s|$SRCDIR/unix/pkgs/tdbc1.1.12|/usr/lib/tdbc1.1.12|" \
+    -e "s|$SRCDIR/pkgs/tdbc1.1.12/generic|/usr/include|"     \
+    -e "s|$SRCDIR/pkgs/tdbc1.1.12/library|/usr/lib/tcl8.6|"  \
+    -e "s|$SRCDIR/pkgs/tdbc1.1.12|/usr/include|"             \
+    -i pkgs/tdbc1.1.12/tdbcConfig.sh
+
+sed -e "s|$SRCDIR/unix/pkgs/itcl4.3.4|/usr/lib/itcl4.3.4|" \
+    -e "s|$SRCDIR/pkgs/itcl4.3.4/generic|/usr/include|"    \
+    -e "s|$SRCDIR/pkgs/itcl4.3.4|/usr/include|"            \
+    -i pkgs/itcl4.3.4/itclConfig.sh
+
+unset SRCDIR
+
+### [ch-system-tcl] 8.17. Tcl-8.6.17
+LC_ALL=C.UTF-8 make test
+
+### [ch-system-tcl] 8.17. Tcl-8.6.17
+make install 
+chmod 644 /usr/lib/libtclstub8.6.a
+
+### [ch-system-tcl] 8.17. Tcl-8.6.17
+chmod -v u+w /usr/lib/libtcl8.6.so
+
+### [ch-system-tcl] 8.17. Tcl-8.6.17
+make install-private-headers
+
+### [ch-system-tcl] 8.17. Tcl-8.6.17
+ln -sfv tclsh8.6 /usr/bin/tclsh
+
+### [ch-system-tcl] 8.17. Tcl-8.6.17
+mv -v /usr/share/man/man3/{Thread,Tcl_Thread}.3
+
+### [ch-system-tcl] 8.17. Tcl-8.6.17
+cd ..
+tar -xf ../tcl8.6.17-html.tar.gz --strip-components=1
+mkdir -v -p /usr/share/doc/tcl-8.6.17
+cp -v -r  ./html/* /usr/share/doc/tcl-8.6.17
+
+### [ch-system-expect] 8.18. Expect-5.45.4
+python3 -c 'from pty import spawn; spawn(["echo", "ok"])'
+
+### [ch-system-expect] 8.18. Expect-5.45.4
+patch -Np1 -i ../expect-5.45.4-gcc15-1.patch
+
+### [ch-system-expect] 8.18. Expect-5.45.4
+./configure --prefix=/usr           \
+            --with-tcl=/usr/lib     \
+            --enable-shared         \
+            --disable-rpath         \
+            --mandir=/usr/share/man \
+            --with-tclinclude=/usr/include
+
+### [ch-system-expect] 8.18. Expect-5.45.4
+make
+
+### [ch-system-expect] 8.18. Expect-5.45.4
+make install
+ln -svf expect5.45.4/libexpect5.45.4.so /usr/lib
+
+### [ch-system-dejagnu] 8.19. DejaGNU-1.6.3
+mkdir -v build
+cd       build
+
+### [ch-system-dejagnu] 8.19. DejaGNU-1.6.3
+../configure --prefix=/usr
+makeinfo --html --no-split -o doc/dejagnu.html ../doc/dejagnu.texi
+makeinfo --plaintext       -o doc/dejagnu.txt  ../doc/dejagnu.texi
+
+### [ch-system-dejagnu] 8.19. DejaGNU-1.6.3
+make install
+install -v -dm755  /usr/share/doc/dejagnu-1.6.3
+install -v -m644   doc/dejagnu.{html,txt} /usr/share/doc/dejagnu-1.6.3
+
+### [ch-system-pkgconf] 8.20. Pkgconf-2.5.1
+./configure --prefix=/usr    \
+            --disable-static \
+            --docdir=/usr/share/doc/pkgconf-2.5.1
+
+### [ch-system-pkgconf] 8.20. Pkgconf-2.5.1
+make
+
+### [ch-system-pkgconf] 8.20. Pkgconf-2.5.1
+make install
+
+### [ch-system-pkgconf] 8.20. Pkgconf-2.5.1
+ln -sv pkgconf   /usr/bin/pkg-config
+ln -sv pkgconf.1 /usr/share/man/man1/pkg-config.1
+
+### [ch-system-binutils] 8.21. Binutils-2.46.0
+mkdir -v build
+cd       build
+
+### [ch-system-binutils] 8.21. Binutils-2.46.0
+../configure --prefix=/usr       \
+             --sysconfdir=/etc   \
+             --enable-ld=default \
+             --enable-plugins    \
+             --enable-shared     \
+             --disable-werror    \
+             --enable-64-bit-bfd \
+             --enable-new-dtags  \
+             --with-system-zlib  \
+             --enable-default-hash-style=gnu
+
+### [ch-system-binutils] 8.21. Binutils-2.46.0
+make tooldir=/usr
+
+### [ch-system-binutils] 8.21. Binutils-2.46.0
+grep '^FAIL:' $(find -name '*.log')
+
+### [ch-system-binutils] 8.21. Binutils-2.46.0
+make tooldir=/usr install
+
+### [ch-system-binutils] 8.21. Binutils-2.46.0
+rm -rfv /usr/lib/lib{bfd,ctf,ctf-nobfd,gprofng,opcodes,sframe}.a \
+        /usr/share/doc/gprofng/
+
+### [ch-system-gmp] 8.22. GMP-6.3.0
+<em class=
+                "parameter"><code>ABI=32</code></em> ./configure ...
+
+### [ch-system-gmp] 8.22. GMP-6.3.0
+sed -i '/long long t1;/,+1s/()/(...)/' configure
+
+### [ch-system-gmp] 8.22. GMP-6.3.0
+./configure --prefix=/usr    \
+            --enable-cxx     \
+            --disable-static \
+            --docdir=/usr/share/doc/gmp-6.3.0
+
+### [ch-system-gmp] 8.22. GMP-6.3.0
+make
+make html
+
+### [ch-system-gmp] 8.22. GMP-6.3.0
+awk '/# PASS:/{total+=$3} ; END{print total}' gmp-check-log
+
+### [ch-system-gmp] 8.22. GMP-6.3.0
+make install
+make install-html
+
+### [ch-system-mpfr] 8.23. MPFR-4.2.2
+./configure --prefix=/usr        \
+            --disable-static     \
+            --enable-thread-safe \
+            --docdir=/usr/share/doc/mpfr-4.2.2
+
+### [ch-system-mpfr] 8.23. MPFR-4.2.2
+make
+make html
+
+### [ch-system-mpfr] 8.23. MPFR-4.2.2
+make install
+make install-html
+
+### [ch-system-mpc] 8.24. MPC-1.3.1
+./configure --prefix=/usr    \
+            --disable-static \
+            --docdir=/usr/share/doc/mpc-1.3.1
+
+### [ch-system-mpc] 8.24. MPC-1.3.1
+make
+make html
+
+### [ch-system-mpc] 8.24. MPC-1.3.1
+make install
+make install-html
+
+### [ch-system-attr] 8.25. Attr-2.5.2
+./configure --prefix=/usr     \
+            --disable-static  \
+            --sysconfdir=/etc \
+            --docdir=/usr/share/doc/attr-2.5.2
+
+### [ch-system-attr] 8.25. Attr-2.5.2
+make
+
+### [ch-system-attr] 8.25. Attr-2.5.2
+make install
+
+### [ch-system-acl] 8.26. Acl-2.3.2
+./configure --prefix=/usr    \
+            --disable-static \
+            --docdir=/usr/share/doc/acl-2.3.2
+
+### [ch-system-acl] 8.26. Acl-2.3.2
+make
+
+### [ch-system-acl] 8.26. Acl-2.3.2
+make install
+
+### [ch-system-libcap] 8.27. Libcap-2.77
+sed -i '/install -m.*STA/d' libcap/Makefile
+
+### [ch-system-libcap] 8.27. Libcap-2.77
+make prefix=/usr lib=lib
+
+### [ch-system-libcap] 8.27. Libcap-2.77
+make prefix=/usr lib=lib install
+
+### [ch-system-libxcrypt] 8.28. Libxcrypt-4.5.2
+sed -i '/strchr/s/const//' lib/crypt-{sm3,gost}-yescrypt.c
+
+### [ch-system-libxcrypt] 8.28. Libxcrypt-4.5.2
+./configure --prefix=/usr                \
+            --enable-hashes=strong,glibc \
+            --enable-obsolete-api=no     \
+            --disable-static             \
+            --disable-failure-tokens
+
+### [ch-system-libxcrypt] 8.28. Libxcrypt-4.5.2
+make
+
+### [ch-system-libxcrypt] 8.28. Libxcrypt-4.5.2
+make install
+
+### [ch-system-libxcrypt] 8.28. Libxcrypt-4.5.2
+make distclean
+./configure --prefix=/usr                \
+            --enable-hashes=strong,glibc \
+            --enable-obsolete-api=glibc  \
+            --disable-static             \
+            --disable-failure-tokens
+make
+cp -av --remove-destination .libs/libcrypt.so.1* /usr/lib
+
+### [ch-system-shadow] 8.29. Shadow-4.19.3
+sed -i 's/groups$(EXEEXT) //' src/Makefile.in
+find man -name Makefile.in -exec sed -i 's/groups\.1 / /'   {} \;
+find man -name Makefile.in -exec sed -i 's/getspnam\.3 / /' {} \;
+find man -name Makefile.in -exec sed -i 's/passwd\.5 / /'   {} \;
+
+### [ch-system-shadow] 8.29. Shadow-4.19.3
+sed -e 's:#ENCRYPT_METHOD DES:ENCRYPT_METHOD YESCRYPT:' \
+    -e 's:/var/spool/mail:/var/mail:'                   \
+    -e '/PATH=/{s@/sbin:@@;s@/bin:@@}'                  \
+    -i etc/login.defs
+
+### [ch-system-shadow] 8.29. Shadow-4.19.3
+touch /usr/bin/passwd
+./configure --sysconfdir=/etc   \
+            --disable-static    \
+            --with-{b,yes}crypt \
+            --without-libbsd    \
+            --disable-logind    \
+            --with-group-name-max-length=32
+
+### [ch-system-shadow] 8.29. Shadow-4.19.3
+make
+
+### [ch-system-shadow] 8.29. Shadow-4.19.3
+make exec_prefix=/usr install
+make -C man install-man
+
+### [ch-system-gcc] 8.30. GCC-15.2.0
+sed -i 's/char [*]q/const &/' libgomp/affinity-fmt.c
+
+### [ch-system-gcc] 8.30. GCC-15.2.0
+case $(uname -m) in
+  x86_64)
+    sed -e '/m64=/s/lib64/lib/' \
+        -i.orig gcc/config/i386/t-linux64
+  ;;
+esac
+
+### [ch-system-gcc] 8.30. GCC-15.2.0
+mkdir -v build
+cd       build
+
+### [ch-system-gcc] 8.30. GCC-15.2.0
+../configure --prefix=/usr            \
+             LD=ld                    \
+             --enable-languages=c,c++ \
+             --enable-default-pie     \
+             --enable-default-ssp     \
+             --enable-host-pie        \
+             --disable-multilib       \
+             --disable-bootstrap      \
+             --disable-fixincludes    \
+             --with-system-zlib
+
+### [ch-system-gcc] 8.30. GCC-15.2.0
+make
+
+### [ch-system-gcc] 8.30. GCC-15.2.0
+ulimit -s -H unlimited
+
+### [ch-system-gcc] 8.30. GCC-15.2.0
+sed -e '/cpython/d' -i ../gcc/testsuite/gcc.dg/plugin/plugin.exp
+
+### [ch-system-gcc] 8.30. GCC-15.2.0
+chown -R tester .
+su tester -c "PATH=$PATH make -k check"
+
+### [ch-system-gcc] 8.30. GCC-15.2.0
+../contrib/test_summary
+
+### [ch-system-gcc] 8.30. GCC-15.2.0
+make install
+
+### [ch-system-gcc] 8.30. GCC-15.2.0
+chown -v -R root:root \
+    /usr/lib/gcc/$(gcc -dumpmachine)/15.2.0/include{,-fixed}
+
+### [ch-system-gcc] 8.30. GCC-15.2.0
+ln -svr /usr/bin/cpp /usr/lib
+
+### [ch-system-gcc] 8.30. GCC-15.2.0
+ln -sv gcc.1 /usr/share/man/man1/cc.1
+
+### [ch-system-gcc] 8.30. GCC-15.2.0
+ln -sfv ../../libexec/gcc/$(gcc -dumpmachine)/15.2.0/liblto_plugin.so \
+        /usr/lib/bfd-plugins/
+
+### [ch-system-gcc] 8.30. GCC-15.2.0
+echo 'int main(){}' | cc -x c - -v -Wl,--verbose &> dummy.log
+readelf -l a.out | grep ': /lib'
+
+### [ch-system-gcc] 8.30. GCC-15.2.0
+grep -E -o '/usr/lib.*/S?crt[1in].*succeeded' dummy.log
+
+### [ch-system-gcc] 8.30. GCC-15.2.0
+grep -B4 '^ /usr/include' dummy.log
+
+### [ch-system-gcc] 8.30. GCC-15.2.0
+grep 'SEARCH.*/usr/lib' dummy.log |sed 's|; |\n|g'
+
+### [ch-system-gcc] 8.30. GCC-15.2.0
+grep "/lib.*/libc.so.6 " dummy.log
+
+### [ch-system-gcc] 8.30. GCC-15.2.0
+grep found dummy.log
+
+### [ch-system-gcc] 8.30. GCC-15.2.0
+rm -v a.out dummy.log
+
+### [ch-system-gcc] 8.30. GCC-15.2.0
+mkdir -pv /usr/share/gdb/auto-load/usr/lib
+mv -v /usr/lib/*gdb.py /usr/share/gdb/auto-load/usr/lib
+
+### [ch-system-ncurses] 8.31. Ncurses-6.6
+./configure --prefix=/usr           \
+            --mandir=/usr/share/man \
+            --with-shared           \
+            --without-debug         \
+            --without-normal        \
+            --with-cxx-shared       \
+            --enable-pc-files       \
+            --with-pkg-config-libdir=/usr/lib/pkgconfig
+
+### [ch-system-ncurses] 8.31. Ncurses-6.6
+make
+
+### [ch-system-ncurses] 8.31. Ncurses-6.6
+make DESTDIR=$PWD/dest install
+sed -e 's/^#if.*XOPEN.*$/#if 1/' \
+    -i dest/usr/include/curses.h
+cp --remove-destination -av dest/* /
+
+### [ch-system-ncurses] 8.31. Ncurses-6.6
+for lib in ncurses form panel menu ; do
+    ln -sfv lib${lib}w.so /usr/lib/lib${lib}.so
+    ln -sfv ${lib}w.pc    /usr/lib/pkgconfig/${lib}.pc
+done
+
+### [ch-system-ncurses] 8.31. Ncurses-6.6
+ln -sfv libncursesw.so /usr/lib/libcurses.so
+
+### [ch-system-ncurses] 8.31. Ncurses-6.6
+cp -v -R doc -T /usr/share/doc/ncurses-6.6
+
+### [ch-system-ncurses] 8.31. Ncurses-6.6
+make distclean
+./configure --prefix=/usr    \
+            --with-shared    \
+            --without-normal \
+            --without-debug  \
+            --without-cxx-binding \
+            --with-abi-version=5
+make sources libs
+cp -av lib/lib*.so.5* /usr/lib
+
+### [ch-system-sed] 8.32. Sed-4.9
+./configure --prefix=/usr
+
+### [ch-system-sed] 8.32. Sed-4.9
+make
+make html
+
+### [ch-system-sed] 8.32. Sed-4.9
+chown -R tester .
+su tester -c "PATH=$PATH make check"
+
+### [ch-system-sed] 8.32. Sed-4.9
+make install
+install -d -m755           /usr/share/doc/sed-4.9
+install -m644 doc/sed.html /usr/share/doc/sed-4.9
+
+### [ch-system-psmisc] 8.33. Psmisc-23.7
+./configure --prefix=/usr
+
+### [ch-system-psmisc] 8.33. Psmisc-23.7
+make
+
+### [ch-system-psmisc] 8.33. Psmisc-23.7
+make install
+
+### [ch-system-gettext] 8.34. Gettext-1.0
+./configure --prefix=/usr    \
+            --disable-static \
+            --docdir=/usr/share/doc/gettext-1.0
+
+### [ch-system-gettext] 8.34. Gettext-1.0
+make
+
+### [ch-system-gettext] 8.34. Gettext-1.0
+make install
+chmod -v 0755 /usr/lib/preloadable_libintl.so
+
+### [ch-system-bison] 8.35. Bison-3.8.2
+./configure --prefix=/usr --docdir=/usr/share/doc/bison-3.8.2
+
+### [ch-system-bison] 8.35. Bison-3.8.2
+make
+
+### [ch-system-bison] 8.35. Bison-3.8.2
+make install
+
+### [ch-system-grep] 8.36. Grep-3.12
+sed -i "s/echo/#echo/" src/egrep.sh
+
+### [ch-system-grep] 8.36. Grep-3.12
+./configure --prefix=/usr
+
+### [ch-system-grep] 8.36. Grep-3.12
+make
+
+### [ch-system-grep] 8.36. Grep-3.12
+make install
+
+### [ch-system-bash] 8.37. Bash-5.3
+./configure --prefix=/usr             \
+            --without-bash-malloc     \
+            --with-installed-readline \
+            --docdir=/usr/share/doc/bash-5.3
+
+### [ch-system-bash] 8.37. Bash-5.3
+make
+
+### [ch-system-bash] 8.37. Bash-5.3
+chown -R tester .
+
+### [ch-system-bash] 8.37. Bash-5.3
+LC_ALL=C.UTF-8 su -s /usr/bin/expect tester << "EOF"
+set timeout -1
+spawn make tests
+expect eof
+lassign [wait] _ _ _ value
+exit $value
+EOF
+
+### [ch-system-bash] 8.37. Bash-5.3
+make install
+
+### [ch-system-bash] 8.37. Bash-5.3
+exec /usr/bin/bash --login
+
+### [ch-system-libtool] 8.38. Libtool-2.5.4
+./configure --prefix=/usr
+
+### [ch-system-libtool] 8.38. Libtool-2.5.4
+make
+
+### [ch-system-libtool] 8.38. Libtool-2.5.4
+make install
+
+### [ch-system-libtool] 8.38. Libtool-2.5.4
+rm -fv /usr/lib/libltdl.a
+
+### [ch-system-gdbm] 8.39. GDBM-1.26
+./configure --prefix=/usr    \
+            --disable-static \
+            --enable-libgdbm-compat
+
+### [ch-system-gdbm] 8.39. GDBM-1.26
+make
+
+### [ch-system-gdbm] 8.39. GDBM-1.26
+make install
+
+### [ch-system-gperf] 8.40. Gperf-3.3
+./configure --prefix=/usr --docdir=/usr/share/doc/gperf-3.3
+
+### [ch-system-gperf] 8.40. Gperf-3.3
+make
+
+### [ch-system-gperf] 8.40. Gperf-3.3
+make install
+
+### [ch-system-expat] 8.41. Expat-2.7.4
+./configure --prefix=/usr    \
+            --disable-static \
+            --docdir=/usr/share/doc/expat-2.7.4
+
+### [ch-system-expat] 8.41. Expat-2.7.4
+make
+
+### [ch-system-expat] 8.41. Expat-2.7.4
+make install
+
+### [ch-system-expat] 8.41. Expat-2.7.4
+install -v -m644 doc/*.{html,css} /usr/share/doc/expat-2.7.4
+
+### [ch-system-inetutils] 8.42. Inetutils-2.7
+sed -i 's/def HAVE_TERMCAP_TGETENT/ 1/' telnet/telnet.c
+
+### [ch-system-inetutils] 8.42. Inetutils-2.7
+./configure --prefix=/usr        \
+            --bindir=/usr/bin    \
+            --localstatedir=/var \
+            --disable-logger     \
+            --disable-whois      \
+            --disable-rcp        \
+            --disable-rexec      \
+            --disable-rlogin     \
+            --disable-rsh        \
+            --disable-servers
+
+### [ch-system-inetutils] 8.42. Inetutils-2.7
+make
+
+### [ch-system-inetutils] 8.42. Inetutils-2.7
+make install
+
+### [ch-system-inetutils] 8.42. Inetutils-2.7
+mv -v /usr/{,s}bin/ifconfig
+
+### [ch-system-less] 8.43. Less-692
+./configure --prefix=/usr --sysconfdir=/etc
+
+### [ch-system-less] 8.43. Less-692
+make
+
+### [ch-system-less] 8.43. Less-692
+make install
+
+### [ch-system-perl] 8.44. Perl-5.42.0
+export BUILD_ZLIB=False
+export BUILD_BZIP2=0
+
+### [ch-system-perl] 8.44. Perl-5.42.0
+sh Configure -des                                          \
+             -D prefix=/usr                                \
+             -D vendorprefix=/usr                          \
+             -D privlib=/usr/lib/perl5/5.42/core_perl      \
+             -D archlib=/usr/lib/perl5/5.42/core_perl      \
+             -D sitelib=/usr/lib/perl5/5.42/site_perl      \
+             -D sitearch=/usr/lib/perl5/5.42/site_perl     \
+             -D vendorlib=/usr/lib/perl5/5.42/vendor_perl  \
+             -D vendorarch=/usr/lib/perl5/5.42/vendor_perl \
+             -D man1dir=/usr/share/man/man1                \
+             -D man3dir=/usr/share/man/man3                \
+             -D pager="/usr/bin/less -isR"                 \
+             -D useshrplib                                 \
+             -D usethreads
+
+### [ch-system-perl] 8.44. Perl-5.42.0
+make
+
+### [ch-system-perl] 8.44. Perl-5.42.0
+TEST_JOBS=$(nproc) make test_harness
+
+### [ch-system-perl] 8.44. Perl-5.42.0
+make install
+unset BUILD_ZLIB BUILD_BZIP2
+
+### [ch-system-xml-parser] 8.45. XML::Parser-2.47
+perl Makefile.PL
+
+### [ch-system-xml-parser] 8.45. XML::Parser-2.47
+make
+
+### [ch-system-xml-parser] 8.45. XML::Parser-2.47
+make install
+
+### [ch-system-intltool] 8.46. Intltool-0.51.0
+sed -i 's:\\\${:\\\$\\{:' intltool-update.in
+
+### [ch-system-intltool] 8.46. Intltool-0.51.0
+./configure --prefix=/usr
+
+### [ch-system-intltool] 8.46. Intltool-0.51.0
+make
+
+### [ch-system-intltool] 8.46. Intltool-0.51.0
+make install
+install -v -Dm644 doc/I18N-HOWTO /usr/share/doc/intltool-0.51.0/I18N-HOWTO
+
+### [ch-system-autoconf] 8.47. Autoconf-2.72
+./configure --prefix=/usr
+
+### [ch-system-autoconf] 8.47. Autoconf-2.72
+make
+
+### [ch-system-autoconf] 8.47. Autoconf-2.72
+make install
+
+### [ch-system-automake] 8.48. Automake-1.18.1
+./configure --prefix=/usr --docdir=/usr/share/doc/automake-1.18.1
+
+### [ch-system-automake] 8.48. Automake-1.18.1
+make
+
+### [ch-system-automake] 8.48. Automake-1.18.1
+make <em class=
+              "replaceable"><code>-j$(($(nproc)>4?$(nproc):4))</code></em> check
+
+### [ch-system-automake] 8.48. Automake-1.18.1
+make install
+
+### [ch-system-openssl] 8.49. OpenSSL-3.6.1
+./config --prefix=/usr         \
+         --openssldir=/etc/ssl \
+         --libdir=lib          \
+         shared                \
+         zlib-dynamic
+
+### [ch-system-openssl] 8.49. OpenSSL-3.6.1
+make
+
+### [ch-system-openssl] 8.49. OpenSSL-3.6.1
+HARNESS_JOBS=<em class=
+              "replaceable"><code>$(nproc)</code></em> make test
+
+### [ch-system-openssl] 8.49. OpenSSL-3.6.1
+sed -i '/INSTALL_LIBS/s/libcrypto.a libssl.a//' Makefile
+make MANSUFFIX=ssl install
+
+### [ch-system-openssl] 8.49. OpenSSL-3.6.1
+mv -v /usr/share/doc/openssl /usr/share/doc/openssl-3.6.1
+
+### [ch-system-openssl] 8.49. OpenSSL-3.6.1
+cp -vfr doc/* /usr/share/doc/openssl-3.6.1
+
+### [ch-system-libelf] 8.50. Libelf from
+                  Elfutils-0.194
+./configure --prefix=/usr        \
+            --disable-debuginfod \
+            --enable-libdebuginfod=dummy
+
+### [ch-system-libelf] 8.50. Libelf from
+                  Elfutils-0.194
+make -C lib
+make -C libelf
+
+### [ch-system-libelf] 8.50. Libelf from
+                  Elfutils-0.194
+make -C libelf install
+install -vm644 config/libelf.pc /usr/lib/pkgconfig
+rm /usr/lib/libelf.a
+
+### [ch-system-libffi] 8.51. Libffi-3.5.2
+./configure --prefix=/usr    \
+            --disable-static \
+            --with-gcc-arch=native
+
+### [ch-system-libffi] 8.51. Libffi-3.5.2
+make
+
+### [ch-system-libffi] 8.51. Libffi-3.5.2
+make install
+
+### [ch-system-sqlite] 8.52. Sqlite-3510200
+tar -xf ../sqlite-doc-3510200.tar.xz
+
+### [ch-system-sqlite] 8.52. Sqlite-3510200
+./configure --prefix=/usr     \
+            --disable-static  \
+            --enable-fts{4,5} \
+            CPPFLAGS="-D SQLITE_ENABLE_COLUMN_METADATA=1 \
+                      -D SQLITE_ENABLE_UNLOCK_NOTIFY=1   \
+                      -D SQLITE_ENABLE_DBSTAT_VTAB=1     \
+                      -D SQLITE_SECURE_DELETE=1"
+
+### [ch-system-sqlite] 8.52. Sqlite-3510200
+make LDFLAGS.rpath=""
+
+### [ch-system-sqlite] 8.52. Sqlite-3510200
+make install
+
+### [ch-system-sqlite] 8.52. Sqlite-3510200
+install -v -m755 -d /usr/share/doc/sqlite-3.51.2
+cp -v -R sqlite-doc-3510200/* /usr/share/doc/sqlite-3.51.2
+
+### [ch-system-Python] 8.53. Python-3.14.3
+./configure --prefix=/usr          \
+            --enable-shared        \
+            --with-system-expat    \
+            --enable-optimizations \
+            --without-static-libpython
+
+### [ch-system-Python] 8.53. Python-3.14.3
+make
+
+### [ch-system-Python] 8.53. Python-3.14.3
+make install
+
+### [ch-system-Python] 8.53. Python-3.14.3
+cat > /etc/pip.conf << EOF
+<code class="literal">[global]
+root-user-action = ignore
+disable-pip-version-check = true</code>
+EOF
+
+### [ch-system-Python] 8.53. Python-3.14.3
+install -v -dm755 /usr/share/doc/python-3.14.3/html
+
+tar --strip-components=1  \
+    --no-same-owner       \
+    --no-same-permissions \
+    -C /usr/share/doc/python-3.14.3/html \
+    -xvf ../python-3.14.3-docs-html.tar.bz2
+
+### [ch-system-flit-core] 8.54. Flit-Core-3.12.0
+pip3 wheel -w dist --no-cache-dir --no-build-isolation --no-deps $PWD
+
+### [ch-system-flit-core] 8.54. Flit-Core-3.12.0
+pip3 install --no-index --find-links dist flit_core
+
+### [ch-system-packaging] 8.55. Packaging-26.0
+pip3 wheel -w dist --no-cache-dir --no-build-isolation --no-deps $PWD
+
+### [ch-system-packaging] 8.55. Packaging-26.0
+pip3 install --no-index --find-links dist packaging
+
+### [ch-system-wheel] 8.56. Wheel-0.46.3
+pip3 wheel -w dist --no-cache-dir --no-build-isolation --no-deps $PWD
+
+### [ch-system-wheel] 8.56. Wheel-0.46.3
+pip3 install --no-index --find-links dist wheel
+
+### [ch-system-setuptools] 8.57. Setuptools-82.0.0
+pip3 wheel -w dist --no-cache-dir --no-build-isolation --no-deps $PWD
+
+### [ch-system-setuptools] 8.57. Setuptools-82.0.0
+pip3 install --no-index --find-links dist setuptools
+
+### [ch-system-ninja] 8.58. Ninja-1.13.2
+sed -i '/int Guess/a \
+  int   j = 0;\
+  char* jobs = getenv( "NINJAJOBS" );\
+  if ( jobs != NULL ) j = atoi( jobs );\
+  if ( j > 0 ) return j;\
+' src/ninja.cc
+
+### [ch-system-ninja] 8.58. Ninja-1.13.2
+python3 configure.py --bootstrap --verbose
+
+### [ch-system-ninja] 8.58. Ninja-1.13.2
+install -vm755 ninja /usr/bin/
+install -vDm644 misc/bash-completion /usr/share/bash-completion/completions/ninja
+install -vDm644 misc/zsh-completion  /usr/share/zsh/site-functions/_ninja
+
+### [ch-system-meson] 8.59. Meson-1.10.1
+pip3 wheel -w dist --no-cache-dir --no-build-isolation --no-deps $PWD
+
+### [ch-system-meson] 8.59. Meson-1.10.1
+pip3 install --no-index --find-links dist meson
+install -vDm644 data/shell-completions/bash/meson /usr/share/bash-completion/completions/meson
+install -vDm644 data/shell-completions/zsh/_meson /usr/share/zsh/site-functions/_meson
+
+### [ch-system-kmod] 8.60. Kmod-34.2
+mkdir -p build
+cd       build
+
+meson setup --prefix=/usr ..    \
+            --buildtype=release \
+            -D manpages=false
+
+### [ch-system-kmod] 8.60. Kmod-34.2
+ninja
+
+### [ch-system-kmod] 8.60. Kmod-34.2
+ninja install
+
+### [ch-system-coreutils] 8.61. Coreutils-9.10
+patch -Np1 -i ../coreutils-9.10-i18n-1.patch
+
+### [ch-system-coreutils] 8.61. Coreutils-9.10
+autoreconf -fv
+automake -af
+FORCE_UNSAFE_CONFIGURE=1 ./configure \
+            --prefix=/usr
+
+### [ch-system-coreutils] 8.61. Coreutils-9.10
+make
+
+### [ch-system-coreutils] 8.61. Coreutils-9.10
+make NON_ROOT_USERNAME=tester check-root
+
+### [ch-system-coreutils] 8.61. Coreutils-9.10
+groupadd -g 102 dummy -U tester
+
+### [ch-system-coreutils] 8.61. Coreutils-9.10
+chown -R tester .
+
+### [ch-system-coreutils] 8.61. Coreutils-9.10
+su tester -c "PATH=$PATH make -k RUN_EXPENSIVE_TESTS=yes check" \
+   < /dev/null
+
+### [ch-system-coreutils] 8.61. Coreutils-9.10
+groupdel dummy
+
+### [ch-system-coreutils] 8.61. Coreutils-9.10
+make install
+
+### [ch-system-coreutils] 8.61. Coreutils-9.10
+mv -v /usr/bin/chroot /usr/sbin
+mv -v /usr/share/man/man1/chroot.1 /usr/share/man/man8/chroot.8
+sed -i 's/"1"/"8"/' /usr/share/man/man8/chroot.8
+
+### [ch-system-diffutils] 8.62. Diffutils-3.12
+./configure --prefix=/usr
+
+### [ch-system-diffutils] 8.62. Diffutils-3.12
+make
+
+### [ch-system-diffutils] 8.62. Diffutils-3.12
+make install
+
+### [ch-system-gawk] 8.63. Gawk-5.3.2
+sed -i 's/extras//' Makefile.in
+
+### [ch-system-gawk] 8.63. Gawk-5.3.2
+./configure --prefix=/usr
+
+### [ch-system-gawk] 8.63. Gawk-5.3.2
+make
+
+### [ch-system-gawk] 8.63. Gawk-5.3.2
+chown -R tester .
+su tester -c "PATH=$PATH make check"
+
+### [ch-system-gawk] 8.63. Gawk-5.3.2
+rm -f /usr/bin/gawk-5.3.2
+make install
+
+### [ch-system-gawk] 8.63. Gawk-5.3.2
+ln -sv gawk.1 /usr/share/man/man1/awk.1
+
+### [ch-system-gawk] 8.63. Gawk-5.3.2
+install -vDm644 doc/{awkforai.txt,*.{eps,pdf,jpg}} -t /usr/share/doc/gawk-5.3.2
+
+### [ch-system-findutils] 8.64. Findutils-4.10.0
+./configure --prefix=/usr --localstatedir=/var/lib/locate
+
+### [ch-system-findutils] 8.64. Findutils-4.10.0
+make
+
+### [ch-system-findutils] 8.64. Findutils-4.10.0
+chown -R tester .
+su tester -c "PATH=$PATH make check"
+
+### [ch-system-findutils] 8.64. Findutils-4.10.0
+make install
+
+### [ch-system-groff] 8.65. Groff-1.23.0
+PAGE=<em class=
+              "replaceable"><code><paper_size></code></em> ./configure --prefix=/usr
+
+### [ch-system-groff] 8.65. Groff-1.23.0
+make
+
+### [ch-system-groff] 8.65. Groff-1.23.0
+make install
+
+### [ch-system-grub] 8.66. GRUB-2.14
+unset {C,CPP,CXX,LD}FLAGS
+
+### [ch-system-grub] 8.66. GRUB-2.14
+sed 's/--image-base/--nonexist-linker-option/' -i configure
+
+### [ch-system-grub] 8.66. GRUB-2.14
+./configure --prefix=/usr     \
+            --sysconfdir=/etc \
+            --disable-efiemu  \
+            --disable-werror
+
+### [ch-system-grub] 8.66. GRUB-2.14
+make
+
+### [ch-system-grub] 8.66. GRUB-2.14
+make install
+
+### [ch-system-gzip] 8.67. Gzip-1.14
+./configure --prefix=/usr
+
+### [ch-system-gzip] 8.67. Gzip-1.14
+make
+
+### [ch-system-gzip] 8.67. Gzip-1.14
+make install
+
+### [ch-system-iproute2] 8.68. IPRoute2-6.18.0
+sed -i /ARPD/d Makefile
+rm -fv man/man8/arpd.8
+
+### [ch-system-iproute2] 8.68. IPRoute2-6.18.0
+make NETNS_RUN_DIR=/run/netns
+
+### [ch-system-iproute2] 8.68. IPRoute2-6.18.0
+make SBINDIR=/usr/sbin install
+
+### [ch-system-iproute2] 8.68. IPRoute2-6.18.0
+install -vDm644 COPYING README* -t /usr/share/doc/iproute2-6.18.0
+
+### [ch-system-kbd] 8.69. Kbd-2.9.0
+patch -Np1 -i ../kbd-2.9.0-backspace-1.patch
+
+### [ch-system-kbd] 8.69. Kbd-2.9.0
+sed -i '/RESIZECONS_PROGS=/s/yes/no/' configure
+sed -i 's/resizecons.8 //' docs/man/man8/Makefile.in
+
+### [ch-system-kbd] 8.69. Kbd-2.9.0
+./configure --prefix=/usr --disable-vlock
+
+### [ch-system-kbd] 8.69. Kbd-2.9.0
+make
+
+### [ch-system-kbd] 8.69. Kbd-2.9.0
+make install
+
+### [ch-system-kbd] 8.69. Kbd-2.9.0
+cp -R -v docs/doc -T /usr/share/doc/kbd-2.9.0
+
+### [ch-system-libpipeline] 8.70. Libpipeline-1.5.8
+./configure --prefix=/usr
+
+### [ch-system-libpipeline] 8.70. Libpipeline-1.5.8
+make
+
+### [ch-system-libpipeline] 8.70. Libpipeline-1.5.8
+make install
+
+### [ch-system-make] 8.71. Make-4.4.1
+./configure --prefix=/usr
+
+### [ch-system-make] 8.71. Make-4.4.1
+make
+
+### [ch-system-make] 8.71. Make-4.4.1
+chown -R tester .
+su tester -c "PATH=$PATH make check"
+
+### [ch-system-make] 8.71. Make-4.4.1
+make install
+
+### [ch-system-patch] 8.72. Patch-2.8
+./configure --prefix=/usr
+
+### [ch-system-patch] 8.72. Patch-2.8
+make
+
+### [ch-system-patch] 8.72. Patch-2.8
+make install
+
+### [ch-system-tar] 8.73. Tar-1.35
+FORCE_UNSAFE_CONFIGURE=1  \
+./configure --prefix=/usr
+
+### [ch-system-tar] 8.73. Tar-1.35
+make
+
+### [ch-system-tar] 8.73. Tar-1.35
+make install
+make -C doc install-html docdir=/usr/share/doc/tar-1.35
+
+### [ch-system-texinfo] 8.74. Texinfo-7.2
+sed 's/! $output_file eq/$output_file ne/' -i tp/Texinfo/Convert/*.pm
+
+### [ch-system-texinfo] 8.74. Texinfo-7.2
+./configure --prefix=/usr
+
+### [ch-system-texinfo] 8.74. Texinfo-7.2
+make
+
+### [ch-system-texinfo] 8.74. Texinfo-7.2
+make install
+
+### [ch-system-texinfo] 8.74. Texinfo-7.2
+make TEXMF=/usr/share/texmf install-tex
+
+### [ch-system-texinfo] 8.74. Texinfo-7.2
+pushd /usr/share/info
+  rm -v dir
+  for f in *
+    do install-info $f dir 2>/dev/null
+  done
+popd
+
+### [ch-system-vim] 8.75. Vim-9.2.0078
+echo '#define SYS_VIMRC_FILE "/etc/vimrc"' >> src/feature.h
+
+### [ch-system-vim] 8.75. Vim-9.2.0078
+./configure --prefix=/usr
+
+### [ch-system-vim] 8.75. Vim-9.2.0078
+make
+
+### [ch-system-vim] 8.75. Vim-9.2.0078
+chown -R tester .
+sed '/test_plugin_glvs/d' -i src/testdir/Make_all.mak
+
+### [ch-system-vim] 8.75. Vim-9.2.0078
+su tester -c "TERM=xterm-256color LANG=en_US.UTF-8 make -j1 test" \
+   &> vim-test.log
+
+### [ch-system-vim] 8.75. Vim-9.2.0078
+make install
+
+### [ch-system-vim] 8.75. Vim-9.2.0078
+ln -sv vim /usr/bin/vi
+for L in  /usr/share/man/{,*/}man1/vim.1; do
+    ln -sv vim.1 $(dirname $L)/vi.1
+done
+
+### [ch-system-vim] 8.75. Vim-9.2.0078
+ln -sv ../vim/vim92/doc /usr/share/doc/vim-9.2.0078
+
+### [ch-system-markupsafe] 8.76. MarkupSafe-3.0.3
+pip3 wheel -w dist --no-cache-dir --no-build-isolation --no-deps $PWD
+
+### [ch-system-markupsafe] 8.76. MarkupSafe-3.0.3
+pip3 install --no-index --find-links dist Markupsafe
+
+### [ch-system-jinja2] 8.77. Jinja2-3.1.6
+pip3 wheel -w dist --no-cache-dir --no-build-isolation --no-deps $PWD
+
+### [ch-system-jinja2] 8.77. Jinja2-3.1.6
+pip3 install --no-index --find-links dist Jinja2
+
+### [ch-system-systemd] 8.78. Systemd-259.1
+sed -e 's/GROUP="render"/GROUP="video"/' \
+    -e 's/GROUP="sgx", //'               \
+    -i rules.d/50-udev-default.rules.in
+
+### [ch-system-systemd] 8.78. Systemd-259.1
+mkdir -p build
+cd       build
+
+meson setup ..                \
+      --prefix=/usr           \
+      --buildtype=release     \
+      -D default-dnssec=no    \
+      -D firstboot=false      \
+      -D install-tests=false  \
+      -D ldconfig=false       \
+      -D sysusers=false       \
+      -D rpmmacrosdir=no      \
+      -D homed=disabled       \
+      -D man=disabled         \
+      -D mode=release         \
+      -D pamconfdir=no        \
+      -D dev-kvm-mode=0660    \
+      -D nobody-group=nogroup \
+      -D sysupdate=disabled   \
+      -D ukify=disabled       \
+      -D docdir=/usr/share/doc/systemd-259.1
+
+### [ch-system-systemd] 8.78. Systemd-259.1
+ninja
+
+### [ch-system-systemd] 8.78. Systemd-259.1
+echo 'NAME="Linux From Scratch"' > /etc/os-release
+unshare -m ninja test
+
+### [ch-system-systemd] 8.78. Systemd-259.1
+ninja install
+
+### [ch-system-systemd] 8.78. Systemd-259.1
+tar -xf ../../systemd-man-pages-259.1.tar.xz \
+    --no-same-owner --strip-components=1     \
+    -C /usr/share/man
+
+### [ch-system-systemd] 8.78. Systemd-259.1
+systemd-machine-id-setup
+
+### [ch-system-systemd] 8.78. Systemd-259.1
+systemctl preset-all
+
+### [ch-system-dbus] 8.79. D-Bus-1.16.2
+mkdir build
+cd    build
+
+meson setup --prefix=/usr --buildtype=release --wrap-mode=nofallback ..
+
+### [ch-system-dbus] 8.79. D-Bus-1.16.2
+ninja
+
+### [ch-system-dbus] 8.79. D-Bus-1.16.2
+ninja test
+
+### [ch-system-dbus] 8.79. D-Bus-1.16.2
+ninja install
+
+### [ch-system-dbus] 8.79. D-Bus-1.16.2
+ln -sfv /etc/machine-id /var/lib/dbus
+
+### [ch-system-man-db] 8.80. Man-DB-2.13.1
+./configure --prefix=/usr                         \
+            --docdir=/usr/share/doc/man-db-2.13.1 \
+            --sysconfdir=/etc                     \
+            --disable-setuid                      \
+            --enable-cache-owner=bin              \
+            --with-browser=/usr/bin/lynx          \
+            --with-vgrind=/usr/bin/vgrind         \
+            --with-grap=/usr/bin/grap
+
+### [ch-system-man-db] 8.80. Man-DB-2.13.1
+make
+
+### [ch-system-man-db] 8.80. Man-DB-2.13.1
+make install
+
+### [ch-system-procps] 8.81. Procps-ng-4.0.6
+./configure --prefix=/usr                           \
+            --docdir=/usr/share/doc/procps-ng-4.0.6 \
+            --disable-static                        \
+            --disable-kill                          \
+            --enable-watch8bit                      \
+            --with-systemd
+
+### [ch-system-procps] 8.81. Procps-ng-4.0.6
+make
+
+### [ch-system-procps] 8.81. Procps-ng-4.0.6
+chown -R tester .
+su tester -c "PATH=$PATH make check"
+
+### [ch-system-procps] 8.81. Procps-ng-4.0.6
+make install
+
+### [ch-system-util-linux] 8.82. Util-linux-2.41.3
+./configure --bindir=/usr/bin     \
+            --libdir=/usr/lib     \
+            --runstatedir=/run    \
+            --sbindir=/usr/sbin   \
+            --disable-chfn-chsh   \
+            --disable-login       \
+            --disable-nologin     \
+            --disable-su          \
+            --disable-setpriv     \
+            --disable-runuser     \
+            --disable-pylibmount  \
+            --disable-liblastlog2 \
+            --disable-static      \
+            --without-python      \
+            ADJTIME_PATH=/var/lib/hwclock/adjtime \
+            --docdir=/usr/share/doc/util-linux-2.41.3
+
+### [ch-system-util-linux] 8.82. Util-linux-2.41.3
+make
+
+### [ch-system-util-linux] 8.82. Util-linux-2.41.3
+bash tests/run.sh --srcdir=$PWD --builddir=$PWD
+
+### [ch-system-util-linux] 8.82. Util-linux-2.41.3
+touch /etc/fstab
+chown -R tester .
+su tester -c "make -k check"
+
+### [ch-system-util-linux] 8.82. Util-linux-2.41.3
+make install
+
+### [ch-system-e2fsprogs] 8.83. E2fsprogs-1.47.3
+mkdir -v build
+cd       build
+
+### [ch-system-e2fsprogs] 8.83. E2fsprogs-1.47.3
+../configure --prefix=/usr       \
+             --sysconfdir=/etc   \
+             --enable-elf-shlibs \
+             --disable-libblkid  \
+             --disable-libuuid   \
+             --disable-uuidd     \
+             --disable-fsck
+
+### [ch-system-e2fsprogs] 8.83. E2fsprogs-1.47.3
+make
+
+### [ch-system-e2fsprogs] 8.83. E2fsprogs-1.47.3
+make install
+
+### [ch-system-e2fsprogs] 8.83. E2fsprogs-1.47.3
+rm -fv /usr/lib/{libcom_err,libe2p,libext2fs,libss}.a
+
+### [ch-system-e2fsprogs] 8.83. E2fsprogs-1.47.3
+gunzip -v /usr/share/info/libext2fs.info.gz
+install-info --dir-file=/usr/share/info/dir /usr/share/info/libext2fs.info
+
+### [ch-system-e2fsprogs] 8.83. E2fsprogs-1.47.3
+makeinfo -o      doc/com_err.info ../lib/et/com_err.texinfo
+install -v -m644 doc/com_err.info /usr/share/info
+install-info --dir-file=/usr/share/info/dir /usr/share/info/com_err.info
+
+### [ch-system-stripping] 8.85. Stripping
+save_usrlib="$(cd /usr/lib; ls ld-linux*[^g])
+             libc.so.6
+             libthread_db.so.1
+             libquadmath.so.0.0.0
+             libstdc++.so.6.0.34
+             libitm.so.1.0.0
+             libatomic.so.1.2.0"
+
+cd /usr/lib
+
+for LIB in $save_usrlib; do
+    objcopy --only-keep-debug --compress-debug-sections=zstd $LIB $LIB.dbg
+    cp $LIB /tmp/$LIB
+    strip --strip-debug /tmp/$LIB
+    objcopy --add-gnu-debuglink=$LIB.dbg /tmp/$LIB
+    install -vm755 /tmp/$LIB /usr/lib
+    rm /tmp/$LIB
+done
+
+online_usrbin="bash find strip"
+online_usrlib="libbfd-2.46.0.20260210.so
+               libsframe.so.3.0.0
+               libhistory.so.8.3
+               libncursesw.so.6.6
+               libm.so.6
+               libreadline.so.8.3
+               libz.so.1.3.2
+               libzstd.so.1.5.7
+               $(cd /usr/lib; find libnss*.so* -type f)"
+
+for BIN in $online_usrbin; do
+    cp /usr/bin/$BIN /tmp/$BIN
+    strip --strip-debug /tmp/$BIN
+    install -vm755 /tmp/$BIN /usr/bin
+    rm /tmp/$BIN
+done
+
+for LIB in $online_usrlib; do
+    cp /usr/lib/$LIB /tmp/$LIB
+    strip --strip-debug /tmp/$LIB
+    install -vm755 /tmp/$LIB /usr/lib
+    rm /tmp/$LIB
+done
+
+for i in $(find /usr/lib -type f -name \*.so* ! -name \*dbg) \
+         $(find /usr/lib -type f -name \*.a)                 \
+         $(find /usr/{bin,sbin,libexec} -type f); do
+    case "$online_usrbin $online_usrlib $save_usrlib" in
+        *$(basename $i)* )
+            ;;
+        * ) strip --strip-debug $i
+            ;;
+    esac
+done
+
+unset BIN LIB save_usrlib online_usrbin online_usrlib
+
+### [ch-system-cleanup] 8.86. Cleaning Up
+rm -rf /tmp/{*,.*}
+
+### [ch-system-cleanup] 8.86. Cleaning Up
+find /usr/lib /usr/libexec -name \*.la -delete
+
+### [ch-system-cleanup] 8.86. Cleaning Up
+find /usr -depth -name $(uname -m)-lfs-linux-gnu\* | xargs rm -rf
+
+### [ch-system-cleanup] 8.86. Cleaning Up
+userdel -r tester
+

@@ -1,0 +1,238 @@
+### [ch-config-network] 9.2. General Network
+                  Configuration
+systemctl disable systemd-networkd-wait-online
+
+### [ch-config-network] 9.2. General Network
+                  Configuration
+ln -s /dev/null /etc/systemd/network/99-default.link
+
+### [ch-config-network] 9.2. General Network
+                  Configuration
+cat > /etc/systemd/network/10-ether0.link << "EOF"
+<code class="literal">[Match]
+# Change the MAC address as appropriate for your network device
+MACAddress=12:34:45:78:90:AB
+
+[Link]
+Name=ether0</code>
+EOF
+
+### [ch-config-network] 9.2. General Network
+                  Configuration
+cat > /etc/systemd/network/10-eth-static.network << "EOF"
+<code class="literal">[Match]
+Name=<em class="replaceable"><code><network-device-name></code></em>
+
+[Network]
+Address=192.168.0.2/24
+Gateway=192.168.0.1
+DNS=192.168.0.1
+Domains=<em class=
+"replaceable"><code><Your Domain Name></code></em></code>
+EOF
+
+### [ch-config-network] 9.2. General Network
+                  Configuration
+cat > /etc/systemd/network/10-eth-dhcp.network << "EOF"
+<code class="literal">[Match]
+Name=<network-device-name>
+
+[Network]
+DHCP=ipv4
+
+[DHCPv4]
+UseDomains=true</code>
+EOF
+
+### [ch-config-hostname] 9.2.3. Configuring the system
+                hostname
+echo "<em class=
+              "replaceable"><code><lfs></code></em>" > /etc/hostname
+
+### [ch-config-hosts] 9.2.4.
+                Customizing the /etc/hosts File
+cat > /etc/hosts << "EOF"
+<code class="literal"># Begin /etc/hosts
+
+<em class="replaceable"><code><192.168.0.2></code></em> <em class=
+"replaceable"><code><FQDN></code></em> <em class=
+"replaceable"><code>[alias1] [alias2] ...</code></em>
+::1       ip6-localhost ip6-loopback
+ff02::1   ip6-allnodes
+ff02::2   ip6-allrouters
+
+# End /etc/hosts</code>
+EOF
+
+### [ch-config-symlinks] 9.4. Managing Devices
+udevadm info -a -p /sys/class/video4linux/video0
+
+### [ch-config-symlinks] 9.4. Managing Devices
+cat > /etc/udev/rules.d/83-duplicate_devs.rules << "EOF"
+<code class="literal">
+# Persistent symlinks for webcam and tuner
+KERNEL=="video*", ATTRS{idProduct}=="1910", ATTRS{idVendor}=="0d81", SYMLINK+="webcam"
+KERNEL=="video*", ATTRS{device}=="0x036f",  ATTRS{vendor}=="0x109e", SYMLINK+="tvtuner"
+</code>
+EOF
+
+### [ch-config-clock] 9.5. Configuring the System
+                  Clock
+cat > /etc/adjtime << "EOF"
+<code class="literal">0.0 0 0.0
+0
+LOCAL</code>
+EOF
+
+### [ch-config-clock] 9.5. Configuring the System
+                  Clock
+timedatectl set-local-rtc 1
+
+### [ch-config-clock] 9.5. Configuring the System
+                  Clock
+timedatectl set-time YYYY-MM-DD HH:MM:SS
+
+### [ch-config-clock] 9.5. Configuring the System
+                  Clock
+timedatectl set-timezone TIMEZONE
+
+### [ch-config-clock] 9.5. Configuring the System
+                  Clock
+timedatectl list-timezones
+
+### [ch-config-clock] 9.5. Configuring the System
+                  Clock
+systemctl disable systemd-timesyncd
+
+### [ch-config-console] 9.6. Configuring the Linux
+                  Console
+echo <code class=
+            "literal">FONT=Lat2-Terminus16</code> > /etc/vconsole.conf
+
+### [ch-config-console] 9.6. Configuring the Linux
+                  Console
+cat > /etc/vconsole.conf << "EOF"
+<code class="literal">KEYMAP=de-latin1
+FONT=Lat2-Terminus16</code>
+EOF
+
+### [ch-config-console] 9.6. Configuring the Linux
+                  Console
+localectl set-keymap MAP
+
+### [ch-config-console] 9.6. Configuring the Linux
+                  Console
+localectl set-x11-keymap LAYOUT [MODEL] [VARIANT] [OPTIONS]
+
+### [ch-config-locale] 9.7. Configuring the System
+                  Locale
+locale -a
+
+### [ch-config-locale] 9.7. Configuring the System
+                  Locale
+LC_ALL=<em class=
+            "replaceable"><code><locale name></code></em> locale charmap
+
+### [ch-config-locale] 9.7. Configuring the System
+                  Locale
+LC_ALL=<locale name> locale language
+LC_ALL=<locale name> locale charmap
+LC_ALL=<locale name> locale int_curr_symbol
+LC_ALL=<locale name> locale int_prefix
+
+### [ch-config-locale] 9.7. Configuring the System
+                  Locale
+cat > /etc/locale.conf << "EOF"
+<code class="literal">LANG=<em class=
+"replaceable"><code><ll>_<CC>.<charmap><@modifiers></code></em></code>
+EOF
+
+### [ch-config-locale] 9.7. Configuring the System
+                  Locale
+cat > /etc/profile << "EOF"
+<code class="literal"># Begin /etc/profile
+
+for i in $(locale); do
+  unset ${i%=*}
+done
+
+if [[ "$TERM" = linux ]]; then
+  export LANG=C.UTF-8
+else
+  source /etc/locale.conf
+
+  for i in $(locale); do
+    key=${i%=*}
+    if [[ -v $key ]]; then
+      export $key
+    fi
+  done
+fi
+
+# End /etc/profile</code>
+EOF
+
+### [ch-config-locale] 9.7. Configuring the System
+                  Locale
+localectl set-locale LANG="<em class=
+            "replaceable"><code><ll>_<CC>.<charmap><@modifiers></code></em>"
+
+### [ch-config-locale] 9.7. Configuring the System
+                  Locale
+localectl set-locale LANG="en_US.UTF-8" LC_CTYPE="en_US"
+
+### [ch-config-inputrc] 9.8. Creating the /etc/inputrc
+                  File
+cat > /etc/inputrc << "EOF"
+<code class="literal"># Begin /etc/inputrc
+# Modified by Chris Lynn <roryo@roryo.dynup.net>
+
+# Allow the command prompt to wrap to the next line
+set horizontal-scroll-mode Off
+
+# Enable 8-bit input
+set meta-flag On
+set input-meta On
+
+# Turns off 8th bit stripping
+set convert-meta Off
+
+# Keep the 8th bit for display
+set output-meta On
+
+# none, visible or audible
+set bell-style none
+
+# All of the following map the escape sequence of the value
+# contained in the 1st argument to the readline specific functions
+"\eOd": backward-word
+"\eOc": forward-word
+
+# for linux console
+"\e[1~": beginning-of-line
+"\e[4~": end-of-line
+"\e[5~": beginning-of-history
+"\e[6~": end-of-history
+"\e[3~": delete-char
+"\e[2~": quoted-insert
+
+# for xterm
+"\eOH": beginning-of-line
+"\eOF": end-of-line
+
+# for Konsole
+"\e[H": beginning-of-line
+"\e[F": end-of-line
+
+# End /etc/inputrc</code>
+EOF
+
+### [ch-config-systemd-custom] 9.10. Systemd Usage and
+                  Configuration
+mkdir -pv /etc/systemd/system/getty@tty1.service.d
+
+cat > /etc/systemd/system/getty@tty1.service.d/noclear.conf << EOF
+<code class="literal">[Service]
+TTYVTDisallocate=no</code>
+EOF
+

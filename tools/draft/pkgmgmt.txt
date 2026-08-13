@@ -1,0 +1,14 @@
+### [pkgmgmt-upgrade-issues] 8.2.1. Upgrade Issues
+grep -l '<em class=
+                    "replaceable"><code>libfoo</code></em>.*deleted' /proc/*/maps | tr -cd 0-9\\n | xargs -r ps u
+
+### [pkgmgmt-upgrade-issues] 8.2.1. Upgrade Issues
+./configure --prefix=/usr/pkg/libfoo/1.1
+make
+make install
+
+### [pkgmgmt-upgrade-issues] 8.2.1. Upgrade Issues
+./configure --prefix=/usr
+make
+make DESTDIR=/usr/pkg/libfoo/1.1 install
+

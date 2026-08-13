@@ -1,0 +1,28 @@
+### [systemd-no-tmpfs] 9.10.3.
+                Disabling tmpfs for /tmp
+ln -sfv /dev/null /etc/systemd/system/tmp.mount
+
+### [systemd-no-tmpfs] 9.10.3.
+                Disabling tmpfs for /tmp
+mkdir -p /etc/tmpfiles.d
+cp /usr/lib/tmpfiles.d/tmp.conf /etc/tmpfiles.d
+
+### [systemd-no-tmpfs] 9.10.3.
+                Disabling tmpfs for /tmp
+mkdir -pv /etc/systemd/system/foobar.service.d
+
+cat > /etc/systemd/system/foobar.service.d/foobar.conf << EOF
+<code class="literal">[Service]
+Restart=always
+RestartSec=30</code>
+EOF
+
+### [systemd-no-tmpfs] 9.10.3.
+                Disabling tmpfs for /tmp
+mkdir -pv /etc/systemd/coredump.conf.d
+
+cat > /etc/systemd/coredump.conf.d/maxuse.conf << EOF
+<code class="literal">[Coredump]
+MaxUse=5G</code>
+EOF
+

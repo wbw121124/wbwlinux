@@ -1,0 +1,12 @@
+# All files must stay LF: they run on Linux (GitHub Actions runners)
+* text=auto eol=lf
+
+*.sh text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.fragment text eol=lf
+wget-list text eol=lf
+md5sums text eol=lf
+*.html text eol=lf
+*.md text eol=lf

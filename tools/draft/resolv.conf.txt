@@ -1,0 +1,18 @@
+### [resolv.conf] 9.2.2. Creating
+                the /etc/resolv.conf File
+systemctl disable systemd-resolved
+
+### [resolv.conf] 9.2.2. Creating
+                the /etc/resolv.conf File
+cat > /etc/resolv.conf << "EOF"
+<code class="literal"># Begin /etc/resolv.conf
+
+domain <em class="replaceable"><code><Your Domain Name></code></em>
+nameserver <em class=
+"replaceable"><code><IP address of your primary nameserver></code></em>
+nameserver <em class=
+"replaceable"><code><IP address of your secondary nameserver></code></em>
+
+# End /etc/resolv.conf</code>
+EOF
+

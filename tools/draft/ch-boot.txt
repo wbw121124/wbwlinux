@@ -1,0 +1,54 @@
+### [ch-bootable-fstab] 10.2. Creating the /etc/fstab
+                  File
+cat > /etc/fstab << "EOF"
+<code class="literal"># Begin /etc/fstab
+
+# file system  mount-point  type     options             dump  fsck
+#                                                              order
+
+/dev/<em class=
+"replaceable"><code><xxx></code></em>     /            <em class=
+"replaceable"><code><fff></code></em>    defaults            1     1
+/dev/<em class=
+"replaceable"><code><yyy></code></em>     swap         swap     pri=1               0     0
+
+# End /etc/fstab</code>
+EOF
+
+### [ch-bootable-kernel] 10.3. Linux-6.18.10
+make mrproper
+
+### [ch-bootable-kernel] 10.3. Linux-6.18.10
+make menuconfig
+
+### [ch-bootable-kernel] 10.3. Linux-6.18.10
+make
+
+### [ch-bootable-kernel] 10.3. Linux-6.18.10
+make modules_install
+
+### [ch-bootable-kernel] 10.3. Linux-6.18.10
+mount /boot
+
+### [ch-bootable-kernel] 10.3. Linux-6.18.10
+cp -iv arch/x86/boot/bzImage /boot/vmlinuz-6.18.10-lfs-13.0-systemd
+
+### [ch-bootable-kernel] 10.3. Linux-6.18.10
+cp -iv System.map /boot/System.map-6.18.10
+
+### [ch-bootable-kernel] 10.3. Linux-6.18.10
+cp -iv .config /boot/config-6.18.10
+
+### [ch-bootable-kernel] 10.3. Linux-6.18.10
+cp -r Documentation -T /usr/share/doc/linux-6.18.10
+
+### [ch-bootable-grub] 10.4. Using GRUB to Set Up the
+                  Boot Process
+cd /tmp
+grub-mkrescue --output=grub-img.iso
+xorriso -as cdrecord -v dev=/dev/cdrw blank=as_needed grub-img.iso
+
+### [ch-bootable-grub] 10.4. Using GRUB to Set Up the
+                  Boot Process
+grub-install /dev/sda
+

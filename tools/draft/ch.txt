@@ -1,0 +1,121 @@
+### [ch-materials-introduction] 3.1. Introduction
+mkdir -v $LFS/sources
+
+### [ch-materials-introduction] 3.1. Introduction
+chmod -v a+wt $LFS/sources
+
+### [ch-materials-introduction] 3.1. Introduction
+wget --input-file=wget-list-systemd --continue --directory-prefix=$LFS/sources
+
+### [ch-materials-introduction] 3.1. Introduction
+pushd $LFS/sources
+  md5sum -c md5sums
+popd
+
+### [ch-materials-introduction] 3.1. Introduction
+chown root:root $LFS/sources/*
+
+### [ch-preps-addinguser] 4.3. Adding the LFS User
+groupadd <kbd class=
+            "command">lfs
+lfs
+lfs
+
+### [ch-preps-addinguser] 4.3. Adding the LFS User
+passwd <kbd class=
+            "command">lfs
+
+### [ch-preps-addinguser] 4.3. Adding the LFS User
+chown -v <kbd class=
+            "command">lfs
+lfs
+
+### [ch-preps-addinguser] 4.3. Adding the LFS User
+su - <kbd class=
+            "command">lfs
+
+### [ch-preps-settingenviron] 4.4. Setting Up the
+                  Environment
+cat > ~/.bash_profile << "EOF"
+<code class=
+"literal">exec env -i HOME=$HOME TERM=$TERM PS1='\u:\w\$ ' /bin/bash</code>
+EOF
+
+### [ch-preps-settingenviron] 4.4. Setting Up the
+                  Environment
+cat > ~/.bashrc << "EOF"
+<code class="literal">set +h
+umask 022
+LFS=/mnt/lfs
+LC_ALL=POSIX
+LFS_TGT=$(uname -m)-lfs-linux-gnu
+PATH=/usr/bin
+if [ ! -L /bin ]; then PATH=/bin:$PATH; fi
+PATH=$LFS/tools/bin:$PATH
+CONFIG_SITE=$LFS/usr/share/config.site
+export LFS LC_ALL LFS_TGT PATH CONFIG_SITE</code>
+EOF
+
+### [ch-preps-settingenviron] 4.4. Setting Up the
+                  Environment
+[ ! -e /etc/bash.bashrc ] || mv -v /etc/bash.bashrc /etc/bash.bashrc.NOUSE
+
+### [ch-preps-settingenviron] 4.4. Setting Up the
+                  Environment
+make -j32
+
+### [ch-preps-settingenviron] 4.4. Setting Up the
+                  Environment
+export MAKEFLAGS=-j32
+
+### [ch-preps-settingenviron] 4.4. Setting Up the
+                  Environment
+cat >> ~/.bashrc << "EOF"
+<code class="literal">export MAKEFLAGS=-j<em class=
+"replaceable"><code>$(nproc)</code></em></code>
+EOF
+
+### [ch-preps-settingenviron] 4.4. Setting Up the
+                  Environment
+source ~/.bash_profile
+
+### [ch-finish-theend] 11.1. The End
+echo 13.0-systemd > /etc/lfs-release
+
+### [ch-finish-theend] 11.1. The End
+cat > /etc/lsb-release << "EOF"
+DISTRIB_ID="Linux From Scratch"
+DISTRIB_RELEASE="13.0-systemd"
+DISTRIB_CODENAME="<your name here>"
+DISTRIB_DESCRIPTION="Linux From Scratch"
+EOF
+
+### [ch-finish-theend] 11.1. The End
+cat > /etc/os-release << "EOF"
+NAME="Linux From Scratch"
+VERSION="13.0-systemd"
+ID=lfs
+PRETTY_NAME="Linux From Scratch 13.0-systemd"
+VERSION_CODENAME="<your name here>"
+HOME_URL="https://www.linuxfromscratch.org/lfs/"
+RELEASE_TYPE="stable"
+EOF
+
+### [ch-finish-reboot] 11.3. Rebooting the System
+logout
+
+### [ch-finish-reboot] 11.3. Rebooting the System
+umount -v $LFS/dev/pts
+mountpoint -q $LFS/dev/shm && umount -v $LFS/dev/shm
+umount -v $LFS/dev
+umount -v $LFS/run
+umount -v $LFS/proc
+umount -v $LFS/sys
+
+### [ch-finish-reboot] 11.3. Rebooting the System
+umount -v $LFS/home
+umount -v $LFS
+
+### [ch-finish-reboot] 11.3. Rebooting the System
+umount -v $LFS
+

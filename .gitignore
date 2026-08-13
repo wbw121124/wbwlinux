@@ -1,0 +1,9 @@
+# build artifacts and outputs
+.artifacts/
+iso/
+*.iso
+lfs-cn-*.iso
+
+# python
+__pycache__/
+*.pyc

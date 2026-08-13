@@ -1,0 +1,14 @@
+### [pre-typography] Typography
+./configure --prefix=/usr
+
+### [pre-typography] Typography
+CC="gcc -B/usr/bin/" ../binutils-2.18/configure \
+  --prefix=/tools --disable-nls --disable-werror
+
+### [pre-typography] Typography
+cat > $LFS/etc/group << "EOF"
+<code class="literal">root:x:0:
+bin:x:1:
+......</code>
+EOF
+

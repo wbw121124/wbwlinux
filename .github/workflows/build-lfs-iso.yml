@@ -1,0 +1,123 @@
+name: Build LFS-CN Live ISO
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+env:
+  RUNNER_OS: ubuntu-latest
+
+jobs:
+  # ---------------------------------------------------------------
+  # Job 1: host prep + cross toolchain (LFS ch5 + ch6)
+  # ---------------------------------------------------------------
+  toolchain:
+    name: Toolchain (ch5+ch6)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install host prerequisites + download sources
+        run: bash scripts/01-host-prep.sh
+
+      - name: Build cross toolchain and temporary tools
+        run: bash scripts/02-toolchain.sh
+
+      - name: Snapshot toolchain
+        run: bash scripts/common.sh --snapshot toolchain
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snapshot-toolchain
+          path: .artifacts/toolchain.tar.zst.part-*
+          retention-days: 7
+
+  # ---------------------------------------------------------------
+  # Job 2: chroot base system (ch7 + ch8)
+  # ---------------------------------------------------------------
+  base:
+    name: Base system (ch8)
+    needs: toolchain
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: snapshot-toolchain
+          path: .artifacts
+
+      - name: Restore toolchain snapshot
+        run: bash scripts/common.sh --restore toolchain
+
+      - name: Build base system in chroot
+        run: bash scripts/03-chroot-base.sh
+
+      - name: Snapshot base system
+        run: bash scripts/common.sh --snapshot base
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snapshot-base
+          path: .artifacts/base.tar.zst.part-*
+          retention-days: 7
+
+  # ---------------------------------------------------------------
+  # Job 3: system config + extras (Node/Rust/PowerShell/Neovim, ICU,
+  #         nano, freetype, fontconfig, fbterm, CJK fonts)
+  # ---------------------------------------------------------------
+  config-extras:
+    name: Config + extras
+    needs: base
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: snapshot-base
+          path: .artifacts
+
+      - name: Restore base snapshot
+        run: bash scripts/common.sh --restore base
+
+      - name: System configuration (locale/network/console)
+        run: bash scripts/04-sysconfig.sh
+
+      - name: Install extras
+        run: bash scripts/05-extras.sh
+
+      - name: Snapshot configured system
+        run: bash scripts/common.sh --snapshot config
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snapshot-config
+          path: .artifacts/config.tar.zst.part-*
+          retention-days: 7
+
+  # ---------------------------------------------------------------
+  # Job 4: kernel + initramfs + live ISO
+  # ---------------------------------------------------------------
+  iso:
+    name: Kernel + ISO
+    needs: config-extras
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: snapshot-config
+          path: .artifacts
+
+      - name: Restore configured snapshot
+        run: bash scripts/common.sh --restore config
+
+      - name: Build kernel, initramfs and live ISO
+        run: bash scripts/06-kernel-iso.sh
+
+      - name: Upload ISO
+        uses: actions/upload-artifact@v4
+        with:
+          name: lfs-cn-live-iso
+          path: lfs-cn-*.iso
+          retention-days: 14
