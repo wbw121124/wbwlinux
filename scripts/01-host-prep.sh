@@ -37,10 +37,14 @@ log "==> host prerequisites OK"
 # --- ccache wrapper links (host-side toolchain builds) --------------
 # Invoked as gcc/g++/cc/c++ or as the cross $LFS_TGT-*; ccache finds the
 # real compiler by searching PATH, skipping its own link dir.
+# NOTE: only wrap names whose real binary actually exists. The cross
+# $LFS_TGT-cc / $LFS_TGT-c++ are NEVER installed by gcc pass1, so a
+# wrapper link here would shadow a nonexistent compiler: gcc pass2's
+# configure then picks "$LFS_TGT-cc" as CC_FOR_TARGET and the libgcc
+# sub-configure dies with "ccache: error: Could not find compiler".
 mkdir -pv "$LFS_ROOT/ccache-wrap"
 for t in gcc g++ cc c++ \
-         x86_64-lfs-linux-gnu-gcc x86_64-lfs-linux-gnu-g++ \
-         x86_64-lfs-linux-gnu-cc x86_64-lfs-linux-gnu-c++; do
+         x86_64-lfs-linux-gnu-gcc x86_64-lfs-linux-gnu-g++; do
     ln -sf "$(command -v ccache)" "$LFS_ROOT/ccache-wrap/$t"
 done
 log "==> ccache wrappers ready"
