@@ -48,7 +48,7 @@ ln -sv usr/bin "$LFS_ROOT/bin" 2>/dev/null || true
 
 # --- download all sources (skip if already present, e.g. restored) ----
 if [ -z "${SKIP_DOWNLOAD:-}" ] && [ ! -f "$SOURCES/.downloaded" ]; then
-    log "==> downloading $(wc -l < tools/x86_64/wget-list) files"
+    log "==> downloading $(wc -l < "$SCRIPTS_DIR/../tools/x86_64/wget-list") files"
     cd "$SOURCES"
     wget -q -nc --no-verbose --timeout=30 --tries=3 \
         --input-file="$SCRIPTS_DIR/../tools/x86_64/wget-list" \
