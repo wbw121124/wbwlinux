@@ -79,10 +79,14 @@ snapshot() {
         -cf - "${LFS_ROOT#/}" |
         split -b "$SNAP_PART_SIZE" -d -a 3 - "$ARTIFACTS_DIR/$name.tar.zst.part-"
     local total=0
+    local parts=0
     for p in "$ARTIFACTS_DIR/$name.tar.zst.part-"*; do
+        [ -e "$p" ] || break
+        parts=$((parts + 1))
         total=$((total + $(stat -c %s "$p")))
     done
-    log "==> snapshot done: $(ls "$ARTIFACTS_DIR/$name.tar.zst.part-"* | wc -l) parts, $(numfmt --to=iec-i $total)"
+    [ "$parts" -gt 0 ] || die "snapshot '$name' produced no parts (tar|split failed?)"
+    log "==> snapshot done: $parts parts, $(numfmt --to=iec-i $total)"
 }
 
 restore() {
@@ -126,6 +130,9 @@ if [ "${1:-}" = "--snapshot" ] || [ "${1:-}" = "--restore" ]; then
         exec sudo -E bash "$0" "$@"
     fi
     source "$(dirname "$0")/env.sh"
+    # SCRIPTS_DIR is only set by env.sh; the top-level export above ran too
+    # early and produced a relative path. Re-resolve to an absolute path.
+    export ARTIFACTS_DIR="$(dirname "$SCRIPTS_DIR")/.artifacts"
     if [ "${1:-}" = "--snapshot" ]; then
         snapshot "${2:?}"
     else

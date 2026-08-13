@@ -29,6 +29,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: snapshot-toolchain
           path: .artifacts/toolchain.tar.zst.part-*
           retention-days: 7
@@ -58,6 +59,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: snapshot-base
           path: .artifacts/base.tar.zst.part-*
           retention-days: 7
@@ -91,6 +93,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: snapshot-config
           path: .artifacts/config.tar.zst.part-*
           retention-days: 7
@@ -118,6 +121,7 @@ jobs:
       - name: Upload ISO
         uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: lfs-cn-live-iso
           path: lfs-cn-*.iso
           retention-days: 14
