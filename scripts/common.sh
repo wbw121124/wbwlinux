@@ -23,14 +23,14 @@ pkg_run() {
     tarball="$(find "$SOURCES" -maxdepth 1 -name "$dir.tar.*" | head -1 || true)"
     [ -n "$tarball" ] || die "tarball for '$dir' not found in $SOURCES"
     log "==> build $dir"
+    local rc=0
     (
         cd "$SOURCES"
         rm -rf "$dir"
         tar xf "$tarball"
         cd "$dir"
         bash -e -c "$body"
-    )
-    local rc=$?
+    ) || rc=$?
     if [ $rc -ne 0 ]; then
         mkdir -p "$SOURCES/.diag"
         find "$SOURCES/$dir" -maxdepth 2 -name config.log \
@@ -50,7 +50,9 @@ shell_run() {
     local body
     body="$(cat)"
     log "==> run: $(echo "$body" | head -1 | cut -c1-100)"
-    ( cd "$SOURCES" && bash -e -c "$body" )
+    local rc=0
+    ( cd "$SOURCES" && bash -e -c "$body" ) || rc=$?
+    [ $rc -eq 0 ] || die "shell_run block failed (rc=$rc)"
 }
 
 # ---------------------------------------------------------------------------

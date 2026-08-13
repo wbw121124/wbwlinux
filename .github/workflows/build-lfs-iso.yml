@@ -35,7 +35,9 @@ jobs:
             ccache-
 
       - name: Build cross toolchain and temporary tools
-        run: bash scripts/02-toolchain.sh
+        run: |
+          set -o pipefail
+          bash scripts/02-toolchain.sh 2>&1 | tee /home/runner/toolchain.log
 
       - name: DIAGNOSE pre-snapshot tree (TEMP)
         run: |
@@ -59,6 +61,17 @@ jobs:
           include-hidden-files: true
           name: snapshot-toolchain
           path: .artifacts/toolchain.tar.zst.part-*
+          retention-days: 7
+
+      - name: Upload failure logs (toolchain)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: toolchain-failure-logs
+          path: |
+            /home/runner/toolchain.log
+            /mnt/lfs/sources/.diag/
+          if-no-files-found: warn
           retention-days: 7
 
   # ---------------------------------------------------------------
@@ -123,7 +136,9 @@ jobs:
           DIAG
 
       - name: Build base system in chroot
-        run: bash scripts/03-chroot-base.sh
+        run: |
+          set -o pipefail
+          bash scripts/03-chroot-base.sh 2>&1 | tee /home/runner/base.log
 
       - name: Snapshot base system
         run: bash scripts/common.sh --snapshot base
@@ -133,6 +148,17 @@ jobs:
           include-hidden-files: true
           name: snapshot-base
           path: .artifacts/base.tar.zst.part-*
+          retention-days: 7
+
+      - name: Upload failure logs (base)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: base-failure-logs
+          path: |
+            /home/runner/base.log
+            /mnt/lfs/sources/.diag/
+          if-no-files-found: warn
           retention-days: 7
 
   # ---------------------------------------------------------------

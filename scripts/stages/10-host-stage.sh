@@ -357,9 +357,11 @@ make DESTDIR=$LFS install
 #  were never installed -> 'cannot find crtbeginS.o' at first link)
 GCC_LIBGCC_DIR="$LFS/usr/lib/gcc/$LFS_TGT/15.2.0"
 for f in crtbeginS.o libgcc.a libgcc_s.so; do
-    [ -e "$GCC_LIBGCC_DIR/$f" ] \
-        || die "pass2 libgcc artifact missing: $GCC_LIBGCC_DIR/$f"
+    if [ ! -e "$GCC_LIBGCC_DIR/$f" ]; then
+        echo "ERROR: pass2 libgcc artifact missing: $GCC_LIBGCC_DIR/$f" >&2
+        exit 1
+    fi
 done
-log "==> pass2 libgcc assertion OK: $GCC_LIBGCC_DIR/{crtbeginS.o,libgcc.a,libgcc_s.so}"
+ls -l "$GCC_LIBGCC_DIR"/{crtbeginS.o,libgcc.a,libgcc_s.so}
 ln -sv gcc $LFS/usr/bin/cc
 CMD
