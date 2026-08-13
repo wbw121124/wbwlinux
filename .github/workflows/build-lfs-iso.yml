@@ -22,6 +22,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install host prerequisites + download sources
+        run: bash scripts/01-host-prep.sh
+
       - name: Cache restore (ccache)
         uses: actions/cache/restore@v4
         id: ccache-restore
@@ -30,9 +33,6 @@ jobs:
           key: ccache-${{ hashFiles('scripts/**', 'tools/x86_64/md5sums') }}
           restore-keys: |
             ccache-
-
-      - name: Install host prerequisites + download sources
-        run: bash scripts/01-host-prep.sh
 
       - name: Build cross toolchain and temporary tools
         run: bash scripts/02-toolchain.sh
