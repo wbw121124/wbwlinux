@@ -76,6 +76,7 @@ snapshot() {
     rm -f "$ARTIFACTS_DIR/$name.tar.zst.part-"*
     log "==> snapshot $LFS_ROOT -> $ARTIFACTS_DIR/$name.tar.zst.part-* ($SNAP_PART_SIZE each)"
     tar --zstd -C / --exclude=proc --exclude=sys --exclude=dev --exclude=run \
+        --exclude=ccache --exclude=ccache-wrap \
         -cf - "${LFS_ROOT#/}" |
         split -b "$SNAP_PART_SIZE" -d -a 3 - "$ARTIFACTS_DIR/$name.tar.zst.part-"
     local total=0

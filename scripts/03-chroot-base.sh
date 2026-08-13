@@ -27,11 +27,11 @@ cp -v "$STAGES_DIR/20-chroot-stage.sh" "$STAGES_DIR/30-ch8-stage.sh" "$CHROOT_BU
 
 CHROOT_CMD="
 set -euo pipefail
-export SOURCES=/sources
 export SCRIPTS_DIR=/build
 export STAGES_DIR=/build/stages
 export CONFIG_DIR=/config
 source /build/env.sh
+export SOURCES=/sources
 source /build/common.sh
 log '==> chroot: ch7.5-7.13 (temporary system cleanup)'
 source /build/stages/20-chroot-stage.sh
