@@ -1,37 +1,41 @@
 # LFS-CN Live ISO 构建计划
 
 ## 目标
-在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：run#17 已成功越过交叉工具链（gcc pass2），准备 run#18 推进 ch8 81 包长跑直至产出 ISO。
+在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：gettext 根因（toolchain 快照 exclude）已修复并验证，run#22 已越过 ch7 全部包、ch8 推进至 8.17 Tcl-8.6.17，修复后继续 ch8 长跑直至产出 ISO。
 
-## 根因（已定位，run#13/14/15 实证，run#15 完整日志定案）
-**最终根因：ccache-wrap 为 `x86_64-lfs-linux-gnu-cc`/`-c++` 建了符号链接，但 gcc pass1 install 从不安装这两个真实编译器。**
-1. `01-host-prep.sh` 在 `$LFS_ROOT/ccache-wrap` 建指向 ccache 的链接（gcc g++ cc c++ 及 `$LFS_TGT-{gcc,g++,cc,c++}`）。
-2. gcc pass2 configure（顶层，11:43:44）为目标编译器搜索 PATH，`$LFS_TGT-cc` 命中 ccache-wrap 链接（只查存在性，不探测）→ `CC_FOR_TARGET='x86_64-lfs-linux-gnu-cc --sysroot=/mnt/lfs'`。
-3. `configure-target-libgcc`（11:51:35）用该 CC 做编译探测 → ccache 按名字找真实编译器：
-   `ccache: error: Could not find compiler "x86_64-lfs-linux-gnu-cc" in PATH`（`$LFS/tools/bin` 无此名）→
-   `configure: error: cannot compute suffix of object files: cannot compile` → `Makefile:14145: configure-target-libgcc` Error 1。
-4. 原始 LFS（无 ccache-wrap）PATH 里没有 `$LFS_TGT-cc` → 搜索落到 `$LFS_TGT-gcc`（真实存在）→ 一切正常。`-gcc`/`-g++` 包装器全程正常（glibc 及 pass2 自身均用它们编译成功）。
-5. 由此 libgcc（crtbeginS.o / crtbegin.o / libgcc.a / libgcc_s.so*）从未构建/安装；旧 run 中后续 `make install` 照跑、脚本未拦截 → 快照带病，base job 才暴露（crtbeginS.o/-lgcc/-lgcc_s not found）。
-6. 附带异常（run#15 中为正常现象）：libstdc++ configure 的 `shared libgcc... no` 警告由 5 引起。
+## 根因一（已修复，run#21 实证、run#22 验证）
+**gettext configure 报 "cannot run C compiled programs" 的真正根因：toolchain 快照的裸 `--exclude=sys`（basename 匹配）把 `/usr/include/sys/` 整个排除出快照 → chroot 内所有带 `stdio.h` 的 conftest 编译失败（`sys/cdefs.h: No such file or directory`）。**
+1. `snapshot()` 原命令 `tar --zstd -C / --exclude=proc --exclude=sys --exclude=dev ... -cf - "${LFS_ROOT#/}"`：GNU tar 的 `--exclude` 按 **basename** 匹配任意层级，`sys` 命中了 `mnt/lfs/usr/include/sys/` → `/usr/include/sys/cdefs.h` 从未进入快照。
+2. 冒烟测试程序不含任何 `#include`，故一直 SMOKE-OK 掩盖问题；autoconf 的 conftest 带 `<stdio.h>` 才暴露。
+3. run#21（278b3bd，探针版本）实证：`/usr/include/features.h:540:12: fatal error: sys/cdefs.h: No such file or directory`、`manual_compile_rc=1`；glibc-2.43.tar.xz 内确认 `include/sys/cdefs.h` 与 `misc/sys/cdefs.h` 存在。
+4. 修复 + 验证：cb86455 将 exclude 全部锚定为 `${LFS_ROOT#/}/proc`、`/sys`、`/dev`、`/run`、`/ccache`、`/ccache-wrap`；run#22 证明 ch7 全通过。
+
+## 根因二（run#22 实证，待修）
+**8.17 Tcl 失败：`tcl8.6.17-src.tar.gz` 解压出的顶层目录是 `tcl8.6.17/`（不带 `-src`），而 pkg_run 的 `$dir` 用了 tarball 名 `tcl8.6.17-src` → `cd "$dir"`（common.sh:31）失败。**
+- 证据：run#22 base job 日志尾部 `[17:23:47] ==> build tcl8.6.17-src` → `/build/common.sh: line 31: cd: tcl8.6.17-src: No such file or directory` → `bash: line 2: cd: unix: No such file or directory` → `##[error]Process completed with exit code 1.`；本地 `tar -tzf tcl8.6.17-src.tar.gz` 实测顶层为 `tcl8.6.17/`。
+- 修复方案：pkg_run 解压后探测实际顶层目录，若与 `$dir` 不同则 `mv` 重命名成 `$dir`（保持 body 内相对路径与清理逻辑不变）；或给 tcl 单独加目录名映射。这样对其它包无副作用。
 
 ## 待办任务
-- [x] 1. 修 `scripts/stages/10-host-stage.sh` gcc pass2 configure（6.18 节，332-352 行），对照 LFS-CN ch6.18 补齐：
-  - `--disable-fixincludes`
-  - `CXX_FOR_TARGET="$LFS_TGT-gcc -nostdinc++"`（文档强调：不用宿主编译器构建目标运行库）
-  - `target_configargs=gcc_cv_target_thread_file=posix`
-- [x] 2. 核对 pass2 无 `--with-gxx-include-dir`（头不应装到 /tools）；`LDFLAGS_FOR_TARGET=-L$PWD/$LFS_TGT/libgcc` 已有。（5.6 libstdc++ 的 `--with-gxx-include-dir=/tools/...` 按书保留）
-- [x] 3. `scripts/common.sh`：pkg_run/shell_run/chroot_wrap 的 body 改 `bash -e -c`（原 `bash -c` 只返回最后一条命令退出码 → run#13/14 中 pass2 `make` 失败被后续 `ln -sv` 成功掩盖）；失败时保留 config.log 到 `$SOURCES/.diag/`。
-- [x] 4. pass2 `make DESTDIR=$LFS install` 后加断言：`$LFS/usr/lib/gcc/$LFS_TGT/15.2.0/{crtbeginS.o,libgcc.a,libgcc_s.so}`，缺失即 die。
-- [x] 5. 提交推送（b270277、f74afd1）→ run#15/16 同点失败（ccache-wrap `-cc` 毒链接），详见上方根因。
-- [x] 6. **根治 ccache-wrap**：`scripts/01-host-prep.sh` 移除 `x86_64-lfs-linux-gnu-cc` / `x86_64-lfs-linux-gnu-c++` 包装链接（真实编译器不存在）→ gcc pass2 目标编译器回落 `-gcc`。→ run#17 验证。
-- [ ] 7. base 越过 gettext-1.0 后继续 ch8 长跑，逐个处理后续失败。
-- [ ] 8. （可选）清理 `D:\wbw121124` 遗留 `ghlog.py tail --latest` 进程（PID 4732）。
+- [x] 1-6（历史，见下）ccache-wrap 根治 → run#17 toolchain 通过。
+- [x] 7. gettext 根因定位（sys/cdefs.h）与修复（cb86455）→ run#22 ch7 全过。
+- [ ] 8. **修 pkg_run 顶层目录名不匹配**（tcl8.6.17-src 解压出 tcl8.6.17/）→ 推送 → run#23 越过 Tcl-8.6.17 继续 ch8。
+- [ ] 9. ch8 剩余（8.18 Expect 起）逐个处理后续失败直至 ISO。
+- [ ] 10. （可选）清理 `D:\wbw121124` 遗留 `ghlog.py tail --latest` 进程（PID 4732）。
 
-## run#17 结果（2026-08-14）
-**交叉工具链（ch5+ch6）构建成功**。日志 73802 行实证：`libgcc_s.so` 安装于 `/mnt/lfs/usr/lib/`（常规 GCC 布局），工具链断言文件 `10-host-stage.sh` 错误地在 gcc 私有目录（`$LFS/usr/lib/gcc/$LFS_TGT/15.2.0/`）查找它 → 断言误报失败。根因修复后 toolchain 已通过。
-- 附带发现：断言路径硬编码 15.2.0 → 已改动态推导（`-print-libgcc-file-name`）。
+## run#17 结果（2026-08-14，回顾）
+**交叉工具链（ch5+ch6）构建成功**。日志 73802 行实证：`libgcc_s.so` 安装于 `/mnt/lfs/usr/lib/`（常规 GCC 布局），工具链断言文件 `10-host-stage.sh` 曾错误地在 gcc 私有目录（`$LFS/usr/lib/gcc/$LFS_TGT/15.2.0/`）查找 → 断言误报。修复：断言路径改动态推导（`-print-libgcc-file-name`）；glibc 5.5 校验块加 `CCACHE_DISABLE=1`。
 
-## 本轮修复清单（未提交，准备 run#18）
+## 历史根因（已修复，run#13/14/15 定案）
+**ccache-wrap 为 `x86_64-lfs-linux-gnu-cc`/`-c++` 建了符号链接，但 gcc pass1 install 从不安装这两个真实编译器** → gcc pass2 目标编译器搜到毒链接 → `configure-target-libgcc` 用 `x86_64-lfs-linux-gnu-cc` 编译探测失败（ccache 找不到真实编译器）→ libgcc 从未构建/安装，base job 端暴露（crtbeginS.o/-lgcc/-lgcc_s not found）。修复：`01-host-prep.sh` 移除这两个包装链接，目标编译器回落 `-gcc`。
+
+## run#22 结果（2026-08-14，HEAD=cb86455，run_id=31785299090)
+**toolchain job（94719761110）success；base job（94722721282）failure，推进至 8.17 Tcl-8.6.17。**
+- ch7 全部通过（gettext 探针 `manual_conftest_rc=0`）；ch8 已越过 glibc-2.43、flex-2.6.4 等大量包直到 Tcl。
+- 失败点：Tcl-8.6.17 见上方「根因二」。
+- 观察点：die 分支的 ERROR/df/mount 输出未出现在 job 日志（`grep -E 'ERROR|failed \(rc|df -h'` 无结果），但 job 确实在 tcl 处退出（exit code 1）→ 需在修根因二后验证 die 输出是否正常透传（可能 chroot 内 stdout 缓冲问题）。
+- artifact 9214217592（822895 字节）已上传（base.log + /mnt/lfs/sources/.diag/），下载仍受 blob 401 阻塞。
+
+## 历史修补与审计清单（run#17 之前轮次）
 - **10-host-stage.sh**：
   - glibc 5.5 工具链校验块加 `CCACHE_DISABLE=1`（ccache 命中时 `-v` 预处理输出不回放 → grep 误杀）。
   - gcc pass2 断言：crtbeginS.o/libgcc.a 查 gcc 私有目录（动态推导），libgcc_s.so 查 `$LFS/usr/lib/`。
