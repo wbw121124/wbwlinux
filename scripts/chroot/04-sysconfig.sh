@@ -23,22 +23,12 @@ DHCP=ipv4
 UseDomains=true
 EOF
 
-cat > /etc/systemd/network/10-eth-static.network << 'EOF'
-[Match]
-Name=ether0
-
-[Network]
-Address=192.168.0.2/24
-Gateway=192.168.0.1
-DNS=192.168.0.1
-EOF
-
 # --- 9.2.3/9.2.4 hostname + hosts ----------------------------------
 echo 'lfs-cn' > /etc/hostname
 
 cat > /etc/hosts << 'EOF'
 # Begin /etc/hosts
-127.0.0.1   localhost
+127.0.0.1   localhost lfs-cn
 ::1         ip6-localhost ip6-loopback
 ff02::1     ip6-allnodes
 ff02::2     ip6-allrouters
@@ -61,7 +51,7 @@ FONT=eurlatgr
 EOF
 
 # --- 9.7. locale: zh_CN.UTF-8 default, C.UTF-8 on raw console ------
-if ! locale -a 2>/dev/null | grep -q '^zh_CN.UTF-8$'; then
+if ! locale -a 2>/dev/null | grep -qi '^zh_CN\.utf-?8$'; then
     log "==> generating zh_CN.UTF-8 locale"
     localedef -i zh_CN -f UTF-8 zh_CN.UTF-8
 fi
@@ -138,6 +128,8 @@ EOF
 
 # enable systemd-networkd for the live environment
 systemctl enable systemd-networkd systemd-resolved
+# libc DNS resolution via systemd-resolved stub (live DHCP DNS)
+ln -sfv /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 
 # --- live convenience: root auto-login on tty1 ----------------------
 mkdir -pv /etc/systemd/system/getty@tty1.service.d

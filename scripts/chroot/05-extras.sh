@@ -28,15 +28,20 @@ if [ ! -e /usr/local/bin/node ]; then
 fi
 
 # =====================================================================
-# Rust (official prebuilt, x86_64)
+# Rust (official full toolchain, x86_64: rustc+cargo+rust-std+rustfmt...)
 # =====================================================================
 if [ ! -e /opt/rust/bin/rustc ]; then
     log "==> Rust $RUST_VER"
     mkdir -p /opt/rust
-    tar xf "rustc-$RUST_VER-x86_64-unknown-linux-gnu.tar.xz" -C /opt/rust --strip-components=1
-    for t in rustc cargo rustdoc rust-lld; do
-        [ -e "/usr/local/bin/$t" ] || ln -sfv "/opt/rust/bin/$t" "/usr/local/bin/$t" || true
+    tar xf "rust-$RUST_VER-x86_64-unknown-linux-gnu.tar.xz" -C /opt/rust --strip-components=2
+    for t in rustc cargo rustdoc rustfmt cargo-fmt clippy-driver cargo-clippy rust-analyzer; do
+        if [ -e "/opt/rust/bin/$t" ] && [ ! -e "/usr/local/bin/$t" ]; then
+            ln -sfv "/opt/rust/bin/$t" "/usr/local/bin/$t"
+        fi
     done
+    if [ -e /opt/rust/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld ]; then
+        ln -sfv /opt/rust/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld /usr/local/bin/rust-lld
+    fi
     /opt/rust/bin/rustc --version
 fi
 
@@ -59,7 +64,7 @@ fi
 # =====================================================================
 if [ ! -e /usr/lib/libicuuc.so.78 ]; then
     log "==> ICU $ICU_VER"
-    tar xf icu4c-78_2-src.tar.xz
+    tar xf "icu4c-$ICU_VER-sources.tgz"
     cd icu/source
     ./configure --prefix=/usr
     make -j"$NPROC"
