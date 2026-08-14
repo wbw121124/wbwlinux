@@ -90,7 +90,10 @@ echo "rootsbindir=/usr/sbin" > configparms
 make
 make DESTDIR=$LFS install
 sed '/RTLDLIST=/s@/usr@@g' -i $LFS/usr/bin/ldd
-echo 'int main(){}' | $LFS_TGT-gcc -x c - -v -Wl,--verbose &> dummy.log
+# toolchain sanity check; run the compiler directly, bypassing ccache
+# (a ccache hit would not replay the -v preprocessor output, falsely
+#  failing the greps below)
+echo 'int main(){}' | CCACHE_DISABLE=1 $LFS_TGT-gcc -x c - -v -Wl,--verbose &> dummy.log
 readelf -l a.out | grep ': /lib'
 grep -E -o "$LFS/lib.*/S?crt[1in].*succeeded" dummy.log
 grep -B3 "^ $LFS/usr/include" dummy.log
@@ -355,13 +358,20 @@ make DESTDIR=$LFS install
 # 6.18 assertion: pass2 must install the libgcc runtime artifacts
 # (run#13/14: configure-target-libgcc failed silently, crtbeginS.o/libgcc
 #  were never installed -> 'cannot find crtbeginS.o' at first link)
-GCC_LIBGCC_DIR="$LFS/usr/lib/gcc/$LFS_TGT/15.2.0"
-for f in crtbeginS.o libgcc.a libgcc_s.so; do
+# NOTE (run#17): GCC installs crtbeginS.o/libgcc.a under the gcc private
+# dir, but libgcc_s.so under the system libdir ($LFS/usr/lib), which is
+# the regular GCC layout — assert each at its real location.
+GCC_LIBGCC_DIR="$(dirname "$(CCACHE_DISABLE=1 $LFS_TGT-gcc -print-libgcc-file-name)")"
+for f in crtbeginS.o libgcc.a; do
     if [ ! -e "$GCC_LIBGCC_DIR/$f" ]; then
         echo "ERROR: pass2 libgcc artifact missing: $GCC_LIBGCC_DIR/$f" >&2
         exit 1
     fi
 done
-ls -l "$GCC_LIBGCC_DIR"/{crtbeginS.o,libgcc.a,libgcc_s.so}
+if [ ! -e "$LFS/usr/lib/libgcc_s.so" ]; then
+    echo "ERROR: pass2 libgcc_s.so missing: $LFS/usr/lib/libgcc_s.so" >&2
+    exit 1
+fi
+ls -l "$GCC_LIBGCC_DIR"/{crtbeginS.o,libgcc.a} "$LFS/usr/lib"/libgcc_s.so*
 ln -sv gcc $LFS/usr/bin/cc
 CMD
