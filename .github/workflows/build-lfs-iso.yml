@@ -67,6 +67,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: toolchain-failure-logs
           path: |
             /home/runner/toolchain.log
@@ -120,6 +121,10 @@ jobs:
           chroot /mnt/lfs /usr/bin/env -i HOME=/root PATH=/usr/bin:/usr/sbin /bin/bash -c "gcc -print-prog-name=cc1; gcc -print-prog-name=collect2; gcc -print-prog-name=as; gcc -print-prog-name=ld; gcc -print-file-name=crt1.o; gcc -print-file-name=Scrt1.o; gcc -print-search-dirs"
           echo "=== chroot smoke compile (v) ==="
           chroot /mnt/lfs /usr/bin/env -i HOME=/root PATH=/usr/bin:/usr/sbin /bin/bash -c "mkdir -p /tmp; cd /tmp; printf 'int main(){return 0;}\n' > t.c; gcc -v t.c -o t 2>&1; echo gcc_rc=\$?; if [ -x /tmp/t ]; then /tmp/t && echo SMOKE-OK || echo SMOKE-RUNFAIL; else echo NO-BINARY; fi"
+          echo "=== chroot smoke compile IN /sources (reproduce gettext) ==="
+          chroot /mnt/lfs /usr/bin/env -i HOME=/root PATH=/usr/bin:/usr/sbin /bin/bash -c "cd /sources; printf 'int main(){return 0;}\n' > st.c; gcc st.c -o st 2>&1; echo gcc_rc=\$?; ls -l /sources/st; ./st && echo SOURCES-SMOKE-OK || echo SOURCES-SMOKE-RUNFAIL; /sources/st; echo abs_rc=\$?"
+          echo "=== mount / df ==="
+          mount | grep -E 'sources|/mnt/lfs' ; df -h /sources /tmp /
           echo "=== binutils runtime (chroot) ==="
           chroot /mnt/lfs /usr/bin/env -i HOME=/root PATH=/usr/bin:/usr/sbin /bin/bash -c "ld --version 2>&1 | head -3; echo ld_rc=\$?; as --version 2>&1 | head -2; echo as_rc=\$?; ls -l /usr/x86_64-lfs-linux-gnu/bin/ 2>&1"
           echo "=== loader --list ld (NEEDED libs resolvable?) ==="
@@ -154,6 +159,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: base-failure-logs
           path: |
             /home/runner/base.log
