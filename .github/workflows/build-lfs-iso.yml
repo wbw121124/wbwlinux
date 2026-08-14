@@ -212,6 +212,9 @@ jobs:
       - name: Restore configured snapshot
         run: bash scripts/common.sh --restore config
 
+      - name: Install host prerequisites (mksquashfs/grub-mkrescue/xorriso)
+        run: bash scripts/01-host-prep.sh
+
       - name: Build kernel, initramfs and live ISO
         run: bash scripts/06-kernel-iso.sh
 

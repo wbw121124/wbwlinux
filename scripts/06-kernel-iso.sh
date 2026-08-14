@@ -40,6 +40,11 @@ mksquashfs "$LFS_ROOT" "$ISO_ROOT/live/rootfs.squashfs" \
     -e sources build root/downloads proc sys dev run etc/ld.so.cache
 ls -lh "$ISO_ROOT/live/rootfs.squashfs"
 
+# ---- pack initramfs (cpio is not inside the chroot; do it on the host) ----
+log "==> packing initramfs"
+( cd "$LFS_ROOT/boot/initramfs-lfs-cn" && find . -print0 | cpio --null -ov --format=newc 2>/dev/null | gzip -9 > "$LFS_ROOT/boot/initramfs-lfs-cn.img" )
+ls -lh "$LFS_ROOT/boot/initramfs-lfs-cn.img"
+
 # ---- copy kernel + initramfs out ------------------------------------
 cp -v "$LFS_ROOT/boot/vmlinuz-$LFS_KERNEL_VER-lfs-cn" "$ISO_ROOT/boot/vmlinuz-$LFS_KERNEL_VER-lfs-cn"
 cp -v "$LFS_ROOT/boot/initramfs-lfs-cn.img" "$ISO_ROOT/boot/initramfs-lfs-cn.img"

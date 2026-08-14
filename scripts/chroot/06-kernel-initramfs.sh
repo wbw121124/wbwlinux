@@ -39,6 +39,13 @@ cp -iv arch/x86/boot/bzImage "/boot/vmlinuz-$KERNEL_VER-lfs-cn"
 cp -iv System.map "/boot/System.map-$KERNEL_VER"
 cp -iv .config "/boot/config-$KERNEL_VER"
 
+# switch_root will exec /sbin/init on the live root - make sure it exists
+# (systemd ships its binary under /usr/lib/systemd/systemd)
+if [ -e /usr/lib/systemd/systemd ] && [ ! -e /sbin/init ]; then
+    ln -sfv ../usr/lib/systemd/systemd /sbin/init
+fi
+ls -l /sbin/init
+
 # ---------------------------------------------------------------------
 # live /etc/fstab (no fixed partitions in a live ISO)
 # ---------------------------------------------------------------------
@@ -96,6 +103,9 @@ copy_deps /usr/bin/mknod
 # the dynamic linker must be in the expected location
 cp -avL /lib64/ld-linux-x86-64.so.2 "$INITRAMFS_DIR/lib64/" 2>/dev/null || true
 
+# init is #!/bin/sh -> make /bin/sh available (bash is copied as /usr/bin/bash)
+ln -sfv /usr/bin/bash "$INITRAMFS_DIR/bin/sh"
+
 cat > "$INITRAMFS_DIR/init" << 'EOF'
 #!/bin/sh
 export PATH=/sbin:/bin:/usr/sbin:/usr/bin
@@ -106,18 +116,22 @@ mount -t devtmpfs devtmpfs /dev
 mkdir -p /dev/pts /dev/shm
 mount -t devpts devpts /dev/pts
 
-# wait for the ISO device to appear
-sleep 1
-
+# wait for the ISO device to appear (poll with retries; USB/CD probing can lag)
 iso_dev=""
-for dev in $(cat /proc/partitions | awk '{print $4}' | grep -E '^(sr|sd)[a-z0-9]+$'); do
-    if mount -t iso9660 -r "/dev/$dev" /mnt 2>/dev/null; then
-        if [ -f /mnt/live/rootfs.squashfs ]; then
-            iso_dev="/dev/$dev"
-            break
+attempt=0
+while [ $attempt -lt 30 ]; do
+    attempt=$((attempt+1))
+    for dev in $(cat /proc/partitions | awk '{print $4}' | grep -E '^(sr|sd)[a-z0-9]+$'); do
+        if mount -t iso9660 -r "/dev/$dev" /mnt 2>/dev/null; then
+            if [ -f /mnt/live/rootfs.squashfs ]; then
+                iso_dev="/dev/$dev"
+                break
+            fi
+            umount /mnt 2>/dev/null
         fi
-        umount /mnt 2>/dev/null
-    fi
+    done
+    [ -n "$iso_dev" ] && break
+    sleep 1
 done
 
 if [ -z "$iso_dev" ]; then
@@ -146,8 +160,10 @@ exec switch_root /newroot /sbin/init
 EOF
 chmod +x "$INITRAMFS_DIR/init"
 
-log "==> packing initramfs"
-( cd "$INITRAMFS_DIR" && find . -print0 | cpio --null -ov --format=newc 2>/dev/null | gzip -9 > /boot/initramfs-lfs-cn.img )
-ls -lh /boot/initramfs-lfs-cn.img
+# NOTE: the initramfs image is packed on the HOST in 06-kernel-iso.sh
+# (cpio is a BLFS package, not available inside this chroot)
+log '==> kernel + initramfs tree done'
 
-log '==> kernel + initramfs done'
+# free the kernel build tree (excluded from squashfs, but wastes runner disk)
+cd /sources
+rm -rf "linux-$KERNEL_VER"
