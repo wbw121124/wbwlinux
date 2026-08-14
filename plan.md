@@ -13,12 +13,12 @@
 ## 根因二（run#22 实证，待修）
 **8.17 Tcl 失败：`tcl8.6.17-src.tar.gz` 解压出的顶层目录是 `tcl8.6.17/`（不带 `-src`），而 pkg_run 的 `$dir` 用了 tarball 名 `tcl8.6.17-src` → `cd "$dir"`（common.sh:31）失败。**
 - 证据：run#22 base job 日志尾部 `[17:23:47] ==> build tcl8.6.17-src` → `/build/common.sh: line 31: cd: tcl8.6.17-src: No such file or directory` → `bash: line 2: cd: unix: No such file or directory` → `##[error]Process completed with exit code 1.`；本地 `tar -tzf tcl8.6.17-src.tar.gz` 实测顶层为 `tcl8.6.17/`。
-- 修复方案：pkg_run 解压后探测实际顶层目录，若与 `$dir` 不同则 `mv` 重命名成 `$dir`（保持 body 内相对路径与清理逻辑不变）；或给 tcl 单独加目录名映射。这样对其它包无副作用。
+- 修复方案（已实施）：pkg_run 解压后若 `$dir` 目录不存在 → `tar -tf "$tarball" | awk -F/ 'NF>1{print $1; exit}'` 取真实顶层目录名并 `mv` 重命名成 `$dir`（保持 body 相对路径与清理逻辑不变）；用 tar 列表而非 find，避免 /sources 残留目录干扰。已用 Git Bash 本地模拟验证（含旧残留 tcl8.6.17/ 干扰场景）。
 
 ## 待办任务
 - [x] 1-6（历史，见下）ccache-wrap 根治 → run#17 toolchain 通过。
 - [x] 7. gettext 根因定位（sys/cdefs.h）与修复（cb86455）→ run#22 ch7 全过。
-- [ ] 8. **修 pkg_run 顶层目录名不匹配**（tcl8.6.17-src 解压出 tcl8.6.17/）→ 推送 → run#23 越过 Tcl-8.6.17 继续 ch8。
+- [x] 8. **修 pkg_run 顶层目录名不匹配**（tcl8.6.17-src 解压出 tcl8.6.17/）→ 已修（common.sh：`tar -tf` 取真实顶层名 + mv 重命名，本地模拟验证含残留目录场景）→ 待 run#23 验证。
 - [ ] 9. ch8 剩余（8.18 Expect 起）逐个处理后续失败直至 ISO。
 - [ ] 10. （可选）清理 `D:\wbw121124` 遗留 `ghlog.py tail --latest` 进程（PID 4732）。
 

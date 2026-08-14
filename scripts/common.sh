@@ -28,6 +28,10 @@ pkg_run() {
         cd "$SOURCES"
         rm -rf "$dir"
         tar xf "$tarball"
+        if [ ! -d "$dir" ]; then
+            top="$(tar -tf "$tarball" 2>/dev/null | awk -F/ 'NF>1{print $1; exit}')"
+            [ -n "$top" ] && [ -d "$top" ] && mv "$top" "$dir"
+        fi
         cd "$dir"
         bash -e -c "$body"
     ) || rc=$?
