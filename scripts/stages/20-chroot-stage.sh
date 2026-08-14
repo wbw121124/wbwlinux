@@ -91,6 +91,11 @@ CMD
 
 # --- 7.7. Gettext-1.0
 pkg_run 'gettext-1.0' <<'CMD'
+rm -f gettext-runtime/conftest.out
+printf '#include <stdio.h>\nint main(void){FILE*f=fopen("conftest.out","w");if(!f)return 1;return ferror(f)||fclose(f)!=0;}\n' > gettext-runtime/cf.c
+gcc -g -O2 gettext-runtime/cf.c -o gettext-runtime/cf || { echo manual_compile_rc=$?; exit 1; }
+( cd gettext-runtime && ./cf ); echo manual_conftest_rc=$?
+ls -ld gettext-runtime; ls -l gettext-runtime/conftest.out 2>&1
 ./configure --disable-shared
 make
 cp -v gettext-tools/src/{msgfmt,msgmerge,xgettext} /usr/bin

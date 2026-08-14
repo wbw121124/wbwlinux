@@ -33,10 +33,17 @@ pkg_run() {
     ) || rc=$?
     if [ $rc -ne 0 ]; then
         mkdir -p "$SOURCES/.diag"
-        find "$SOURCES/$dir" -maxdepth 2 -name config.log \
-            -exec cp -v {} "$SOURCES/.diag/$dir.config.log" \; 2>/dev/null || true
+        find "$SOURCES/$dir" -maxdepth 3 -name config.log 2>/dev/null | while read -r f; do
+            rel=${f#"$SOURCES/$dir"/}
+            cp -v "$f" "$SOURCES/.diag/$dir--${rel//\//__}.config.log" || true
+            echo "===== config.log: $f ====="
+            grep -n -B6 -A45 -m1 'cannot run C compiled programs' "$f" || true
+            echo "===== end $f ====="
+        done
+        df -h "$SOURCES" || true
+        mount | grep -E 'sources|/mnt/lfs' || true
         rm -rf "$SOURCES/$dir"
-        die "build of '$dir' failed (rc=$rc); config.log kept at $SOURCES/.diag/$dir.config.log"
+        die "build of '$dir' failed (rc=$rc); see $SOURCES/.diag/"
     fi
     rm -rf "$SOURCES/$dir"
 }
