@@ -27,10 +27,7 @@ make
 grep "Timed out" $(find -name \*.out) || true
 touch /etc/ld.so.conf
 sed '/test-installation/s@$(PERL)@echo not running@' -i ../Makefile
-rm -f /usr/sbin/nscd
-systemctl disable --now nscd
-make DESTDIR=$PWD/dest install
-install -vm755 dest/usr/lib/*.so.* /usr/lib
+make install
 DIR=$(dirname $(gcc -print-libgcc-file-name))
 [ -e $DIR/include/limits.h ]    || mv $DIR/include{-fixed,}/limits.h
 [ -e $DIR/include/syslimits.h ] || mv $DIR/include{-fixed,}/syslimits.h
@@ -94,7 +91,7 @@ rpc: files
 
 # End /etc/nsswitch.conf
 EOF
-tar -xf ../../tzdata2025c.tar.gz
+tar -xf tzdata2025c.tar.gz
 
 ZONEINFO=/usr/share/zoneinfo
 mkdir -pv $ZONEINFO/{posix,right}
@@ -109,8 +106,7 @@ done
 cp -v zone.tab zone1970.tab iso3166.tab $ZONEINFO
 zic -d $ZONEINFO -p America/New_York
 unset ZONEINFO tz
-tzselect
-ln -sfv /usr/share/zoneinfo/<xxx> /etc/localtime
+ln -sfv /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 cat > /etc/ld.so.conf << "EOF"
 # Begin /etc/ld.so.conf
 /usr/local/lib
@@ -346,7 +342,6 @@ sed -i '/long long t1;/,+1s/()/(...)/' configure
             --docdir=/usr/share/doc/gmp-6.3.0
 make
 make html
-awk '/# PASS:/{total+=$3} ; END{print total}' gmp-check-log
 make install
 make install-html
 CMD
@@ -838,10 +833,6 @@ FORCE_UNSAFE_CONFIGURE=1 ./configure \
             --prefix=/usr
 make
 
-
-
-
-groupdel dummy
 make install
 mv -v /usr/bin/chroot /usr/sbin
 mv -v /usr/share/man/man1/chroot.1 /usr/share/man/man8/chroot.8
@@ -877,7 +868,7 @@ CMD
 
 # --- 8.65. Groff-1.23.0
 pkg_run 'groff-1.23.0' <<'CMD'
-PAGE=<paper_size> ./configure --prefix=/usr
+PAGE=A4 ./configure --prefix=/usr
 make
 make install
 CMD

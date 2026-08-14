@@ -1,3 +1,7 @@
+#!/usr/bin/env bash
+# WARNING: reference transcript extracted from the LFS book ch9.
+# DO NOT RUN - contains interactive/placeholder commands (<xxx>, tzselect,
+# timedatectl set-time ...). The real configuration is scripts/chroot/04-sysconfig.sh.
 ### ch-config-network :: 9.2. General Network Configuration
 systemctl disable systemd-networkd-wait-online
 

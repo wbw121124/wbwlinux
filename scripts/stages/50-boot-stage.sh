@@ -1,3 +1,8 @@
+#!/usr/bin/env bash
+# WARNING: reference transcript extracted from the LFS book ch10/ch11.
+# DO NOT RUN - contains dangerous/interactive commands (make menuconfig,
+# grub-install /dev/sda, xorriso cdrecord ...). Real live-ISO logic is
+# scripts/06-kernel-iso.sh + scripts/chroot/06-kernel-initramfs.sh.
 ### ch-bootable-fstab :: 10.2. Creating the /etc/fstab File
 cat > /etc/fstab << "EOF"
 # Begin /etc/fstab
