@@ -15,17 +15,18 @@
 - 证据：run#22 base job 日志尾部 `[17:23:47] ==> build tcl8.6.17-src` → `/build/common.sh: line 31: cd: tcl8.6.17-src: No such file or directory` → `bash: line 2: cd: unix: No such file or directory` → `##[error]Process completed with exit code 1.`；本地 `tar -tzf tcl8.6.17-src.tar.gz` 实测顶层为 `tcl8.6.17/`。
 - 修复方案（已实施）：pkg_run 解压后若 `$dir` 目录不存在 → `tar -tf "$tarball" | awk -F/ 'NF>1{print $1; exit}'` 取真实顶层目录名并 `mv` 重命名成 `$dir`（保持 body 相对路径与清理逻辑不变）；用 tar 列表而非 find，避免 /sources 残留目录干扰。已用 Git Bash 本地模拟验证（含旧残留 tcl8.6.17/ 干扰场景）。
 
-## 根因三（run#23 实证，已修）
+## 根因三（run#24 实证，已修）
 **8.82 util-linux-2.41.3 失败：`tests/run.sh` 前置检查 `$top_builddir/test_ttyutils` 不存在（测试程序未编译）→ 输出 "Tests not compiled! Run 'make check-programs' to fix the problem." 并 `exit 1`；脚本只跑了 `make` 未跑 `make check-programs`。**
-- 证据：run#23 base job 日志尾部 `[19:06:05] ERROR: build of 'util-linux-2.41.3' failed (rc=1)`；util-linux 编译全部 CCLD 成功，仅 run.sh 检查失败。run.sh 源码（v2.41.3）确认该检查逻辑。
+- 证据：run#24 base job 日志尾部 `[19:06:05] ERROR: build of 'util-linux-2.41.3' failed (rc=1)`；util-linux 编译全部 CCLD 成功，仅 run.sh 检查失败。run.sh 源码（v2.41.3）确认该检查逻辑（`-z "$SYSCOMMANDS" -a ! -f "$top_builddir/test_ttyutils"`）。
 - 修复方案（已实施）：`make` 后加 `make check-programs`；`bash tests/run.sh ... || true`（测试为书中可选步骤，CI 宿主内核缺 CONFIG_SCSI_DEBUG/CONFIG_CRYPTO_USER_API_HASH 等，部分测试必然失败，不应阻断构建）。
 
 ## 待办任务
 - [x] 1-6（历史，见下）ccache-wrap 根治 → run#17 toolchain 通过。
 - [x] 7. gettext 根因定位（sys/cdefs.h）与修复（cb86455）→ run#22 ch7 全过。
-- [x] 8. **修 pkg_run 顶层目录名不匹配**（tcl8.6.17-src 解压出 tcl8.6.17/）→ 已修（common.sh：`tar -tf` 取真实顶层名 + mv 重命名）→ run#23 验证通过（越过 Tcl 至 8.82 util-linux）。
-- [x] 9a. **修 util-linux 测试前置**（make check-programs + run.sh 失败不阻断）→ 待 run#24 验证。
-- [ ] 9. ch8 剩余（8.83 E2fsprogs 起）逐个处理后续失败直至 ISO。
+- [x] 8. **修 pkg_run 顶层目录名不匹配**（tcl8.6.17-src 解压出 tcl8.6.17/）→ 已修（common.sh：`tar -tf` 取真实顶层名 + mv 重命名）→ run#24 验证通过（越过 Tcl 至 8.82 util-linux）。
+- [x] 9a. **修 util-linux 测试前置**（make check-programs + run.sh 失败不阻断）→ run#25 未及验证（systemd 处卡死），run#26 重验。
+- [x] 9b. **pkg_run 超时看门狗（防静默卡死）**（common.sh）→ 包构建外包 `timeout -k 60 ${PKG_TIMEOUT:-7200} bash -e -c`；超时(124)时保留残留树 + df/mount/ps 快照后 die 显式报错，避免再静默挂满 6h。改 scripts/ → ccache 全 miss，run#26 toolchain 重编。
+- [ ] 9. ch8 剩余（8.79 D-Bus 起）逐个处理后续失败直至 ISO。
 - [ ] 10. （可选）清理 `D:\wbw121124` 遗留 `ghlog.py tail --latest` 进程（PID 4732）。
 
 ## run#17 结果（2026-08-14，回顾）
@@ -34,11 +35,25 @@
 ## 历史根因（已修复，run#13/14/15 定案）
 **ccache-wrap 为 `x86_64-lfs-linux-gnu-cc`/`-c++` 建了符号链接，但 gcc pass1 install 从不安装这两个真实编译器** → gcc pass2 目标编译器搜到毒链接 → `configure-target-libgcc` 用 `x86_64-lfs-linux-gnu-cc` 编译探测失败（ccache 找不到真实编译器）→ libgcc 从未构建/安装，base job 端暴露（crtbeginS.o/-lgcc/-lgcc_s not found）。修复：`01-host-prep.sh` 移除这两个包装链接，目标编译器回落 `-gcc`。
 
-## run#23 结果（2026-08-15，HEAD=d7381c2）
+## run#23 结果（2026-08-15，HEAD=244d808，plan-only）
+**仅更新 plan.md（记录 Tcl 根因二的预告）。toolchain success；base job failure 在 8.17 Tcl-8.6.17（pkg_run 尚未修复）**。
+- 失败点证据：`/build/common.sh: line 31: cd: tcl8.6.17-src: No such file or directory`（与 run#22 相同的「根因二」模式）。该 run 与 run#24 紧邻（09:34 / 09:35 UTC 先后 push）。
+
+## run#25 观察（2026-08-15，HEAD=bd932dc，卡死，处置：建议 cancel 后重跑）
+**toolchain success（新 ccache key 全 miss 重编）；base 进入 ch8 后 in_progress，systemd-259.1 全量编译（2330 目标）在 [668/2330] 处进程停滞。**
+- util-linux 修复未及验证（尚未跑到 util-linux）。证据链：
+  - 日志 blob `job-logs.txt`（44MB, 20260815T0230）`Last-Modified=02:30:23Z`，最后一行 `[668/2330] Compiling C object systemd-hostnamed.p/src_hostname_hostnamed.c.o`；此后 2h+ 无任何新日志 → 非 GitHub 页面缓冲，是 job 内部进程停滞。
+  - job API：base job（94942251835）run#25 内 `Build base system in chroot` step 01:28:49Z 起 in_progress，无 timeout 配置（GitHub 默认 6h 将强制 cancel，本地 <15:30）。
+  - cancel 403：`action-log.html` 的 TOKEN_DEFAULT 是 Actions:Read 只读 token，无法 cancel/trigger → 需用户网页操作或提供 write token。
+- 可能根因（未证实）：ccache key 变化（bd932dc 改 scripts/30-ch8-stage.sh）→ run#25 的 ccache 全 miss → systemd 2330 目标全量编译。run#24 该处命中旧缓存（systemd 仅 2.5min）。磁盘充足（run#24 die 时 145G/46%）。停滞点无日志 → 疑似子进程死锁/runner 资源问题，需重跑确认是否偶发。
+- 待办：cancel+重跑观察 systemd 是否复现；若复现需针对性加固（如 systemd 降并行/跳过测试/拆步骤，或给 ccache 预留）。
+
+## run#24 结果（2026-08-15，HEAD=d7381c2）
 **toolchain job success；base job failure，推进至 8.82 util-linux-2.41.3。**
-- 根因二（Tcl 顶层目录）修复验证通过：run#23 越过 Tcl-8.6.17，并连续通过 Expect、DejaGNU、Python 系（openssl/elfutils/libffi/sqlite/Python-3.14.3）、systemd-259.1、dbus、man-db、procps-ng 等直至 util-linux。
-- 失败点：util-linux-2.41.3（见「根因三」）。日志 203803 行 `ERROR: build of 'util-linux-2.41.3' failed (rc=1)`；make 全量 CCLD 成功，`bash tests/run.sh` 报 "Tests not compiled!" 退出。
+- 根因二（Tcl 顶层目录）修复验证通过：run#24 越过 Tcl-8.6.17，并连续通过 Expect、DejaGNU、Python 系（openssl/elfutils/libffi/sqlite/Python-3.14.3）、systemd-259.1、dbus、man-db、procps-ng 等直至 util-linux。
+- 失败点：util-linux-2.41.3（见「根因三」）。日志 `ERROR: build of 'util-linux-2.41.3' failed (rc=1)`；make 全量 CCLD 成功，`bash tests/run.sh` 报 "Tests not compiled!" 退出。
 - 附带观察：die 分支 ERROR/df/mount 输出本次正常透传（`ERROR: build of ...` 与 `Filesystem ... df` 均出现在 job 日志）。
+- 日志来源：`C:\Users\yl\Downloads\logs_86238926001\2_Base system (ch8).txt`（44MB，203804 行，失败行 203803）。
 
 ## run#22 结果（2026-08-14，HEAD=cb86455，run_id=31785299090)
 **toolchain job（94719761110）success；base job（94722721282）failure，推进至 8.17 Tcl-8.6.17。**

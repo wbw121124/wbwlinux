@@ -33,9 +33,21 @@ pkg_run() {
             [ -n "$top" ] && [ -d "$top" ] && mv "$top" "$dir"
         fi
         cd "$dir"
-        bash -e -c "$body"
+        if command -v timeout >/dev/null 2>&1; then
+            timeout -k 60 "${PKG_TIMEOUT:-7200}" bash -e -c "$body"
+        else
+            bash -e -c "$body"
+        fi
     ) || rc=$?
     if [ $rc -ne 0 ]; then
+        if [ $rc -eq 124 ]; then
+            mkdir -p "$SOURCES/.diag"
+            df -h "$SOURCES" || true
+            mount | grep -E 'sources|/mnt/lfs' || true
+            ps -eo pid,stat,etime,cmd | grep -v -E 'grep|ps -eo' | head -40 || true
+            log "TIMEOUT: build of '$dir' exceeded ${PKG_TIMEOUT:-7200}s (rc=124); tree left at $SOURCES/$dir for triage"
+            die "build of '$dir' timed out; see $SOURCES/.diag/ and leftover $SOURCES/$dir"
+        fi
         mkdir -p "$SOURCES/.diag"
         find "$SOURCES/$dir" -maxdepth 3 -name config.log 2>/dev/null | while read -r f; do
             rel=${f#"$SOURCES/$dir"/}
