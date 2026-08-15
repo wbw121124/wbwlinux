@@ -89,6 +89,14 @@ jobs:
           name: snapshot-toolchain
           path: .artifacts
 
+      - name: Create swap for build memory spikes (GCC -O3 systemd)
+        run: |
+          sudo fallocate -l 4G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
+
       - name: Restore toolchain snapshot
         run: bash scripts/common.sh --restore toolchain
 

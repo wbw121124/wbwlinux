@@ -43,6 +43,8 @@ pkg_run() {
         if [ $rc -eq 124 ]; then
             mkdir -p "$SOURCES/.diag"
             df -h "$SOURCES" || true
+            free -h || true
+            head -8 /proc/meminfo || true
             mount | grep -E 'sources|/mnt/lfs' || true
             ps -eo pid,stat,etime,cmd | grep -v -E 'grep|ps -eo' | head -40 || true
             log "TIMEOUT: build of '$dir' exceeded ${PKG_TIMEOUT:-7200}s (rc=124); tree left at $SOURCES/$dir for triage"
@@ -57,6 +59,7 @@ pkg_run() {
             echo "===== end $f ====="
         done
         df -h "$SOURCES" || true
+        free -h || true
         mount | grep -E 'sources|/mnt/lfs' || true
         rm -rf "$SOURCES/$dir"
         die "build of '$dir' failed (rc=$rc); see $SOURCES/.diag/"
