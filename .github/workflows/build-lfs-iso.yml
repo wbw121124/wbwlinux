@@ -91,10 +91,20 @@ jobs:
 
       - name: Create swap for build memory spikes (GCC -O3 systemd)
         run: |
-          sudo fallocate -l 4G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
+          set -ex
+          if swapon --show | grep -q swap; then
+            echo "swap already active:"
+            swapon --show
+          elif [ -f /swapfile ]; then
+            echo "/swapfile exists, enabling it"
+            sudo swapon /swapfile
+          else
+            echo "creating /swapfile"
+            sudo fallocate -l 4G /swapfile
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+            sudo swapon /swapfile
+          fi
           free -h
 
       - name: Restore toolchain snapshot

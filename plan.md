@@ -26,7 +26,7 @@
 - [x] 8. **修 pkg_run 顶层目录名不匹配**（tcl8.6.17-src 解压出 tcl8.6.17/）→ 已修（common.sh：`tar -tf` 取真实顶层名 + mv 重命名）→ run#24 验证通过（越过 Tcl 至 8.82 util-linux）。
 - [x] 9a. **修 util-linux 测试前置**（make check-programs + run.sh 失败不阻断）→ run#25 未及验证（systemd 处卡死），run#26 重验。
 - [x] 9b. **pkg_run 超时看门狗（防静默卡死）**（common.sh）→ 包构建外包 `timeout -k 60 ${PKG_TIMEOUT:-7200} bash -e -c`；超时(124)时保留残留树 + df/mount/ps 快照后 die 显式报错，避免再静默挂满 6h。改 scripts/ → ccache 全 miss，run#26 toolchain 重编（实证仅 ~17min，可接受）。
-- [x] 9c. **systemd 全量编译卡死修复（swap 兜底）**（workflow base job + common.sh）→ 宿主加 4G swap 防 GCC -O3 内存尖峰 cgroup 冻结；超时快照加 free -h/meminfo。改 workflow 不触发 ccache key；common.sh 变更 → run#27 toolchain 重编 ~20min。
+- [x] 9c. **systemd 全量编译卡死修复（swap 兜底）**（workflow base job + common.sh）→ 宿主加 swap 防 GCC -O3 内存尖峰 cgroup 冻结；超时快照加 free -h/meminfo。run#27 因镜像自带 /swapfile 冲突失败 → 已改健壮检测版，run#28 验证。
 - [ ] 9. ch8 剩余（8.79 D-Bus 起）逐个处理后续失败直至 ISO。
 - [ ] 10. （可选）清理 `D:\wbw121124` 遗留 `ghlog.py tail --latest` 进程（PID 4732）。
 
@@ -48,6 +48,11 @@
   - cancel 403：`action-log.html` 的 TOKEN_DEFAULT 是 Actions:Read 只读 token，无法 cancel/trigger → 需用户网页操作或提供 write token。
 - 可能根因（未证实）：ccache key 变化（bd932dc 改 scripts/30-ch8-stage.sh）→ run#25 的 ccache 全 miss → systemd 2330 目标全量编译。run#24 该处命中旧缓存（systemd 仅 2.5min）。磁盘充足（run#24 die 时 145G/46%）。停滞点无日志 → 疑似子进程死锁/runner 资源问题，需重跑确认是否偶发。
 - 待办：cancel+重跑观察 systemd 是否复现；若复现需针对性加固（如 systemd 降并行/跳过测试/拆步骤，或给 ccache 预留）。
+
+## run#27 结果（2026-08-15，HEAD=5cb7045，swap 步骤自身失败，未开始构建）
+**toolchain success（~17min，ccache 回退命中）；base job 在第一步 swap 即挂：`fallocate: fallocate failed: Text file busy` → exit 1 → base 立即失败。**
+- 原因：ubuntu-latest runner 镜像自带 `/swapfile`（已 swapon）→ fallocate 4G 冲突。修复：swap 步骤改为检测已有 swap/`/swapfile`（swapon --show 有则跳过、有 /swapfile 则 enable、否则才创建）→ 待 run#28 验证。
+- 观察：run#26 卡死中，看门狗预计 09:47Z 触发（systemd pkg_run 07:47Z + 2h），将上传 .diag artifact（含 ps 快照）——若内存假说不成立，快照可揭示卡死进程。
 
 ## run#25 + run#26 卡死根因（systemd 全量编译确定性停滞，待 run#27 验证修复）
 **两次（run#25 @[668/2330] hostnamed.c、run#26 @[547/2330] unit-printf.c）均卡死在 systemd-259.1 全量编译中段，普通 C 文件编译后无任何新日志（run#25 停滞 5h+ 直至 6h 强制 cancel；run#26 停滞 30min+ 确认同模式）。**
