@@ -27,7 +27,7 @@ declare -A urls=(
   ["nano-$NANO_VER.tar.xz"]="https://www.nano-editor.org/dist/v8/nano-$NANO_VER.tar.xz"
   ["freetype-$FREETYPE_VER.tar.xz"]="https://downloads.sourceforge.net/freetype/freetype-$FREETYPE_VER.tar.xz"
   ["fontconfig-$FONTCONFIG_VER.tar.xz"]="https://gitlab.freedesktop.org/api/v4/projects/890/packages/generic/fontconfig/$FONTCONFIG_VER/fontconfig-$FONTCONFIG_VER.tar.xz"
-  ["fbterm-1.7.tar.gz"]="https://downloads.sourceforge.net/project/fbterm/fbterm/1.7/fbterm-1.7.tar.gz"
+  ["fbterm-1.7.tar.gz"]="https://deb.debian.org/debian/pool/main/f/fbterm/fbterm_1.7.orig.tar.gz"
   ["wqy-microhei-0.2.0-beta.tar.gz"]="https://downloads.sourceforge.net/project/wqy/wqy-microhei/0.2.0-beta/wqy-microhei-0.2.0-beta.tar.gz"
   ["libunwind-1.6.2.tar.gz"]="https://github.com/libunwind/libunwind/releases/download/v1.6.2/libunwind-1.6.2.tar.gz"
 )

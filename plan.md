@@ -29,7 +29,7 @@
 - [x] 9a. **修 util-linux 测试前置**（make check-programs + run.sh 失败不阻断）→ run#28 实证已越过 "Tests not compiled!" 进入实际测试，但发现 lsns 挂死 → 补 `timeout 600`（见根因三深化）→ 待 run#29 验证。
 - [x] 9b. **pkg_run 超时看门狗（防静默卡死）**（common.sh）→ 包构建外包 `timeout -k 60 ${PKG_TIMEOUT:-7200} bash -e -c`；超时(124)时保留残留树 + df/mount/ps 快照后 die 显式报错，避免再静默挂满 6h。改 scripts/ → ccache 全 miss，run#26 toolchain 重编（实证仅 ~17min，可接受）。
 - [x] 9c. **systemd 全量编译卡死修复（swap 兜底）**（workflow base job + common.sh）→ 宿主加 swap 防 GCC -O3 内存尖峰 cgroup 冻结；超时快照加 free -h/meminfo。run#27 因镜像自带 /swapfile 冲突失败 → run#28 实证 swap 生效（Swap: 3.0Gi 就位），systemd-259.1 编译通过（此轮 j2 无卡死）；systemd 卡死根因仍存疑，但本轮未复现。
-- [ ] 9. ch8 剩余（8.79 D-Bus 起）逐个处理后续失败直至 ISO → run#29 已越过 util-linux（timeout 兜底实证）、e2fsprogs，8.85 strip 修复（根因五）待 run#30 验证，之后仅剩 8.86 cleanup + ch8 收尾 → config/extras/iso。
+- [ ] 9. ch8 剩余（8.79 D-Bus 起）逐个处理后续失败直至 ISO → **run#30 ch8 全部完成（8.85/8.86 通过）**；后续链条：config+extras（fbterm URL 已修，run#31 验证）→ iso job（内核/initramfs/squashfs/GRUB，尚未跑过，新领域）。
 - [ ] 10. （可选）清理 `D:\wbw121124` 遗留 `ghlog.py tail --latest` 进程（PID 4732）。
 
 ## run#17 结果（2026-08-14，回顾）
@@ -50,6 +50,17 @@
   - cancel 403：`action-log.html` 的 TOKEN_DEFAULT 是 Actions:Read 只读 token，无法 cancel/trigger → 需用户网页操作或提供 write token。
 - 可能根因（未证实）：ccache key 变化（bd932dc 改 scripts/30-ch8-stage.sh）→ run#25 的 ccache 全 miss → systemd 2330 目标全量编译。run#24 该处命中旧缓存（systemd 仅 2.5min）。磁盘充足（run#24 die 时 145G/46%）。停滞点无日志 → 疑似子进程死锁/runner 资源问题，需重跑确认是否偶发。
 - 待办：cancel+重跑观察 systemd 是否复现；若复现需针对性加固（如 systemd 降并行/跳过测试/拆步骤，或给 ccache 预留）。
+
+## 根因六（run#30 实证，已修）
+**05-extras.sh 下载 fbterm-1.7.tar.gz 404：SourceForge 项目 `fbterm` 已下线（`downloads.sourceforge.net/project/fbterm/...` 与 `sourceforge.net/projects/fbterm/files/...` 均 404，webfetch 项目页亦 404）。**
+- 证据：run#30 config+extras job 日志 `[05:53:32] curl: (22) The requested URL returned error: 404`，fail 于 `downloading fbterm-1.7.tar.gz`（wqy/nano/icu4c/libunwind 均成功，其余 URL 预验证全部 200）。
+- 修复（已实施）：URL 改 Debian pool 镜像 `https://deb.debian.org/debian/pool/main/f/fbterm/fbterm_1.7.orig.tar.gz`（200；本地实测顶层目录 `fbterm-1.7/` 与 chroot 脚本 `tar xf fbterm-1.7.tar.gz; cd fbterm-1.7` 兼容，下载文件名不变）→ 待 run#31 验证。
+- 附带预验证（curl HEAD 全 200）：node/rust/powershell/nvim/freetype/fontconfig/libunwind URL。
+
+## run#30 结果（2026-08-17，HEAD=1fa15ac，ch8 全过！）
+**toolchain success（~16min）；base success —— ch8 全部完成（8.85 strip 修复实证：`.socket` 非 ELF 跳过、ELF 正常 strip；8.86 cleanup 通过）！config+extras failure（fbterm 404，见「根因六」）；iso skipped。**
+- base job 13:54:42 success（自 12:10 起约 1h45m），`usr/.base-system-complete` 已写入，base 快照（3 分卷）已上传 → run#31 无需重跑 toolchain/base，直接从 base 快照继续 config+extras。
+- 8.85/8.86 通过的意义：ch8 81 包全部成功，剩余链条只剩 extras 下载/安装、内核+initramfs+squashfs+GRUB ISO。
 
 ## 根因五（run#29 实证，已修）
 **8.85 Stripping 失败：`find /usr/lib -type f -name \*.so*` 的 glob `*.so*` 是子串匹配，会命中 `.socket`/`.sock` 等非 ELF 单元文件（如 `/usr/lib/systemd/user/systemd-ask-password.socket`）→ `strip: file format not recognized` rc=1 → `set -e` 下 shell_run 直接失败。**
