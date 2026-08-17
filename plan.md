@@ -29,7 +29,7 @@
 - [x] 9a. **修 util-linux 测试前置**（make check-programs + run.sh 失败不阻断）→ run#28 实证已越过 "Tests not compiled!" 进入实际测试，但发现 lsns 挂死 → 补 `timeout 600`（见根因三深化）→ 待 run#29 验证。
 - [x] 9b. **pkg_run 超时看门狗（防静默卡死）**（common.sh）→ 包构建外包 `timeout -k 60 ${PKG_TIMEOUT:-7200} bash -e -c`；超时(124)时保留残留树 + df/mount/ps 快照后 die 显式报错，避免再静默挂满 6h。改 scripts/ → ccache 全 miss，run#26 toolchain 重编（实证仅 ~17min，可接受）。
 - [x] 9c. **systemd 全量编译卡死修复（swap 兜底）**（workflow base job + common.sh）→ 宿主加 swap 防 GCC -O3 内存尖峰 cgroup 冻结；超时快照加 free -h/meminfo。run#27 因镜像自带 /swapfile 冲突失败 → run#28 实证 swap 生效（Swap: 3.0Gi 就位），systemd-259.1 编译通过（此轮 j2 无卡死）；systemd 卡死根因仍存疑，但本轮未复现。
-- [ ] 9. ch8 剩余（8.79 D-Bus 起）逐个处理后续失败直至 ISO。
+- [ ] 9. ch8 剩余（8.79 D-Bus 起）逐个处理后续失败直至 ISO → run#29 已越过 util-linux（timeout 兜底实证）、e2fsprogs，8.85 strip 修复（根因五）待 run#30 验证，之后仅剩 8.86 cleanup + ch8 收尾 → config/extras/iso。
 - [ ] 10. （可选）清理 `D:\wbw121124` 遗留 `ghlog.py tail --latest` 进程（PID 4732）。
 
 ## run#17 结果（2026-08-14，回顾）
@@ -50,6 +50,26 @@
   - cancel 403：`action-log.html` 的 TOKEN_DEFAULT 是 Actions:Read 只读 token，无法 cancel/trigger → 需用户网页操作或提供 write token。
 - 可能根因（未证实）：ccache key 变化（bd932dc 改 scripts/30-ch8-stage.sh）→ run#25 的 ccache 全 miss → systemd 2330 目标全量编译。run#24 该处命中旧缓存（systemd 仅 2.5min）。磁盘充足（run#24 die 时 145G/46%）。停滞点无日志 → 疑似子进程死锁/runner 资源问题，需重跑确认是否偶发。
 - 待办：cancel+重跑观察 systemd 是否复现；若复现需针对性加固（如 systemd 降并行/跳过测试/拆步骤，或给 ccache 预留）。
+
+## 根因五（run#29 实证，已修）
+**8.85 Stripping 失败：`find /usr/lib -type f -name \*.so*` 的 glob `*.so*` 是子串匹配，会命中 `.socket`/`.sock` 等非 ELF 单元文件（如 `/usr/lib/systemd/user/systemd-ask-password.socket`）→ `strip: file format not recognized` rc=1 → `set -e` 下 shell_run 直接失败。**
+- 证据：run#29 base job 日志 `[11:48:50] strip: /usr/lib/systemd/user/systemd-ask-password.socket: file format not recognized` → `ERROR: shell_run block failed (rc=1)`。此前 objcopy 分离 debug 的 save_usrlib 循环全部成功（removed/-> 输出可见），说明失败仅在该 strip 循环。
+- 这是 ch8 最后一个阶段（8.85 strip + 8.86 cleanup），首次跑到即失败；LFS 书无 `set -e`（手动执行时该错误可忽略），故书中命令照抄到 set -e 环境即暴露。
+- 修复（已实施）：该循环 `strip --strip-debug $i || true`（非 ELF 跳过，ELF 正常 strip）→ 待 run#30 验证。
+
+## 代码审查报告处置（2026-08-17，run#29 结束后）
+另一 agent 对 util-linux timeout 修复的审查（8 文件只读），逐项处置：
+- **[严重] timeout 仅杀直接子进程、孤儿持管道 → step 挂死 6h**：**实证否定**。GNU timeout 默认 setpgid 后向整个进程组发 TERM/KILL；run#28（7200s 看门狗）与 run#29（600s 测试兜底，03:38:39 挂死 → 03:48:15 make install 继续，恰 600s）均证明超时后进程组被整体清理、step 正常收尾（Process completed 出现、后续步骤照常）。不实施改动。
+- **[一般] 超时快照 ps head -40 截断**：**已修**（common.sh 去 head，全量输出）。
+- **[一般] pkg_run 顶层目录兜底仅处理单顶层且不防 ./ 前缀**：**已修**（common.sh：sed 去 ./ 前缀 + sort -u 要求恰好一个顶层条目才 mv；本地 tcl/bison tarball 验证通过）。
+- **[建议] swap 检测 `grep -q swap` 子串匹配**：**已修**（workflow：`swapon --show --noheadings | grep -q .`，以"存在任何已激活 swap"为准）。
+- **[建议] `timeout 600` 魔法数字 + 无 command -v 守卫**：**已修**（30-ch8-stage.sh util-linux：command -v 守卫分支，与 common.sh:36 风格一致）。
+
+## run#29 结果（2026-08-17，HEAD=2f9235f，util-linux timeout 验证通过，fail 于 8.85 strip）
+**toolchain job success；base job 推进至 ch8 8.85 Stripping（ch8 最后一个阶段前）后失败。**
+- util-linux 修复实证通过：11:37:10 build 开始 → 测试跑至 lsns 挂死 → `timeout 600` 进程组信号清理（03:38:39 → 03:48:15 恰 600s）→ `touch /etc/fstab` + `make install` 完成 → e2fsprogs-1.47.3 全过（`libext2fs.dvi Error 1 (ignored)` 为 make 忽略项，不阻断）。
+- 失败点：8.85 Stripping（见「根因五」）。8.83.2 配置 sed、8.85 的 objcopy 分离 debug 循环均通过。
+- 附带确认：swap（3.0Gi）与 systemd 编译本轮继续正常；run#29 base 从 09:03 恢复快照到 11:48 失败，约 2h45m。
 
 ## run#28 结果（2026-08-15，HEAD=3fe6672，swap 修复生效，fail 于 util-linux 测试挂死）
 **toolchain job success（~17min，快照 1.9GB 上传）；base job 推进至 8.82 util-linux-2.41.3 后看门狗超时（exit 1，total 时长 ~6h 含等待基建）。**

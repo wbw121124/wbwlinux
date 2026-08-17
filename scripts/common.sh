@@ -29,8 +29,10 @@ pkg_run() {
         rm -rf "$dir"
         tar xf "$tarball"
         if [ ! -d "$dir" ]; then
-            top="$(tar -tf "$tarball" 2>/dev/null | awk -F/ 'NF>1{print $1; exit}')"
-            [ -n "$top" ] && [ -d "$top" ] && mv "$top" "$dir"
+            top="$(tar -tf "$tarball" 2>/dev/null | sed 's#^\./##' | awk -F/ 'NF>1{print $1}' | sort -u | sed '/^$/d')"
+            if [ -n "$top" ] && [ "$(printf '%s\n' "$top" | wc -l)" -eq 1 ] && [ -d "$top" ]; then
+                mv "$top" "$dir"
+            fi
         fi
         cd "$dir"
         if command -v timeout >/dev/null 2>&1; then
@@ -46,7 +48,7 @@ pkg_run() {
             free -h || true
             head -8 /proc/meminfo || true
             mount | grep -E 'sources|/mnt/lfs' || true
-            ps -eo pid,stat,etime,cmd | grep -v -E 'grep|ps -eo' | head -40 || true
+            ps -eo pid,stat,etime,cmd | grep -v -E 'grep|ps -eo' || true
             log "TIMEOUT: build of '$dir' exceeded ${PKG_TIMEOUT:-7200}s (rc=124); tree left at $SOURCES/$dir for triage"
             die "build of '$dir' timed out; see $SOURCES/.diag/ and leftover $SOURCES/$dir"
         fi

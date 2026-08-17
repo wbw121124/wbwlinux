@@ -1101,7 +1101,11 @@ pkg_run 'util-linux-2.41.3' <<'CMD'
             --docdir=/usr/share/doc/util-linux-2.41.3
 make
 make check-programs
-timeout 600 bash tests/run.sh --srcdir=$PWD --builddir=$PWD || true
+if command -v timeout >/dev/null 2>&1; then
+    timeout 600 bash tests/run.sh --srcdir=$PWD --builddir=$PWD
+else
+    bash tests/run.sh --srcdir=$PWD --builddir=$PWD
+fi || true
 touch /etc/fstab
 make install
 CMD
@@ -1184,7 +1188,7 @@ for i in $(find /usr/lib -type f -name \*.so* ! -name \*dbg) \
     case "$online_usrbin $online_usrlib $save_usrlib" in
         *$(basename $i)* )
             ;;
-        * ) strip --strip-debug $i
+        * ) strip --strip-debug $i || true
             ;;
     esac
 done

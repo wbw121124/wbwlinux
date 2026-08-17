@@ -92,7 +92,7 @@ jobs:
       - name: Create swap for build memory spikes (GCC -O3 systemd)
         run: |
           set -ex
-          if swapon --show | grep -q swap; then
+          if swapon --show --noheadings 2>/dev/null | grep -q .; then
             echo "swap already active:"
             swapon --show
           elif [ -f /swapfile ]; then
