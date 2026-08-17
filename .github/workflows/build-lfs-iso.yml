@@ -1,6 +1,8 @@
 name: Build LFS-CN Live ISO
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       resume:
@@ -25,7 +27,7 @@ jobs:
   # ---------------------------------------------------------------
   toolchain:
     name: Toolchain (ch5+ch6)
-    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.resume }}
+    if: ${{ github.event_name == 'workflow_dispatch' && !inputs.resume }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -89,7 +91,7 @@ jobs:
   base:
     name: Base system (ch8)
     needs: toolchain
-    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.resume }}
+    if: ${{ github.event_name == 'workflow_dispatch' && !inputs.resume }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -201,13 +203,14 @@ jobs:
   config-extras:
     name: Config + extras
     needs: base
+    if: ${{ always() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.resume) || needs.base.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Find latest run with snapshot-base artifact
         id: find-base
-        if: ${{ inputs.resume }}
+        if: ${{ github.event_name == 'push' || inputs.resume }}
         run: |
           id=$(curl -s -H "Authorization: Bearer ${{ github.token }}" \
             "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?name=snapshot-base&per_page=1" \
