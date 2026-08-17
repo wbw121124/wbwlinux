@@ -157,7 +157,7 @@ if [ ! -e /usr/bin/fbterm ]; then
     tar xf fbterm-1.7.tar.gz
     cd fbterm-1.7
     sed -i 's/#include <termios.h>/#include <termios.h>\n#include <sys\/select.h>/' src/fbterm.cpp
-    ./configure --prefix=/usr
+    ./configure --prefix=/usr CXXFLAGS="-O2 -Wno-narrowing"
     make -j"$NPROC"
     make install
     cd "$DL"

@@ -51,6 +51,15 @@
 - 可能根因（未证实）：ccache key 变化（bd932dc 改 scripts/30-ch8-stage.sh）→ run#25 的 ccache 全 miss → systemd 2330 目标全量编译。run#24 该处命中旧缓存（systemd 仅 2.5min）。磁盘充足（run#24 die 时 145G/46%）。停滞点无日志 → 疑似子进程死锁/runner 资源问题，需重跑确认是否偶发。
 - 待办：cancel+重跑观察 systemd 是否复现；若复现需针对性加固（如 systemd 降并行/跳过测试/拆步骤，或给 ccache 预留）。
 
+## 根因十（run#36 实证，已修）
+**fbterm-1.7（2012 年代码）在 GCC 15 下编译失败：`src/lib/vterm_states.cpp` 多处 `{ -1 }` 初始化 `u16`（unsigned short）→ C++11 起 list-initialization 的 narrowing 为 ill-formed，GCC 默认报错（`错误：narrowing conversion of '-1' from 'int' to 'u16' [-Wnarrowing]`）→ make 退出 rc=2。**
+- 证据：run#36 日志 Node/PATH 修复后已越过 Node（`node --version` 通过）、Rust/ICU/nano 等段（fbterm 段在 nano/freetype/fontconfig 之后？实际先到 fbterm 编译段即失败）；`make[3]: *** [Makefile:301：libshell_a-vterm_states.o] 错误 1`。
+- 修复（已实施）：`./configure --prefix=/usr CXXFLAGS="-O2 -Wno-narrowing"`（GNU 文档：-Wno-narrowing 允许该转换）→ 待 run#37 验证。若后续还有旧代码兼容错误（-Werror=... 类），同段继续补。
+
+## run#36 结果（2026-08-17，HEAD=6d0db27，resume 再验）
+**resume 机制二次验证：config+extras 独立运行（toolchain/base skipped）→ 11 文件下载全成（多源重试机制未触发即过）→ Node PATH 修复生效（Node 安装 + version 通过）→ Rust/ICU 等段正常 → fbterm 编译失败（根因十，GCC 15 narrowing）→ 4m23s 失败；iso 未跑。**
+- 里程碑：extras 下载环节全部通过（此前 run#31/32/35 均死在下载/PATH）；剩余链条：fbterm → 字体 → 编辑器配置 → snapshot config → iso job（内核+initramfs+squashfs+GRUB，全新领域）。
+
 ## 根因九（run#35 实证，已修）+ 下载多源重试（新增）
 **chroot 内 extras 安装失败：chroot 入口 PATH=/usr/bin:/usr/sbin 不含 /usr/local/bin → `node --version`（chroot/05-extras.sh:27）`command not found`（rc=127）。Node/Rust/nvim/pwsh 的二进制都 ln 到 /usr/local/bin，此前从未跑到该段（run#31/32 均死在下载），首次暴露。**
 - 证据：run#35 日志 node/nano/icu/fbterm/powershell/rust/freetype/fontconfig/nvim 11 文件下载全部成功（node 单 v、fbterm Debian pool 修复生效），chroot 内 `tar xf node-... --transform` 三链接成功 → `node: command not found`。
