@@ -161,7 +161,7 @@ jobs:
       - name: Build base system in chroot
         run: |
           set -o pipefail
-          bash scripts/03-chroot-base.sh 2>&1 | tee /home/runner/base.log
+          timeout 14400 bash -c 'bash scripts/03-chroot-base.sh 2>&1 | tee /home/runner/base.log'
 
       - name: Snapshot base system
         run: bash scripts/common.sh --snapshot base

@@ -51,6 +51,17 @@
 - 可能根因（未证实）：ccache key 变化（bd932dc 改 scripts/30-ch8-stage.sh）→ run#25 的 ccache 全 miss → systemd 2330 目标全量编译。run#24 该处命中旧缓存（systemd 仅 2.5min）。磁盘充足（run#24 die 时 145G/46%）。停滞点无日志 → 疑似子进程死锁/runner 资源问题，需重跑确认是否偶发。
 - 待办：cancel+重跑观察 systemd 是否复现；若复现需针对性加固（如 systemd 降并行/跳过测试/拆步骤，或给 ccache 预留）。
 
+## 根因七（run#31 实证，已修）
+**base job step 用 `bash 03-chroot-base.sh 2>&1 | tee base.log` 管道；当 chroot 内构建进程脱离 pkg_run 看门狗（timeout）进程组时，pkg_run 超时 die 后孤儿进程仍持管道写端 → tee 永不 EOF → step 永不结束 → job 挂到 GitHub 6h 强杀（cancelled）——run#25/26/31 三度发生（run#25/26 systemd 卡死、run#31 texinfo 卡死，卡死点随机）。**
+- 证据（run#31）：base job 日志停滞于 `==> build texinfo-7.2` configure 中段（REPLACE_* sed 输出后）长达 3h+（ghlog get/tail 均挂起）；pkg_run 看门狗（7200s）已到却无 TIMEOUT 输出可见 → step 未收尾；jobs API 恒 in_progress。有 swap 时 run#28/29/30 连续 3 次通过、run#31 再卡 → 卡死为随机 runner/进程问题，swap 非充分保护。
+- 修复（已实施）：base step 外层包 `timeout 14400 bash -c '... | tee base.log'`（4h 进程组级兜底，正常构建 2-3.5h 不受影响；卡死时强制清整个 step 进程组 → step 结束 → failure + 日志/artifact 上传照常）。config+extras/iso 步骤无 tee 管道（GitHub 直接捕获），无此风险，不改。
+- 遗留观察：3 次卡死点均不同（systemd×2、texinfo）→ 疑似 runner 偶发资源/虚拟化问题，无法代码根治，外层兜底为现实方案。
+
+## run#31 结果（2026-08-17，HEAD=a37b462，chroot 卡死再现）
+**toolchain success（~16min，05-extras.sh 改动触发 ccache 全 miss 重编）；base 卡死于 texinfo-7.2 configure（14:25 UTC 起 3h+ 无输出，job 至截稿仍 in_progress，预计 6h 强杀 cancel）；config+extras/iso 未跑。**
+- 意义：run#28/29/30（有 swap）三连过证明 swap 修复有效；run#31 卡死点不同于 run#25/26（systemd）→ 卡死随机化，根因七的 step 收尾兜底是唯一可靠防线。
+- fbterm URL 修复（根因六）本 run 未及验证 → run#32 重验。
+
 ## 根因六（run#30 实证，已修）
 **05-extras.sh 下载 fbterm-1.7.tar.gz 404：SourceForge 项目 `fbterm` 已下线（`downloads.sourceforge.net/project/fbterm/...` 与 `sourceforge.net/projects/fbterm/files/...` 均 404，webfetch 项目页亦 404）。**
 - 证据：run#30 config+extras job 日志 `[05:53:32] curl: (22) The requested URL returned error: 404`，fail 于 `downloading fbterm-1.7.tar.gz`（wqy/nano/icu4c/libunwind 均成功，其余 URL 预验证全部 200）。
