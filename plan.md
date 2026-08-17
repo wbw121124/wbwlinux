@@ -51,6 +51,10 @@
 - 可能根因（未证实）：ccache key 变化（bd932dc 改 scripts/30-ch8-stage.sh）→ run#25 的 ccache 全 miss → systemd 2330 目标全量编译。run#24 该处命中旧缓存（systemd 仅 2.5min）。磁盘充足（run#24 die 时 145G/46%）。停滞点无日志 → 疑似子进程死锁/runner 资源问题，需重跑确认是否偶发。
 - 待办：cancel+重跑观察 systemd 是否复现；若复现需针对性加固（如 systemd 降并行/跳过测试/拆步骤，或给 ccache 预留）。
 
+## run#37 结果（2026-08-17，HEAD=0ede7e2，extras 全过！）
+**resume（v2 语义：skip toolchain+base）→ config+extras **success** —— fbterm `-Wno-narrowing` 修复实证通过，Node/Rust/ICU/nano/freetype/fontconfig/fbterm/字体/编辑器配置全部安装完成 → snapshot-config 已上传（run#37）；但 Kernel+ISO 被 skipped（跳过传播沿 needs 链递归，见 Resume v3）→ 用户要求 resume 直接跳 iso（v3）。**
+- 里程碑：extras 环节（下载/安装/字体/配置）全链路打通；剩余唯一链条：iso job（内核 defconfig+fragment、initramfs、squashfs、GRUB 双引导 ISO —— 全新领域，从未跑过）。
+
 ## 根因十（run#36 实证，已修）
 **fbterm-1.7（2012 年代码）在 GCC 15 下编译失败：`src/lib/vterm_states.cpp` 多处 `{ -1 }` 初始化 `u16`（unsigned short）→ C++11 起 list-initialization 的 narrowing 为 ill-formed，GCC 默认报错（`错误：narrowing conversion of '-1' from 'int' to 'u16' [-Wnarrowing]`）→ make 退出 rc=2。**
 - 证据：run#36 日志 Node/PATH 修复后已越过 Node（`node --version` 通过）、Rust/ICU/nano 等段（fbterm 段在 nano/freetype/fontconfig 之后？实际先到 fbterm 编译段即失败）；`make[3]: *** [Makefile:301：libshell_a-vterm_states.o] 错误 1`。
@@ -74,13 +78,10 @@
 ## 根因八（run#32 实证，已修）+ Resume 机制（新增）
 **05-extras.sh 下载 node 双 v bug：`NODE_VER=v24.19.0`（env.sh 已含 `v` 前缀），下载侧写成 `node-v$NODE_VER-linux-x64.tar.xz` → `node-vv24.19.0...`，URL `https://nodejs.org/dist/v24.19.0/node-vv24.19.0-linux-x64.tar.xz` 404（本地预验证时误用单 v URL 漏检）；chroot 侧引用 `node-$NODE_VER`（单 v）正确，两侧不一致。** 修复：下载侧改 `node-$NODE_VER`（05-extras.sh:22）。实测单 v 200 / 双 v 404。
 - **run#32 已实证**：fbterm（根因六 Debian pool）下载成功、node 下载 404 失败 → 此轮 config+extras 卡在 node；其余 extras URL 无新问题。
-- **Resume 机制（workflow 重构，两版迭代）**：
-  - v1（eb96fb1）：移除 push 自动触发，全部改手动 dispatch + resume input。**发现 GitHub 语义 bug：job 被 `if:false` 跳过会沿 `needs` 链传播跳过 —— toolchain/base 跳过 → config-extras（needs: base）自动 skipped，resume 失效**。
-  - v2（当前）：恢复 `on.push` 并令其**自动进入 resume 模式**：
-    - `toolchain`/`base`：`if: github.event_name == 'workflow_dispatch' && !inputs.resume` → push 或 dispatch+resume 时跳过；dispatch 不勾选 = 全量。
-    - `config-extras`：`if: always() && (push || (dispatch && resume) || needs.base.result == 'success')` → 破解跳过传播，push/resume 必跑，全量时仅 base 成功才跑。
-    - `find-base` step：`if: push || resume` → push 自动 resume 也查历史 run。
-    - 使用矩阵：**push → 自动 resume（只跑 config+extras+iso）**；手动 dispatch 勾选 resume = 同上；不勾选 = 全量重建。
+- **Resume 机制（v3 迭代，当前）**：resume 语义改为 **skip toolchain + base + extras，直接跑 iso**（从最近成功 run 的 snapshot-config 恢复）。
+  - 触发矩阵：**push → 自动 resume（只跑 iso）**；dispatch 勾选 resume = 同左；dispatch 不勾选 = 全量（toolchain→base→config+extras→iso）。
+  - 关键实证（run#37）：config-extras success 后 **iso 仍被 skipped** —— GitHub 的跳过传播沿 needs 链递归生效（base/toolchain skipped → 下游 iso 即使直接 needs 的 job success 也被跳过，必须显式 if 覆盖）→ iso 加 `always() && (push || resume || needs.config-extras.result == 'success')`。
+  - iso 步骤加 find-config（push/resume 时查历史 snapshot-config run_id）+ download-artifact run-id。
 - 注意：run#31/32 的 snapshot-base artifact 保留 7 天，resume 需在其 retention 内使用。
 
 ## run#32 结果（2026-08-17，HEAD=d0d1a14，ch8 三度卡死防线实证）

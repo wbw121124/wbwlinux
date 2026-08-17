@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       resume:
-        description: 'Resume from last successful snapshot (skip toolchain + base)'
+        description: 'Resume from last successful snapshot (skip toolchain + base + extras)'
         type: boolean
         default: false
 
@@ -203,7 +203,7 @@ jobs:
   config-extras:
     name: Config + extras
     needs: base
-    if: ${{ always() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.resume) || needs.base.result == 'success') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && !inputs.resume && needs.base.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -249,13 +249,26 @@ jobs:
   iso:
     name: Kernel + ISO
     needs: config-extras
+    if: ${{ always() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.resume) || needs.config-extras.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Find latest run with snapshot-config artifact
+        id: find-config
+        if: ${{ github.event_name == 'push' || inputs.resume }}
+        run: |
+          id=$(curl -s -H "Authorization: Bearer ${{ github.token }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?name=snapshot-config&per_page=1" \
+            | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["artifacts"][0]["workflow_run"]["id"])')
+          echo "run_id=$id" >> "$GITHUB_OUTPUT"
+
       - uses: actions/download-artifact@v4
         with:
           name: snapshot-config
           path: .artifacts
+          run-id: ${{ steps.find-config.outputs.run_id }}
+          github-token: ${{ github.token }}
 
       - name: Restore configured snapshot
         run: bash scripts/common.sh --restore config
