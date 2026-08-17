@@ -4,6 +4,7 @@
 # CJK fonts and Chinese-friendly editor configs.
 # All tarballs were downloaded by the host into /root/downloads.
 set -euo pipefail
+export PATH="/usr/local/bin:/opt/rust/bin:$PATH"
 export SOURCES=/sources
 export SCRIPTS_DIR=/build
 export STAGES_DIR=/build/stages

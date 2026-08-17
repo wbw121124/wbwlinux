@@ -31,11 +31,31 @@ declare -A urls=(
   ["wqy-microhei-0.2.0-beta.tar.gz"]="https://downloads.sourceforge.net/project/wqy/wqy-microhei/0.2.0-beta/wqy-microhei-0.2.0-beta.tar.gz"
   ["libunwind-1.6.2.tar.gz"]="https://github.com/libunwind/libunwind/releases/download/v1.6.2/libunwind-1.6.2.tar.gz"
 )
+declare -A mirrors=(
+  ["node-$NODE_VER-linux-x64.tar.xz"]="https://registry.npmmirror.com/-/binary/node/$NODE_VER/node-$NODE_VER-linux-x64.tar.xz"
+  ["fbterm-1.7.tar.gz"]="https://archive.ubuntu.com/ubuntu/pool/universe/f/fbterm/fbterm_1.7.orig.tar.gz"
+)
+
+download_with_retry() {
+    local f="$1" u="$2" n
+    for n in 1 2 3; do
+        log "    attempt $n: $u"
+        if curl -fSL --retry 1 -o "$DL/$f" "$u" && [ -s "$DL/$f" ]; then
+            return 0
+        fi
+        rm -f "$DL/$f"
+        sleep 3
+    done
+    return 1
+}
 
 for f in "${!urls[@]}"; do
     if [ ! -s "$DL/$f" ]; then
         log "==> downloading $f"
-        curl -fSL --retry 3 -o "$DL/$f" "${urls[$f]}"
+        if ! download_with_retry "$f" "${urls[$f]}" \
+            && { [ -z "${mirrors[$f]:-}" ] || ! download_with_retry "$f" "${mirrors[$f]}"; }; then
+            die "download failed after retries: $f"
+        fi
     fi
 done
 log "==> extras downloaded: $(ls "$DL" | wc -l) files"

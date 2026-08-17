@@ -51,6 +51,17 @@
 - 可能根因（未证实）：ccache key 变化（bd932dc 改 scripts/30-ch8-stage.sh）→ run#25 的 ccache 全 miss → systemd 2330 目标全量编译。run#24 该处命中旧缓存（systemd 仅 2.5min）。磁盘充足（run#24 die 时 145G/46%）。停滞点无日志 → 疑似子进程死锁/runner 资源问题，需重跑确认是否偶发。
 - 待办：cancel+重跑观察 systemd 是否复现；若复现需针对性加固（如 systemd 降并行/跳过测试/拆步骤，或给 ccache 预留）。
 
+## 根因九（run#35 实证，已修）+ 下载多源重试（新增）
+**chroot 内 extras 安装失败：chroot 入口 PATH=/usr/bin:/usr/sbin 不含 /usr/local/bin → `node --version`（chroot/05-extras.sh:27）`command not found`（rc=127）。Node/Rust/nvim/pwsh 的二进制都 ln 到 /usr/local/bin，此前从未跑到该段（run#31/32 均死在下载），首次暴露。**
+- 证据：run#35 日志 node/nano/icu/fbterm/powershell/rust/freetype/fontconfig/nvim 11 文件下载全部成功（node 单 v、fbterm Debian pool 修复生效），chroot 内 `tar xf node-... --transform` 三链接成功 → `node: command not found`。
+- 附带验证：本地实测 node tarball `--transform='s,^node-v[0-9.]*-linux-x64,lib/nodejs,'` 在 GNU tar 下解压为 `lib/nodejs/bin/node` 正常（排除 transform 问题，根因锁定 PATH）。
+- 修复（已实施）：chroot/05-extras.sh 头部 `export PATH="/usr/local/bin:/opt/rust/bin:$PATH"`。
+- **下载多源重试**（用户要求）：05-extras.sh 下载循环重构 —— 每文件主源 3 次尝试（curl --retry 1 + 3 轮，失败 rm 残留 + sleep 3）→ 失败自动切换镜像源再 3 次 → 仍失败才 die。镜像（已实测 200）：node → npmmirror、fbterm → ubuntu archive；rust 镜像实测均不可用（rsproxy 504/USTC 403/清华 404）→ 仅主源重试。本地冒烟测试通过（主源 404×3 → 镜像成功 186364 字节）。
+
+## run#35 结果（2026-08-17，HEAD=86c705d，resume 机制首验）
+**resume 机制实证成功：toolchain/base 均 skipped（跳过传播 bug 已修，config-extras 用 always() 条件正常运行），config+extras 从 run#32 的 snapshot-base artifact 恢复 → 只跑 extras 相关步骤（1m6s 内下载 11 文件全成）→ 卡于 Node PATH 问题（根因九）；iso 未跑。**
+- 全链路验证：push 自动 resume ✓；skipped 传播修复 ✓；历史 artifact 查找/下载 ✓。
+
 ## 根因八（run#32 实证，已修）+ Resume 机制（新增）
 **05-extras.sh 下载 node 双 v bug：`NODE_VER=v24.19.0`（env.sh 已含 `v` 前缀），下载侧写成 `node-v$NODE_VER-linux-x64.tar.xz` → `node-vv24.19.0...`，URL `https://nodejs.org/dist/v24.19.0/node-vv24.19.0-linux-x64.tar.xz` 404（本地预验证时误用单 v URL 漏检）；chroot 侧引用 `node-$NODE_VER`（单 v）正确，两侧不一致。** 修复：下载侧改 `node-$NODE_VER`（05-extras.sh:22）。实测单 v 200 / 双 v 404。
 - **run#32 已实证**：fbterm（根因六 Debian pool）下载成功、node 下载 404 失败 → 此轮 config+extras 卡在 node；其余 extras URL 无新问题。
