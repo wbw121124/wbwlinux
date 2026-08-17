@@ -67,8 +67,11 @@ rm -rf "$INITRAMFS_DIR"
 mkdir -p "$INITRAMFS_DIR"/{bin,sbin,usr/bin,usr/sbin,lib,lib64,proc,sys,dev,run,mnt,newroot,etc}
 
 copy_deps() {
-    local bin="$1"
-    [ -e "$bin" ] || return 1
+    local name="$1" bin=""
+    for p in /usr/bin /usr/sbin /bin /sbin; do
+        [ -e "$p/$name" ] && { bin="$p/$name"; break; }
+    done
+    [ -n "$bin" ] || { log "WARN: $name not found in PATH, skipping"; return 0; }
     cp -avL "$bin" "$INITRAMFS_DIR$bin" 2>/dev/null
     local missing=0
     local dl

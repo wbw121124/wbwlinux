@@ -55,6 +55,15 @@
 **resume（v2 语义：skip toolchain+base）→ config+extras **success** —— fbterm `-Wno-narrowing` 修复实证通过，Node/Rust/ICU/nano/freetype/fontconfig/fbterm/字体/编辑器配置全部安装完成 → snapshot-config 已上传（run#37）；但 Kernel+ISO 被 skipped（跳过传播沿 needs 链递归，见 Resume v3）→ 用户要求 resume 直接跳 iso（v3）。**
 - 里程碑：extras 环节（下载/安装/字体/配置）全链路打通；剩余唯一链条：iso job（内核 defconfig+fragment、initramfs、squashfs、GRUB 双引导 ISO —— 全新领域，从未跑过）。
 
+## 根因十一（run#38 实证，已修）
+**initramfs copy_deps 硬编码 /usr/bin/ 路径，但 switch_root（util-linux）、insmod/modprobe（kmod）安装在 /usr/sbin/ → copy_deps 返回 1 → set -e 静默退出 rc=1（无任何错误输出）。**
+- 证据：run#38 日志 bzImage 构建成功（`Kernel: arch/x86/boot/bzImage is ready (#1)`），内核安装复制正常，initramfs copy_deps 复制序列 bash→mount→umount 后在 switch_root 处中断，chroot 静默 rc=1；宿主 15GB RAM/4 核，排除 OOM。
+- 修复（已实施）：copy_deps 改为按名字在 `/usr/bin /usr/sbin /bin /sbin` 依次查找（找到即用），缺失打 WARN 继续（不再触发 set -e）。
+
+## run#38 结果（2026-08-17，HEAD=0464302，resume v3 首验）
+**resume v3 实证：push 自动只跑 iso job（Toolchain/Base/Config+extras 全 skipped，find-config 找到 run#37 snapshot-config 恢复）→ 内核 defconfig+fragment 配置通过、bzImage 构建成功（~12min）→ initramfs 阶段失败（根因十一，switch_root 路径）→ 14m14s 失败。**
+- 里程碑：iso job 前半程（配置/编译/内核安装）全部打通；剩余：initramfs（修复中）→ mksquashfs → grub-mkrescue（全新领域）。
+
 ## 根因十（run#36 实证，已修）
 **fbterm-1.7（2012 年代码）在 GCC 15 下编译失败：`src/lib/vterm_states.cpp` 多处 `{ -1 }` 初始化 `u16`（unsigned short）→ C++11 起 list-initialization 的 narrowing 为 ill-formed，GCC 默认报错（`错误：narrowing conversion of '-1' from 'int' to 'u16' [-Wnarrowing]`）→ make 退出 rc=2。**
 - 证据：run#36 日志 Node/PATH 修复后已越过 Node（`node --version` 通过）、Rust/ICU/nano 等段（fbterm 段在 nano/freetype/fontconfig 之后？实际先到 fbterm 编译段即失败）；`make[3]: *** [Makefile:301：libshell_a-vterm_states.o] 错误 1`。
