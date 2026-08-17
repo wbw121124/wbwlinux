@@ -1101,7 +1101,7 @@ pkg_run 'util-linux-2.41.3' <<'CMD'
             --docdir=/usr/share/doc/util-linux-2.41.3
 make
 make check-programs
-bash tests/run.sh --srcdir=$PWD --builddir=$PWD || true
+timeout 600 bash tests/run.sh --srcdir=$PWD --builddir=$PWD || true
 touch /etc/fstab
 make install
 CMD

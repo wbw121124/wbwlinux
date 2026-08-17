@@ -1,7 +1,7 @@
 # LFS-CN Live ISO 构建计划
 
 ## 目标
-在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：gettext 根因（toolchain 快照 exclude）已修复并验证，run#22 已越过 ch7 全部包、ch8 推进至 8.17 Tcl-8.6.17，修复后继续 ch8 长跑直至产出 ISO。
+在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：gettext 根因（toolchain 快照 exclude）已修复并验证（run#22 ch7 全过），Tcl/sys 传递（根因二/三）已修；run#28 推进至 ch8 8.82 util-linux（测试挂死，已加 timeout），修复后继续 ch8 长跑直至产出 ISO。
 
 ## 根因一（已修复，run#21 实证、run#22 验证）
 **gettext configure 报 "cannot run C compiled programs" 的真正根因：toolchain 快照的裸 `--exclude=sys`（basename 匹配）把 `/usr/include/sys/` 整个排除出快照 → chroot 内所有带 `stdio.h` 的 conftest 编译失败（`sys/cdefs.h: No such file or directory`）。**
@@ -15,18 +15,20 @@
 - 证据：run#22 base job 日志尾部 `[17:23:47] ==> build tcl8.6.17-src` → `/build/common.sh: line 31: cd: tcl8.6.17-src: No such file or directory` → `bash: line 2: cd: unix: No such file or directory` → `##[error]Process completed with exit code 1.`；本地 `tar -tzf tcl8.6.17-src.tar.gz` 实测顶层为 `tcl8.6.17/`。
 - 修复方案（已实施）：pkg_run 解压后若 `$dir` 目录不存在 → `tar -tf "$tarball" | awk -F/ 'NF>1{print $1; exit}'` 取真实顶层目录名并 `mv` 重命名成 `$dir`（保持 body 相对路径与清理逻辑不变）；用 tar 列表而非 find，避免 /sources 残留目录干扰。已用 Git Bash 本地模拟验证（含旧残留 tcl8.6.17/ 干扰场景）。
 
-## 根因三（run#24 实证，已修）
+## 根因三（run#24 实证，run#28 深化，已修）
 **8.82 util-linux-2.41.3 失败：`tests/run.sh` 前置检查 `$top_builddir/test_ttyutils` 不存在（测试程序未编译）→ 输出 "Tests not compiled! Run 'make check-programs' to fix the problem." 并 `exit 1`；脚本只跑了 `make` 未跑 `make check-programs`。**
 - 证据：run#24 base job 日志尾部 `[19:06:05] ERROR: build of 'util-linux-2.41.3' failed (rc=1)`；util-linux 编译全部 CCLD 成功，仅 run.sh 检查失败。run.sh 源码（v2.41.3）确认该检查逻辑（`-z "$SYSCOMMANDS" -a ! -f "$top_builddir/test_ttyutils"`）。
 - 修复方案（已实施）：`make` 后加 `make check-programs`；`bash tests/run.sh ... || true`（测试为书中可选步骤，CI 宿主内核缺 CONFIG_SCSI_DEBUG/CONFIG_CRYPTO_USER_API_HASH 等，部分测试必然失败，不应阻断构建）。
+- **run#28 深化实证：`check-programs` 生效后测试进入实际运行，但 `tests/run.sh` 挂死**：运行约 1 分钟（大量 OK/SKIPPED 输出正常），到 `lsns: NETNSID compare to ip-link` 后 2h 无任何输出（该测试需 `unshare -n` 新建网络命名空间，GitHub runner 容器 seccomp 屏蔽 → 挂起不报错）→ 整包触发 pkg_run 7200s 看门狗（run#28 `TIMEOUT ... exceeded 7200s (rc=124)`）。ps 快照显示无活跃用户进程，free 显示内存充裕（14Gi 可用、swap 3Gi 未用）→ 排除内存假说，实锤为测试挂死。
+- 修复（run#28 后，待验）：`timeout 600 bash tests/run.sh ... || true` —— 测试 10 分钟兜底，超时/失败均不阻断构建。
 
 ## 待办任务
 - [x] 1-6（历史，见下）ccache-wrap 根治 → run#17 toolchain 通过。
 - [x] 7. gettext 根因定位（sys/cdefs.h）与修复（cb86455）→ run#22 ch7 全过。
 - [x] 8. **修 pkg_run 顶层目录名不匹配**（tcl8.6.17-src 解压出 tcl8.6.17/）→ 已修（common.sh：`tar -tf` 取真实顶层名 + mv 重命名）→ run#24 验证通过（越过 Tcl 至 8.82 util-linux）。
-- [x] 9a. **修 util-linux 测试前置**（make check-programs + run.sh 失败不阻断）→ run#25 未及验证（systemd 处卡死），run#26 重验。
+- [x] 9a. **修 util-linux 测试前置**（make check-programs + run.sh 失败不阻断）→ run#28 实证已越过 "Tests not compiled!" 进入实际测试，但发现 lsns 挂死 → 补 `timeout 600`（见根因三深化）→ 待 run#29 验证。
 - [x] 9b. **pkg_run 超时看门狗（防静默卡死）**（common.sh）→ 包构建外包 `timeout -k 60 ${PKG_TIMEOUT:-7200} bash -e -c`；超时(124)时保留残留树 + df/mount/ps 快照后 die 显式报错，避免再静默挂满 6h。改 scripts/ → ccache 全 miss，run#26 toolchain 重编（实证仅 ~17min，可接受）。
-- [x] 9c. **systemd 全量编译卡死修复（swap 兜底）**（workflow base job + common.sh）→ 宿主加 swap 防 GCC -O3 内存尖峰 cgroup 冻结；超时快照加 free -h/meminfo。run#27 因镜像自带 /swapfile 冲突失败 → 已改健壮检测版，run#28 验证。
+- [x] 9c. **systemd 全量编译卡死修复（swap 兜底）**（workflow base job + common.sh）→ 宿主加 swap 防 GCC -O3 内存尖峰 cgroup 冻结；超时快照加 free -h/meminfo。run#27 因镜像自带 /swapfile 冲突失败 → run#28 实证 swap 生效（Swap: 3.0Gi 就位），systemd-259.1 编译通过（此轮 j2 无卡死）；systemd 卡死根因仍存疑，但本轮未复现。
 - [ ] 9. ch8 剩余（8.79 D-Bus 起）逐个处理后续失败直至 ISO。
 - [ ] 10. （可选）清理 `D:\wbw121124` 遗留 `ghlog.py tail --latest` 进程（PID 4732）。
 
@@ -48,6 +50,13 @@
   - cancel 403：`action-log.html` 的 TOKEN_DEFAULT 是 Actions:Read 只读 token，无法 cancel/trigger → 需用户网页操作或提供 write token。
 - 可能根因（未证实）：ccache key 变化（bd932dc 改 scripts/30-ch8-stage.sh）→ run#25 的 ccache 全 miss → systemd 2330 目标全量编译。run#24 该处命中旧缓存（systemd 仅 2.5min）。磁盘充足（run#24 die 时 145G/46%）。停滞点无日志 → 疑似子进程死锁/runner 资源问题，需重跑确认是否偶发。
 - 待办：cancel+重跑观察 systemd 是否复现；若复现需针对性加固（如 systemd 降并行/跳过测试/拆步骤，或给 ccache 预留）。
+
+## run#28 结果（2026-08-15，HEAD=3fe6672，swap 修复生效，fail 于 util-linux 测试挂死）
+**toolchain job success（~17min，快照 1.9GB 上传）；base job 推进至 8.82 util-linux-2.41.3 后看门狗超时（exit 1，total 时长 ~6h 含等待基建）。**
+- swap 修复验证通过：超时快照显示 `Swap: 3.0Gi` 就位且 0B 使用；systemd-259.1 本轮无卡死（18:29:16 起 3min 内完成，dbus/man-db/procps-ng 均过）。
+- 失败点：util-linux `tests/run.sh` 挂死（详见「根因三」深化）。本轮 `make check-programs` 生效：测试实际运行约 1 分钟（file-show/lsfd/lslocks/lsmem 等大量 OK），至 `lsns: NETNSID compare to ip-link` 后 2h 无输出 → pkg_run 7200s 看门狗触发。
+- 新验证：看门狗按设计工作——超时后上传 .diag artifact（base-failure-logs.zip，ID 9246992877，含 df/free/meminfo/ps 快照），残留树保留用于 triage。但注意 GitHub Actions artifact blob API 401 仍阻塞自动下载，本次日志经网页手工下载。
+- 时间线：18:25:32 iproute2 → 18:33:41 build util-linux 开始 → 18:35:31 测试挂死 → 20:33:41 看门狗 TIMEOUT（恰好 7200s）。
 
 ## run#27 结果（2026-08-15，HEAD=5cb7045，swap 步骤自身失败，未开始构建）
 **toolchain success（~17min，ccache 回退命中）；base job 在第一步 swap 即挂：`fallocate: fallocate failed: Text file busy` → exit 1 → base 立即失败。**
