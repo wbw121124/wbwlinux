@@ -19,7 +19,7 @@ mkdir -p "$DL"
 
 log "==> downloading extras (host side)"
 declare -A urls=(
-  ["node-v$NODE_VER-linux-x64.tar.xz"]="$NODE_URL/node-v$NODE_VER-linux-x64.tar.xz"
+  ["node-$NODE_VER-linux-x64.tar.xz"]="$NODE_URL/node-$NODE_VER-linux-x64.tar.xz"
   ["rust-$RUST_VER-x86_64-unknown-linux-gnu.tar.xz"]="$RUST_URL/rust-$RUST_VER-x86_64-unknown-linux-gnu.tar.xz"
   ["powershell-$PWSH_VER-linux-x64.tar.gz"]="$POWERSHELL_URL/v$PWSH_VER/powershell-$PWSH_VER-linux-x64.tar.gz"
   ["nvim-linux-x86_64.tar.gz"]="$NEOVIM_URL/stable/nvim-linux-x86_64.tar.gz"

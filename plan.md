@@ -51,6 +51,21 @@
 - 可能根因（未证实）：ccache key 变化（bd932dc 改 scripts/30-ch8-stage.sh）→ run#25 的 ccache 全 miss → systemd 2330 目标全量编译。run#24 该处命中旧缓存（systemd 仅 2.5min）。磁盘充足（run#24 die 时 145G/46%）。停滞点无日志 → 疑似子进程死锁/runner 资源问题，需重跑确认是否偶发。
 - 待办：cancel+重跑观察 systemd 是否复现；若复现需针对性加固（如 systemd 降并行/跳过测试/拆步骤，或给 ccache 预留）。
 
+## 根因八（run#32 实证，已修）+ Resume 机制（新增）
+**05-extras.sh 下载 node 双 v bug：`NODE_VER=v24.19.0`（env.sh 已含 `v` 前缀），下载侧写成 `node-v$NODE_VER-linux-x64.tar.xz` → `node-vv24.19.0...`，URL `https://nodejs.org/dist/v24.19.0/node-vv24.19.0-linux-x64.tar.xz` 404（本地预验证时误用单 v URL 漏检）；chroot 侧引用 `node-$NODE_VER`（单 v）正确，两侧不一致。** 修复：下载侧改 `node-$NODE_VER`（05-extras.sh:22）。实测单 v 200 / 双 v 404。
+- **run#32 已实证**：fbterm（根因六 Debian pool）下载成功、node 下载 404 失败 → 此轮 config+extras 卡在 node；其余 extras URL 无新问题。
+- **Resume 机制（workflow 重构）**：
+  - `on.push` 自动触发**移除**（避免修复后 push 引发全量重跑 ch5/ch6/ch8，浪费每月配额）→ 全部改为手动 `workflow_dispatch`。
+  - 新增 input `resume`（boolean）：resume=false → 全量（等价旧 push 行为）；resume=true → toolchain/base job 跳过（`if: github.event_name != 'workflow_dispatch' || !inputs.resume`），config-extras 通过 GitHub API 查最近含 `snapshot-base` 的 run_id 并 `download-artifact --run-id` 恢复 → 只跑 config+extras → iso。
+  - 权限：workflow 级 `permissions: contents: read, actions: read`（artifact API 需要）。
+  - 使用：Actions → Build LFS-CN Live ISO → Run workflow → 勾选 resume。
+- 注意：run#31/32 的 snapshot-base artifact 保留 7 天，resume 需在其 retention 内使用。
+
+## run#32 结果（2026-08-17，HEAD=d0d1a14，ch8 三度卡死防线实证）
+**toolchain success；base success（约 2h5m，外层 timeout 14400 未触发即正常完成 —— 根因七防线就位）；config+extras failure（node 双 v 404，见根因八）；iso skipped。**
+- 卡死观察：本轮 base 全程正常（14:46 UTC 起 ~2h 完成），未遇 texinfo/systemd 停滞；根因七的 4h 外层兜底未动用即通过，仍保留。
+- run#31（texinfo 卡死）处置：cancelled（用户网页取消，run#32 排队后开跑）。
+
 ## 根因七（run#31 实证，已修）
 **base job step 用 `bash 03-chroot-base.sh 2>&1 | tee base.log` 管道；当 chroot 内构建进程脱离 pkg_run 看门狗（timeout）进程组时，pkg_run 超时 die 后孤儿进程仍持管道写端 → tee 永不 EOF → step 永不结束 → job 挂到 GitHub 6h 强杀（cancelled）——run#25/26/31 三度发生（run#25/26 systemd 卡死、run#31 texinfo 卡死，卡死点随机）。**
 - 证据（run#31）：base job 日志停滞于 `==> build texinfo-7.2` configure 中段（REPLACE_* sed 输出后）长达 3h+（ghlog get/tail 均挂起）；pkg_run 看门狗（7200s）已到却无 TIMEOUT 输出可见 → step 未收尾；jobs API 恒 in_progress。有 swap 时 run#28/29/30 连续 3 次通过、run#31 再卡 → 卡死为随机 runner/进程问题，swap 非充分保护。
