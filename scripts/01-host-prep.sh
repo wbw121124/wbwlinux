@@ -20,6 +20,14 @@ log "==> host: $(uname -r) $(uname -m), $(nproc) cores, $(free -g | awk '/Mem:/{
 if command -v apt-get >/dev/null 2>&1; then
     log "==> installing host prerequisites"
     export DEBIAN_FRONTEND=noninteractive
+    # GitHub-hosted runners hit transient stalls on azure.archive.ubuntu.com
+    # (apt-get update spins on 'Ign: ... Components'); fall back to the main
+    # Ubuntu mirror so package setup cannot hang the build.
+    if grep -rq "azure.archive.ubuntu.com" /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null; then
+        log "==> swapping azure.archive.ubuntu.com -> archive.ubuntu.com (mirror stall workaround)"
+        sed -i 's|azure\.archive\.ubuntu\.com|archive.ubuntu.com|g' \
+            /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null || true
+    fi
     apt-get update -y
     apt-get install -y --no-install-recommends \
         binutils bison gawk gcc g++ make patch python3 texinfo \
