@@ -64,7 +64,7 @@ EOF
 # ---------------------------------------------------------------------
 INITRAMFS_DIR=/boot/initramfs-lfs-cn
 rm -rf "$INITRAMFS_DIR"
-mkdir -p "$INITRAMFS_DIR"/{bin,sbin,usr/bin,usr/sbin,lib,lib64,proc,sys,dev,run,mnt,newroot,etc}
+mkdir -p "$INITRAMFS_DIR"/{bin,sbin,usr/bin,usr/sbin,usr/lib,lib,lib64,proc,sys,dev,run,mnt,newroot,etc}
 
 copy_deps() {
     # accept both "bash" and "/usr/bin/bash" call styles
@@ -119,11 +119,15 @@ ln -sfv /usr/bin/bash "$INITRAMFS_DIR/bin/sh"
 # ---- hard self-checks: a broken initramfs must fail the build, not ship ----
 [ -x "$INITRAMFS_DIR/usr/bin/bash" ] || die "initramfs: /usr/bin/bash missing (copy_deps failed to find bash)"
 [ -e "$INITRAMFS_DIR/bin/sh" ] || die "initramfs: bin/sh symlink missing"
-for t in /usr/bin/mount /usr/bin/switch_root /usr/bin/umount /usr/bin/sleep /usr/bin/awk /usr/bin/grep /usr/bin/mkdir /usr/bin/cat; do
-    [ -e "$INITRAMFS_DIR$t" ] || log "ERROR: initramfs missing required tool $t"
+for t in mount umount sleep cat mkdir cp grep awk sed mknod; do
+    [ -e "$INITRAMFS_DIR/usr/bin/$t" ] || log "ERROR: initramfs missing required tool /usr/bin/$t"
+done
+for t in switch_root insmod modprobe blkid; do
+    [ -e "$INITRAMFS_DIR/usr/sbin/$t" ] || log "ERROR: initramfs missing required tool /usr/sbin/$t"
 done
 [ -e "$INITRAMFS_DIR/lib64/ld-linux-x86-64.so.2" ] || die "initramfs: dynamic loader missing"
-find "$INITRAMFS_DIR" -type f | wc -l | xargs -I{} log "initramfs: {} regular files staged"
+[ -e "$INITRAMFS_DIR/usr/lib/libc.so.6" ] || die "initramfs: libc.so.6 missing (copy_deps dep copy target dir missing?)"
+log "initramfs: $(find "$INITRAMFS_DIR" -type f | wc -l) regular files staged"
 
 cat > "$INITRAMFS_DIR/init" << 'EOF'
 #!/bin/sh

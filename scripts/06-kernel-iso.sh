@@ -52,7 +52,7 @@ gzip -dc "$INITRD_IMG" | cpio -it 2>/dev/null > /tmp/initramfs-list.txt || die "
 for entry in "usr/bin/bash" "bin/sh" "init" "usr/bin/mount" "usr/bin/switch_root" "lib64/ld-linux-x86-64.so.2"; do
     grep -qx "$entry" /tmp/initramfs-list.txt || die "initramfs: required entry '$entry' missing from packed image - build must fail, not ship a broken ISO"
 done
-grep -c '^' /tmp/initramfs-list.txt | xargs -I{} log "initramfs: {} entries verified in packed image"
+log "initramfs: $(grep -c '^' /tmp/initramfs-list.txt) entries verified in packed image"
 
 # ---- copy kernel + initramfs out ------------------------------------
 cp -v "$LFS_ROOT/boot/vmlinuz-$LFS_KERNEL_VER-lfs-cn" "$ISO_ROOT/boot/vmlinuz-$LFS_KERNEL_VER-lfs-cn"
