@@ -60,6 +60,9 @@ cp -v "$LFS_ROOT/boot/vmlinuz-$LFS_KERNEL_VER-lfs-cn" "$ISO_ROOT/boot/vmlinuz-$L
 cp -v "$LFS_ROOT/boot/initramfs-lfs-cn.img" "$ISO_ROOT/boot/initramfs-lfs-cn.img"
 
 # ---- GRUB config (BIOS + UEFI via grub-mkrescue) --------------------
+# NOTE: menu titles are English on purpose - GRUB has no CJK glyphs in its
+# default unicode.pf2, Chinese titles render as garbage in both BIOS (VGA)
+# and UEFI consoles. Chinese UI lives in the system itself (fbterm).
 cat > "$ISO_ROOT/boot/grub/grub.cfg" << EOF
 set timeout=5
 set default=0
@@ -68,7 +71,7 @@ insmod part_gpt
 insmod part_msdos
 insmod iso9660
 
-menuentry "LFS-CN $LFS_VERSION (Live x86_64, 中文终端)" {
+menuentry "LFS-CN $LFS_VERSION (Live x86_64)" {
     linux /boot/vmlinuz-$LFS_KERNEL_VER-lfs-cn quiet vga=791
     initrd /boot/initramfs-lfs-cn.img
 }
