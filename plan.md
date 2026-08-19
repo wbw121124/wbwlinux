@@ -60,6 +60,15 @@
 - 证据：run#38 日志 bzImage 构建成功（`Kernel: arch/x86/boot/bzImage is ready (#1)`），内核安装复制正常，initramfs copy_deps 复制序列 bash→mount→umount 后在 switch_root 处中断，chroot 静默 rc=1；宿主 15GB RAM/4 核，排除 OOM。
 - 修复（已实施）：copy_deps 改为按名字在 `/usr/bin /usr/sbin /bin /sbin` 依次查找（找到即用），缺失打 WARN 继续（不再触发 set -e）。
 
+## 根因十二（run#39 产物实证，已修）
+**initramfs 修复（根因十一）不彻底：copy_deps 已支持 PATH 遍历，但调用处仍传绝对路径 `copy_deps /usr/bin/bash` → 函数按 `"$p/$name"` 拼接成 `/usr/bin//usr/bin/bash` 全部不存在 → 15 个工具全部静默跳过（打 WARN 而非失败）→ initramfs 只剩目录骨架+悬空 `bin/sh→/usr/bin/bash`+ld 链接器。**
+- 证据：QEMU 实测 ISO 引导 `[4.055076] Failed to execute /init (error -2)`（shebang `#!/bin/sh` 找不到解释器 ENOENT）→ `Kernel panic - not syncing: No working init found.`；解包 initramfs 仅 18 项，`usr/bin`/`usr/sbin` 空目录。
+- 修复（已实施，未构建验证）：
+  1. copy_deps 参数兼容绝对路径（`name="${1##*/}"`），缺依赖与复制错误由静默改明示；
+  2. 自检硬性化：bin/sh、bash、mount、switch_root、链接器等缺失 → `die` 中止构建（`chroot/06-kernel-initramfs.sh`）；
+  3. 打包后产物反查：`gzip -dc | cpio -it` 校验必需条目，缺失即 die（`06-kernel-iso.sh`）。
+- 待办：push 触发 resume 重建（约 15min，内核重编不可避免），新 ISO 必须通过 QEMU 引导至 GRUB 菜单→live 登录。
+
 ## run#38 结果（2026-08-17，HEAD=0464302，resume v3 首验）
 **resume v3 实证：push 自动只跑 iso job（Toolchain/Base/Config+extras 全 skipped，find-config 找到 run#37 snapshot-config 恢复）→ 内核 defconfig+fragment 配置通过、bzImage 构建成功（~12min）→ initramfs 阶段失败（根因十一，switch_root 路径）→ 14m14s 失败。**
 - 里程碑：iso job 前半程（配置/编译/内核安装）全部打通；剩余：initramfs（修复中）→ mksquashfs → grub-mkrescue（全新领域）。

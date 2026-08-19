@@ -67,19 +67,26 @@ rm -rf "$INITRAMFS_DIR"
 mkdir -p "$INITRAMFS_DIR"/{bin,sbin,usr/bin,usr/sbin,lib,lib64,proc,sys,dev,run,mnt,newroot,etc}
 
 copy_deps() {
-    local name="$1" bin=""
+    # accept both "bash" and "/usr/bin/bash" call styles
+    local name="${1##*/}" bin=""
     for p in /usr/bin /usr/sbin /bin /sbin; do
         [ -e "$p/$name" ] && { bin="$p/$name"; break; }
     done
     [ -n "$bin" ] || { log "WARN: $name not found in PATH, skipping"; return 0; }
-    cp -avL "$bin" "$INITRAMFS_DIR$bin" 2>/dev/null
+    cp -avL "$bin" "$INITRAMFS_DIR$bin" || log "ERROR: failed to copy $bin"
     local missing=0
     local dl
     dl="$(ldd "$bin" 2>/dev/null | awk '{print $3}' | grep -v '^$')"
     dl="$dl $(ldd "$bin" 2>/dev/null | awk '/=> \/lib/{print $3}')"
+    if [ -z "$dl" ]; then
+        log "WARN: no dynamic deps detected for $bin (statically linked?)"
+    fi
     for so in $dl; do
         if [ -e "$INITRAMFS_DIR$so" ]; then continue; fi
-        cp -avL "$so" "$INITRAMFS_DIR$so" 2>/dev/null || missing=1
+        if ! cp -avL "$so" "$INITRAMFS_DIR$so" 2>/dev/null; then
+            missing=1
+            log "WARN: failed to copy dep $so"
+        fi
         if [[ "$so" == *linux-gnu/ld-linux* || "$so" == *ld-linux* ]]; then
             cp -avL "$so" "$INITRAMFS_DIR/lib64/" 2>/dev/null || true
         fi
@@ -87,27 +94,36 @@ copy_deps() {
     return 0
 }
 
-copy_deps /usr/bin/bash
-copy_deps /usr/bin/mount
-copy_deps /usr/bin/umount
-copy_deps /usr/bin/switch_root
-copy_deps /usr/bin/sleep
-copy_deps /usr/bin/cat
-copy_deps /usr/bin/mkdir
-copy_deps /usr/bin/cp
-copy_deps /usr/bin/grep
-copy_deps /usr/bin/awk
-copy_deps /usr/bin/sed
-copy_deps /usr/bin/insmod
-copy_deps /usr/bin/modprobe
-copy_deps /usr/bin/blkid
-copy_deps /usr/bin/mknod
+copy_deps bash
+copy_deps mount
+copy_deps umount
+copy_deps switch_root
+copy_deps sleep
+copy_deps cat
+copy_deps mkdir
+copy_deps cp
+copy_deps grep
+copy_deps awk
+copy_deps sed
+copy_deps insmod
+copy_deps modprobe
+copy_deps blkid
+copy_deps mknod
 
 # the dynamic linker must be in the expected location
 cp -avL /lib64/ld-linux-x86-64.so.2 "$INITRAMFS_DIR/lib64/" 2>/dev/null || true
 
 # init is #!/bin/sh -> make /bin/sh available (bash is copied as /usr/bin/bash)
 ln -sfv /usr/bin/bash "$INITRAMFS_DIR/bin/sh"
+
+# ---- hard self-checks: a broken initramfs must fail the build, not ship ----
+[ -x "$INITRAMFS_DIR/usr/bin/bash" ] || die "initramfs: /usr/bin/bash missing (copy_deps failed to find bash)"
+[ -e "$INITRAMFS_DIR/bin/sh" ] || die "initramfs: bin/sh symlink missing"
+for t in /usr/bin/mount /usr/bin/switch_root /usr/bin/umount /usr/bin/sleep /usr/bin/awk /usr/bin/grep /usr/bin/mkdir /usr/bin/cat; do
+    [ -e "$INITRAMFS_DIR$t" ] || log "ERROR: initramfs missing required tool $t"
+done
+[ -e "$INITRAMFS_DIR/lib64/ld-linux-x86-64.so.2" ] || die "initramfs: dynamic loader missing"
+find "$INITRAMFS_DIR" -type f | wc -l | xargs -I{} log "initramfs: {} regular files staged"
 
 cat > "$INITRAMFS_DIR/init" << 'EOF'
 #!/bin/sh

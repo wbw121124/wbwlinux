@@ -45,6 +45,15 @@ log "==> packing initramfs"
 ( cd "$LFS_ROOT/boot/initramfs-lfs-cn" && find . -print0 | cpio --null -ov --format=newc 2>/dev/null | gzip -9 > "$LFS_ROOT/boot/initramfs-lfs-cn.img" )
 ls -lh "$LFS_ROOT/boot/initramfs-lfs-cn.img"
 
+# ---- self-check the packed image: it must contain a working /bin/sh and /init ----
+log "==> verifying packed initramfs"
+INITRD_IMG="$LFS_ROOT/boot/initramfs-lfs-cn.img"
+gzip -dc "$INITRD_IMG" | cpio -it 2>/dev/null > /tmp/initramfs-list.txt || die "initramfs: cannot read back $INITRD_IMG"
+for entry in "usr/bin/bash" "bin/sh" "init" "usr/bin/mount" "usr/bin/switch_root" "lib64/ld-linux-x86-64.so.2"; do
+    grep -qx "$entry" /tmp/initramfs-list.txt || die "initramfs: required entry '$entry' missing from packed image - build must fail, not ship a broken ISO"
+done
+grep -c '^' /tmp/initramfs-list.txt | xargs -I{} log "initramfs: {} entries verified in packed image"
+
 # ---- copy kernel + initramfs out ------------------------------------
 cp -v "$LFS_ROOT/boot/vmlinuz-$LFS_KERNEL_VER-lfs-cn" "$ISO_ROOT/boot/vmlinuz-$LFS_KERNEL_VER-lfs-cn"
 cp -v "$LFS_ROOT/boot/initramfs-lfs-cn.img" "$ISO_ROOT/boot/initramfs-lfs-cn.img"
