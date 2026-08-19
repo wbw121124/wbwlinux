@@ -48,8 +48,9 @@ ls -lh "$LFS_ROOT/boot/initramfs-lfs-cn.img"
 # ---- self-check the packed image: it must contain a working /bin/sh and /init ----
 log "==> verifying packed initramfs"
 INITRD_IMG="$LFS_ROOT/boot/initramfs-lfs-cn.img"
-gzip -dc "$INITRD_IMG" | cpio -it 2>/dev/null > /tmp/initramfs-list.txt || die "initramfs: cannot read back $INITRD_IMG"
-for entry in "usr/bin/bash" "bin/sh" "init" "usr/bin/mount" "usr/bin/switch_root" "lib64/ld-linux-x86-64.so.2"; do
+# cpio -it lists entries with a leading './' - normalize before matching
+gzip -dc "$INITRD_IMG" | cpio -it 2>/dev/null | sed 's#^\./##' > /tmp/initramfs-list.txt || die "initramfs: cannot read back $INITRD_IMG"
+for entry in "usr/bin/bash" "bin/sh" "init" "usr/bin/mount" "usr/sbin/switch_root" "usr/lib/libc.so.6" "lib64/ld-linux-x86-64.so.2"; do
     grep -qx "$entry" /tmp/initramfs-list.txt || die "initramfs: required entry '$entry' missing from packed image - build must fail, not ship a broken ISO"
 done
 log "initramfs: $(grep -c '^' /tmp/initramfs-list.txt) entries verified in packed image"
