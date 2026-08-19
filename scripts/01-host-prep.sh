@@ -21,14 +21,21 @@ if command -v apt-get >/dev/null 2>&1; then
     log "==> installing host prerequisites"
     export DEBIAN_FRONTEND=noninteractive
     # GitHub-hosted runners hit transient stalls on azure.archive.ubuntu.com
-    # (apt-get update spins on 'Ign: ... Components'); fall back to the main
-    # Ubuntu mirror so package setup cannot hang the build.
-    if grep -rq "azure.archive.ubuntu.com" /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null; then
-        log "==> swapping azure.archive.ubuntu.com -> archive.ubuntu.com (mirror stall workaround)"
-        sed -i 's|azure\.archive\.ubuntu\.com|archive.ubuntu.com|g' \
-            /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null || true
+    # (apt-get update hangs on 'Ign:' / TCP half-open - saw 25+ min hangs).
+    # The azure URL can live in sources.list, *.sources, or (Ubuntu 24.04)
+    # the apt-mirrors.txt mirrorlist - nuke every reference, then bound
+    # update with a timeout + retry so CI can never hang on package setup.
+    log "==> removing azure.archive.ubuntu.com from apt sources (mirror stall workaround)"
+    sed -i 's|azure\.archive\.ubuntu\.com|archive.ubuntu.com|g' \
+        /etc/apt/sources.list /etc/apt/sources.list.d/*.sources /etc/apt/apt-mirrors.txt 2>/dev/null || true
+    if grep -rsq "azure.archive.ubuntu.com" /etc/apt/sources.list /etc/apt/sources.list.d/ /etc/apt/apt-mirrors.txt 2>/dev/null; then
+        log "WARN: azure.archive.ubuntu.com still present after sed, removing leftover source files"
+        grep -rl "azure.archive.ubuntu.com" /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null | xargs -r rm -f
     fi
-    apt-get update -y
+    if ! timeout 600 apt-get update -y; then
+        log "apt-get update failed (rc=$?), retrying once"
+        timeout 600 apt-get update -y
+    fi
     apt-get install -y --no-install-recommends \
         binutils bison gawk gcc g++ make patch python3 texinfo \
         wget xz-utils zstd xorriso mtools dosfstools cpio squashfs-tools \
