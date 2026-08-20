@@ -1,16 +1,18 @@
 # LFS-CN Live ISO 构建计划
 
 ## 目标
-在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：ISO 已产出，QEMU 实测 systemd 三个 /var 写单元启动失败，根因十三已修（/var 改 tmpfs），待重建 ISO 验证。
+在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**根因十三已彻底解决并经 CI run#48 产物 QEMU 实测通过**（整个根文件系统可写、引导干净进入自动登录、无 FAILED 单元）。
 
-## 根因十三（QEMU 实测实证，已修）
-**Live overlay 的可写 upper 层随 switch_root + fstab 的 /run tmpfs 重挂而脱离 → /var 落到只读 squashfs 下层 → 三个必须写 /var 的 systemd 单元在 STATE_DIRECTORY 步失败（ENOENT）。**
+## 根因十三（QEMU 实测实证，已彻底修复：Option A 双保险 + Option B 根治）
+**Live overlay 的可写 upper 层随 switch_root + fstab 的 /run tmpfs 重挂而脱离 → /var 与 /etc 落到只读 squashfs 下层 → 必须写 /var 的 systemd 单元（timesyncd/logind/journal-catalog-update）在 STATE_DIRECTORY 步失败（ENOENT），hwdb-update/update-done 写 /etc 也失败。**
 - 证据（客观）：`Failed at step STATE_DIRECTORY spawning .../systemd-timesyncd: No such file or directory` + `[FAILED] Failed to start Network Time Synchronization / Rebuild Journal Catalog / User Login Management`；三单元共性 = 启动必须向 /var 写（timesync、linger、catalog/database）；二进制/链接器/var 树均齐全 → 排除静态缺失。
-- 设计缺陷（init 脚本，`chroot/06-kernel-initramfs.sh`）：`mount -t tmpfs tmpfs /run/overlay` 后，overlay 却用 `upperdir=/run/upper,workdir=/run/work`（位于 initramfs 根 tmpfs 上，**不在** /run/overlay 那个 tmpfs 内）→ 该 tmpfs 白挂、upper/work 落在 initramfs 根 fs。switch_root 拆除 initramfs 根、且 fstab 的 `tmpfs /run` 让 systemd 用全新 tmpfs 覆盖 /run → overlay upper（在旧 initramfs /run 上）与运行期 / 脱离 → /var 只读。
+- 设计缺陷（init 脚本，`chroot/06-kernel-initramfs.sh`）：`mount -t tmpfs tmpfs /run/overlay` 后，overlay 却用 `upperdir=/run/upper,workdir=/run/work`（位于 initramfs 根 tmpfs 上，**不在** /run/overlay 那个 tmpfs 内）→ 该 tmpfs 白挂、upper/work 落在 initramfs 根 fs。switch_root 拆除 initramfs 根、且 fstab 的 `tmpfs /run` 让 systemd 用全新 tmpfs 覆盖 /run → overlay upper（在旧 initramfs /run 上）与运行期 / 脱离 → /var、/etc 只读。
 - 内核配置无缺失（kernel-live.fragment：OVERLAY_FS=y / BLK_DEV_LOOP=y / TMPFS=y），排除 CONFIG 类原因。
-- 修复（最小稳妥，不依赖 upper 生命周期）：fstab 增 `tmpfs /var` + `tmpfs /home`，/var 直接以 tmpfs 覆盖，与 overlay 解耦；machine-id/catalog 由 systemd 按需重建（journal-catalog-update 恰好会重跑）。
-- 判别条件（未跑运行时日志前需确认 ENOENT vs EROFS）：若 upper 完全脱离 → /var 只读 → mkdir 报 EROFS；报 ENOENT 说明路径解析/挂载点堆叠问题。两种 errno 下本修复均成立，无需区分即可落地。**需运行时日志确认**项：用 `-serial stdio` + 去 quiet 抓完整 journal 以核验。
-- CI 自动验证建议：iso job 加 qemu 冒烟步骤（01-host-prep 装 qemu-system-x86_64），`qemu-system-x86_64 -cdrom ...iso -m 2G -smp 2 -boot d -nographic -serial stdio -kernel? ` 以 `console=ttyS0` 引导并 `grep` 串口日志，断言 `Failed to start Network Time Synchronization` 等三串 FAILED 不再出现、且 `systemd-timesyncd` / `systemd-logind` 达 active；超时兜底（TCG 无 KVM，需放宽容限）。
+- 修复分两步：
+  - **Option A（b052c27 + a6d7a55，已实测）**：fstab 增 `tmpfs /var` + `tmpfs /home`，/var 直接以 tmpfs 覆盖，与 overlay 解耦 → 原三个单元修复；但 /etc 仍只读 → 残留 2 个 FAILED（Rebuild Hardware Database / Update is Completed，写 /etc 失败）。
+  - **Option B 根治（4c6cb3e，已实测）**：把 upper/work 移入专用 tmpfs 内：`upperdir=/run/overlay/upper,workdir=/run/overlay/work`。该 tmpfs 挂载点在 systemd 堆叠 /run 后仍存活（被覆盖但未卸载），overlay 钉住 upperdir dentry → **整个根（含 /etc）经 copy-up 保持可写**。/var、/home 的 tmpfs 保留作双保险。
+- **CI run#48 产物实测（QEMU，权威构建）**：`mount | grep overlay` → `upperdir=/run/overlay/upper`；`echo test > /etc/test` → ETC_WRITABLE_OK；`mkdir -p /mnt/lfs` → MNT_OK；`df -h /` → overlay 987M（13M 已用，可写）；引导干净进入 `lfs-cn login: root` 自动登录，无 FAILED。sha256 校验通过（zip 21c1c433...；ISO 780,879,872 B）。
+- CI 自动验证建议：iso job 加 qemu 冒烟步骤（01-host-prep 装 qemu-system-x86_64），`qemu-system-x86_64 -cdrom ...iso -m 2G -smp 2 -boot d -nographic -serial stdio` 以 `console=ttyS0` 引导并 `grep` 串口日志，断言三个 FAILED 串不再出现、`/etc` 可写；超时兜底（TCG 无 KVM，需放宽容限）。
 
 
 ## 根因一（已修复，run#21 实证、run#22 验证）
