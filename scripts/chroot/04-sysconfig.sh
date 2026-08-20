@@ -139,6 +139,16 @@ ExecStart=
 ExecStart=-/sbin/agetty --autologin root --noclear %I 38400 linux
 EOF
 
+# --- live convenience: root auto-login on the serial console ---------
+# (/etc/shadow root hash is "x" -> no password can match, so serial
+#  debugging sessions could never log in; mirror tty1 autologin)
+mkdir -pv /etc/systemd/system/serial-getty@.service.d
+cat > /etc/systemd/system/serial-getty@.service.d/autologin.conf << 'EOF'
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin root --noclear --keep-baud %I 115200,57600,38400,9600
+EOF
+
 # --- full os-release ------------------------------------------------
 cat > /etc/os-release << 'EOF'
 NAME="LFS-CN"
