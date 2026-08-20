@@ -51,8 +51,19 @@ ls -l /sbin/init
 # ---------------------------------------------------------------------
 cat > /etc/fstab << 'EOF'
 # Begin /etc/fstab (LFS-CN live)
+#
+# /var and /home are tmpfs overlays on purpose: the live overlay's upper
+# layer lives under /run/upper+/run/work on the initramfs root tmpfs, which
+# switch_root tears down and this fstab then replaces with a fresh tmpfs on
+# /run. That detaches the writable overlay upper, leaving /var read-only on
+# the squashfs lower. systemd-timesyncd/logind/journal-catalog-update all
+# must write to /var/lib/... (StateDirectory) -> they failed ENOENT.
+# Mounting tmpfs on /var (+/home) makes them writable independently of the
+# overlay upper lifecycle. systemd regenerates machine-id/catalog on demand.
 
 tmpfs           /run            tmpfs   defaults                        0 0
+tmpfs           /var            tmpfs   defaults                        0 0
+tmpfs           /home           tmpfs   defaults                        0 0
 devpts          /dev/pts        devpts  gid=5,mode=0620                 0 0
 proc            /proc           proc    nosuid,noexec,nodev             0 0
 sysfs           /sys            sysfs   nosuid,noexec,nodev             0 0

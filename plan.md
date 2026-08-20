@@ -1,7 +1,17 @@
 # LFS-CN Live ISO 构建计划
 
 ## 目标
-在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：gettext 根因（toolchain 快照 exclude）已修复并验证（run#22 ch7 全过），Tcl/sys 传递（根因二/三）已修；run#28 推进至 ch8 8.82 util-linux（测试挂死，已加 timeout），修复后继续 ch8 长跑直至产出 ISO。
+在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：ISO 已产出，QEMU 实测 systemd 三个 /var 写单元启动失败，根因十三已修（/var 改 tmpfs），待重建 ISO 验证。
+
+## 根因十三（QEMU 实测实证，已修）
+**Live overlay 的可写 upper 层随 switch_root + fstab 的 /run tmpfs 重挂而脱离 → /var 落到只读 squashfs 下层 → 三个必须写 /var 的 systemd 单元在 STATE_DIRECTORY 步失败（ENOENT）。**
+- 证据（客观）：`Failed at step STATE_DIRECTORY spawning .../systemd-timesyncd: No such file or directory` + `[FAILED] Failed to start Network Time Synchronization / Rebuild Journal Catalog / User Login Management`；三单元共性 = 启动必须向 /var 写（timesync、linger、catalog/database）；二进制/链接器/var 树均齐全 → 排除静态缺失。
+- 设计缺陷（init 脚本，`chroot/06-kernel-initramfs.sh`）：`mount -t tmpfs tmpfs /run/overlay` 后，overlay 却用 `upperdir=/run/upper,workdir=/run/work`（位于 initramfs 根 tmpfs 上，**不在** /run/overlay 那个 tmpfs 内）→ 该 tmpfs 白挂、upper/work 落在 initramfs 根 fs。switch_root 拆除 initramfs 根、且 fstab 的 `tmpfs /run` 让 systemd 用全新 tmpfs 覆盖 /run → overlay upper（在旧 initramfs /run 上）与运行期 / 脱离 → /var 只读。
+- 内核配置无缺失（kernel-live.fragment：OVERLAY_FS=y / BLK_DEV_LOOP=y / TMPFS=y），排除 CONFIG 类原因。
+- 修复（最小稳妥，不依赖 upper 生命周期）：fstab 增 `tmpfs /var` + `tmpfs /home`，/var 直接以 tmpfs 覆盖，与 overlay 解耦；machine-id/catalog 由 systemd 按需重建（journal-catalog-update 恰好会重跑）。
+- 判别条件（未跑运行时日志前需确认 ENOENT vs EROFS）：若 upper 完全脱离 → /var 只读 → mkdir 报 EROFS；报 ENOENT 说明路径解析/挂载点堆叠问题。两种 errno 下本修复均成立，无需区分即可落地。**需运行时日志确认**项：用 `-serial stdio` + 去 quiet 抓完整 journal 以核验。
+- CI 自动验证建议：iso job 加 qemu 冒烟步骤（01-host-prep 装 qemu-system-x86_64），`qemu-system-x86_64 -cdrom ...iso -m 2G -smp 2 -boot d -nographic -serial stdio -kernel? ` 以 `console=ttyS0` 引导并 `grep` 串口日志，断言 `Failed to start Network Time Synchronization` 等三串 FAILED 不再出现、且 `systemd-timesyncd` / `systemd-logind` 达 active；超时兜底（TCG 无 KVM，需放宽容限）。
+
 
 ## 根因一（已修复，run#21 实证、run#22 验证）
 **gettext configure 报 "cannot run C compiled programs" 的真正根因：toolchain 快照的裸 `--exclude=sys`（basename 匹配）把 `/usr/include/sys/` 整个排除出快照 → chroot 内所有带 `stdio.h` 的 conftest 编译失败（`sys/cdefs.h: No such file or directory`）。**
@@ -30,6 +40,7 @@
 - [x] 9b. **pkg_run 超时看门狗（防静默卡死）**（common.sh）→ 包构建外包 `timeout -k 60 ${PKG_TIMEOUT:-7200} bash -e -c`；超时(124)时保留残留树 + df/mount/ps 快照后 die 显式报错，避免再静默挂满 6h。改 scripts/ → ccache 全 miss，run#26 toolchain 重编（实证仅 ~17min，可接受）。
 - [x] 9c. **systemd 全量编译卡死修复（swap 兜底）**（workflow base job + common.sh）→ 宿主加 swap 防 GCC -O3 内存尖峰 cgroup 冻结；超时快照加 free -h/meminfo。run#27 因镜像自带 /swapfile 冲突失败 → run#28 实证 swap 生效（Swap: 3.0Gi 就位），systemd-259.1 编译通过（此轮 j2 无卡死）；systemd 卡死根因仍存疑，但本轮未复现。
 - [ ] 9. ch8 剩余（8.79 D-Bus 起）逐个处理后续失败直至 ISO → **run#30 ch8 全部完成（8.85/8.86 通过）**；后续链条：config+extras（fbterm URL 已修，run#31 验证）→ iso job（内核/initramfs/squashfs/GRUB，尚未跑过，新领域）。
+- [x] 11. **Live 引导后 /var 只读 → systemd 三个写 /var 单元 STATE_DIRECTORY 失败（根因十三）** → 修 `chroot/06-kernel-initramfs.sh` fstab：增 `tmpfs /var` + `tmpfs /home`；待重建 ISO QEMU 验证三 FAILED 消失。
 - [ ] 10. （可选）清理 `D:\wbw121124` 遗留 `ghlog.py tail --latest` 进程（PID 4732）。
 
 ## run#17 结果（2026-08-14，回顾）
