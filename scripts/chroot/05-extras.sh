@@ -174,6 +174,9 @@ if [ ! -e /usr/share/fonts/wqy-microhei/wqy-microhei.ttc ]; then
     cp -v wqy-microhei/wqy-microhei.ttc /usr/share/fonts/wqy-microhei/
     fc-cache -fv /usr/share/fonts/wqy-microhei > /dev/null
 fi
+if ! fc-match "WenQuanYi Micro Hei" | grep -q wqy-microhei; then
+    log "WARNING: fc-match did not resolve 'WenQuanYi Micro Hei' -> $(fc-match 'WenQuanYi Micro Hei')"
+fi
 
 # =====================================================================
 # editor configs for Chinese text
@@ -225,7 +228,19 @@ EOF
 
 cat > /usr/local/bin/fbterm-zh << 'EOF'
 #!/bin/sh
-exec env LANG=zh_CN.UTF-8 LC_ALL=zh_CN.UTF-8 fbterm --fontname="WenQuanYi Micro Hei" --font-size=16 -n 2
+# Chinese-capable framebuffer terminal. Falls back to a plain shell if the
+# framebuffer or CJK font is unavailable so the session never dies silently.
+export LANG=zh_CN.UTF-8 LC_ALL=zh_CN.UTF-8
+if [ ! -e /dev/fb0 ]; then
+    echo "fbterm-zh: /dev/fb0 not available, staying on plain console" >&2
+    export FBTTERM=1
+    exec bash -i
+fi
+if ! fbterm --fontname="WenQuanYi Micro Hei" --font-size=16 -n 2 2>/dev/null; then
+    echo "fbterm-zh: fbterm failed (font/device), staying on plain console" >&2
+    export FBTTERM=1
+    exec bash -i
+fi
 EOF
 chmod +x /usr/local/bin/fbterm-zh
 
@@ -236,6 +251,14 @@ if [ "$TERM" = "linux" ] && [ -x /usr/local/bin/fbterm-zh ] && [ -z "$FBTTERM" ]
     export FBTTERM=1
     exec /usr/local/bin/fbterm-zh
 fi
+EOF
+
+# agetty --autologin goes through /bin/login -f, which starts a *login* shell:
+# only .bash_profile (or .bash_login/.profile) is sourced, NOT .bashrc.
+# Without this, the fbterm auto-start above never runs and the console shows
+# boxes for CJK text. Explicitly bridge .bashrc into the login shell.
+cat > /root/.bash_profile << 'EOF'
+[ -f /root/.bashrc ] && . /root/.bashrc
 EOF
 
 log '==> extras installed'

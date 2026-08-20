@@ -244,10 +244,18 @@ jobs:
           echo "run_id=$id" >> "$GITHUB_OUTPUT"
 
       - uses: actions/download-artifact@v4
+        if: ${{ needs.mode.outputs.mode == 'from-base' }}
         with:
           name: snapshot-base
           path: .artifacts
           run-id: ${{ steps.find-base.outputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - uses: actions/download-artifact@v4
+        if: ${{ needs.mode.outputs.mode == 'full' }}
+        with:
+          name: snapshot-base
+          path: .artifacts
           github-token: ${{ github.token }}
 
       - name: Restore base snapshot
@@ -290,10 +298,18 @@ jobs:
           echo "run_id=$id" >> "$GITHUB_OUTPUT"
 
       - uses: actions/download-artifact@v4
+        if: ${{ needs.mode.outputs.mode == 'from-config' }}
         with:
           name: snapshot-config
           path: .artifacts
           run-id: ${{ steps.find-config.outputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - uses: actions/download-artifact@v4
+        if: ${{ needs.mode.outputs.mode != 'from-config' }}
+        with:
+          name: snapshot-config
+          path: .artifacts
           github-token: ${{ github.token }}
 
       - name: Restore configured snapshot
