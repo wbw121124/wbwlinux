@@ -6,9 +6,13 @@ on:
   workflow_dispatch:
     inputs:
       resume:
-        description: 'Resume from last successful snapshot (skip toolchain + base + extras)'
-        type: boolean
-        default: false
+        description: '构建级别: full=全量(工具链+基础+配置+ISO); from-base=跳过工具链+基础(用上次 base 快照, 重跑配置+extras+ISO); from-config=跳过配置+extras(用上次 config 快照, 只做内核+ISO)。push 时可用 commit message 标记 [iso:full]/[iso:from-base]/[iso:from-config] 覆盖，无标记默认 full'
+        type: choice
+        default: full
+        options:
+          - full
+          - from-base
+          - from-config
 
 permissions:
   contents: read
@@ -23,11 +27,33 @@ env:
 
 jobs:
   # ---------------------------------------------------------------
+  # Job 0: resolve build level (dispatch input or commit-message tag)
+  # ---------------------------------------------------------------
+  mode:
+    name: Resolve build level
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.set.outputs.mode }}
+    env:
+      COMMIT_MSG: ${{ github.event.head_commit.message }}
+    steps:
+      - id: set
+        run: |
+          mode="full"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            mode="${{ inputs.resume }}"
+          else
+            mode=$(printf '%s\n' "$COMMIT_MSG" | grep -oE '\[iso:(full|from-base|from-config)\]' | tail -1 | cut -d: -f2 | tr -d ']')
+          fi
+          mode="${mode:-full}"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+  # ---------------------------------------------------------------
   # Job 1: host prep + cross toolchain (LFS ch5 + ch6)
   # ---------------------------------------------------------------
   toolchain:
     name: Toolchain (ch5+ch6)
-    if: ${{ github.event_name == 'workflow_dispatch' && !inputs.resume }}
+    needs: mode
+    if: ${{ needs.mode.outputs.mode == 'full' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -90,8 +116,8 @@ jobs:
   # ---------------------------------------------------------------
   base:
     name: Base system (ch8)
-    needs: toolchain
-    if: ${{ github.event_name == 'workflow_dispatch' && !inputs.resume }}
+    needs: [mode, toolchain]
+    if: ${{ needs.mode.outputs.mode == 'full' && needs.toolchain.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -202,15 +228,15 @@ jobs:
   # ---------------------------------------------------------------
   config-extras:
     name: Config + extras
-    needs: base
-    if: ${{ github.event_name == 'workflow_dispatch' && !inputs.resume && needs.base.result == 'success' }}
+    needs: [mode, base]
+    if: ${{ always() && ( (needs.mode.outputs.mode == 'full' && needs.base.result == 'success') || needs.mode.outputs.mode == 'from-base' ) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Find latest run with snapshot-base artifact
         id: find-base
-        if: ${{ github.event_name == 'push' || inputs.resume }}
+        if: ${{ needs.mode.outputs.mode != 'full' }}
         run: |
           id=$(curl -s -H "Authorization: Bearer ${{ github.token }}" \
             "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?name=snapshot-base&per_page=1" \
@@ -248,15 +274,15 @@ jobs:
   # ---------------------------------------------------------------
   iso:
     name: Kernel + ISO
-    needs: config-extras
-    if: ${{ always() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.resume) || needs.config-extras.result == 'success') }}
+    needs: [mode, config-extras]
+    if: ${{ always() && ( needs.mode.outputs.mode == 'from-config' || needs.config-extras.result == 'success' ) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Find latest run with snapshot-config artifact
         id: find-config
-        if: ${{ github.event_name == 'push' || inputs.resume }}
+        if: ${{ needs.mode.outputs.mode == 'from-config' }}
         run: |
           id=$(curl -s -H "Authorization: Bearer ${{ github.token }}" \
             "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?name=snapshot-config&per_page=1" \
