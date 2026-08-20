@@ -52,14 +52,12 @@ ls -l /sbin/init
 cat > /etc/fstab << 'EOF'
 # Begin /etc/fstab (LFS-CN live)
 #
-# /var and /home are tmpfs overlays on purpose: the live overlay's upper
-# layer lives under /run/upper+/run/work on the initramfs root tmpfs, which
-# switch_root tears down and this fstab then replaces with a fresh tmpfs on
-# /run. That detaches the writable overlay upper, leaving /var read-only on
-# the squashfs lower. systemd-timesyncd/logind/journal-catalog-update all
-# must write to /var/lib/... (StateDirectory) -> they failed ENOENT.
-# Mounting tmpfs on /var (+/home) makes them writable independently of the
-# overlay upper lifecycle. systemd regenerates machine-id/catalog on demand.
+# /var and /home are tmpfs on purpose as belt-and-suspenders. The primary
+# fix (in the initramfs init) keeps the overlay upper alive on a dedicated
+# /run/overlay tmpfs so the whole root stays writable via copy-up. These
+# tmpfs mounts additionally guarantee /var and /home are writable even if
+# the overlay upper were ever detached again. systemd regenerates
+# machine-id/catalog on demand.
 
 tmpfs           /run            tmpfs   defaults                        0 0
 tmpfs           /var            tmpfs   defaults                        0 0
@@ -179,23 +177,27 @@ echo "live: ISO found on $iso_dev" > /dev/console
 mkdir -p /run/rootfs
 mount -t squashfs -o loop /mnt/live/rootfs.squashfs /run/rootfs
 
-mkdir -p /run/overlay /run/upper /run/work
+# ROOT CAUSE FIX: the overlay upper+work MUST live inside the dedicated
+# /run/overlay tmpfs (not on the initramfs root). switch_root relocates the
+# initramfs root and this fstab then stacks a fresh tmpfs on /run, but the
+# /run/overlay tmpfs mount stays alive underneath; the overlay pins its
+# upperdir dentry, so the whole merged root (/etc, /var, /home, ...) remains
+# writable via overlay copy-up. Without this the writable upper was detached,
+# dropping /etc and /var to the read-only squashfs lower, and
+# systemd-timesyncd/logind/journal-catalog-update failed at STATE_DIRECTORY
+# (ENOENT) plus hwdb-update/update-done failed writing /etc.
+mkdir -p /run/overlay
 mount -t tmpfs tmpfs /run/overlay
-mkdir -p /run/upper /run/work
-mount -t overlay overlay -o lowerdir=/run/rootfs,upperdir=/run/upper,workdir=/run/work /newroot
+mkdir -p /run/overlay/upper /run/overlay/work
+mount -t overlay overlay -o lowerdir=/run/rootfs,upperdir=/run/overlay/upper,workdir=/run/overlay/work /newroot
 
 mkdir -p /newroot/proc /newroot/sys /newroot/dev /newroot/run /newroot/mnt
 mount -t proc proc /newroot/proc
 mount -t sysfs sysfs /newroot/sys
 mount -t devtmpfs devtmpfs /newroot/dev
 
-# /var and /home must be writable. The overlay upper layer lives under
-# /run/upper+/run/work on the initramfs root tmpfs, which switch_root tears
-# down and systemd then replaces with a fresh tmpfs on /run -> the writable
-# overlay upper is detached, leaving /var read-only on the squashfs lower.
-# systemd-timesyncd/logind/journal-catalog-update all write to /var/lib/...
-# (StateDirectory) and fail ENOENT. Mount tmpfs on /var and /home so they
-# are writable independently of the overlay upper lifecycle.
+# /var and /home are also covered by tmpfs as belt-and-suspenders so they
+# stay writable even if the overlay upper were ever detached again.
 mkdir -p /newroot/var /newroot/home
 mount -t tmpfs tmpfs /newroot/var
 mount -t tmpfs tmpfs /newroot/home
