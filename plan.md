@@ -40,7 +40,19 @@
 - [x] 9b. **pkg_run 超时看门狗（防静默卡死）**（common.sh）→ 包构建外包 `timeout -k 60 ${PKG_TIMEOUT:-7200} bash -e -c`；超时(124)时保留残留树 + df/mount/ps 快照后 die 显式报错，避免再静默挂满 6h。改 scripts/ → ccache 全 miss，run#26 toolchain 重编（实证仅 ~17min，可接受）。
 - [x] 9c. **systemd 全量编译卡死修复（swap 兜底）**（workflow base job + common.sh）→ 宿主加 swap 防 GCC -O3 内存尖峰 cgroup 冻结；超时快照加 free -h/meminfo。run#27 因镜像自带 /swapfile 冲突失败 → run#28 实证 swap 生效（Swap: 3.0Gi 就位），systemd-259.1 编译通过（此轮 j2 无卡死）；systemd 卡死根因仍存疑，但本轮未复现。
 - [ ] 9. ch8 剩余（8.79 D-Bus 起）逐个处理后续失败直至 ISO → **run#30 ch8 全部完成（8.85/8.86 通过）**；后续链条：config+extras（fbterm URL 已修，run#31 验证）→ iso job（内核/initramfs/squashfs/GRUB，尚未跑过，新领域）。
-- [x] 11. **Live 引导后 /var 只读 → systemd 三个写 /var 单元 STATE_DIRECTORY 失败（根因十三）** → 修 `chroot/06-kernel-initramfs.sh` fstab：增 `tmpfs /var` + `tmpfs /home`；待重建 ISO QEMU 验证三 FAILED 消失。
+- [x] 11. **Live 引导后 /var 只读 → systemd 三个写 /var 单元 STATE_DIRECTORY 失败（根因十三）** → 双保险：(a) fstab 增 `tmpfs /var` + `tmpfs /home`；(b) initramfs init 脚本在 switch_root 前对 `/newroot/var`、`/newroot/home` 挂 tmpfs。本地 ISO 已用 (b) 手工重打包修复（见下），CI 双法均生效。待 QEMU 验证三 FAILED 消失。
+
+## 本地 ISO 修复（initramfs 重打包，2026-08-20，无管理员/无 WSL/Docker/无 QEMU 验证）
+**对 `C:\Users\yl\Downloads\lfs-cn-live-iso\lfs-cn-13.0-systemd-x86_64.iso`（781MB，含旧 initramfs）手工重打包，仅改 initramfs（不碰 squashfs）。**
+- 流程（Windows 免管理员工具链）：7-Zip 解 ISO → 解 initramfs → init 加 tmpfs /var /home → 重打包 → xorriso 复刻引导。
+- 关键坑（已解决）：
+  1. Windows 无法建符号链接（无 SeCreateSymbolicLinkPrivilege）→ 原 `bin/sh->/usr/bin/bash` 软链接改为 bash 普通副本（init shebang 照常工作）。
+  2. bsdtar（System32 tar.exe）在 Windows 上把一切文件写 0644，exec 位丢失 → 内核会 "Failed to execute /init"。用 `--format=newc` 重打包后**字节级解析 newc 头部**（mode 字段在每条目 110 字节头 +14 偏移，8 位 ASCII 十六进制），按名称规则重写 mode：目录 040755、工具二进制 0100755（umount 0104755 setuid）、usr/lib/* 0100644、init 0100755。步进公式 `stride=roundup(110+namesize,4)+roundup(filesize,4)`。
+  3. PowerShell `>` 重定向会文本化损坏 gzip 二进制 → 改用 .NET `GZipStream`（CompressionLevel::Optimal）压缩，头 `1f 8b` 正确。
+  4. xorriso.exe（Cygwin 构建）路径需 `/cygdrive/d/...` POSIX 格式。
+- 复刻引导：xorriso -as mkisofs 按原 ISO `-report_el_torito as_mkisofs` 参数（`-b /boot/grub/i386-pc/eltorito.img -boot-load-size 4 --grub2-boot-info`、`-e /efi.img`、`--grub2-mbr`（前 16 扇区 8192B 提取为 grub2-mbr.bin）、`--protective-msdos-label`、GPT/APM/hfsplus）。产物 `D:\iso-fix\lfs-cn-13.0-systemd-x86_64-fixed.iso`（383143 扇区，597 文件，El Torito 复测与原版一致）。
+- 验证：新 initramfs `tar -xOf ./init` 确认含 `mount -t tmpfs tmpfs /newroot/var` / `/newroot/home`；条目 50、权限 init=0755/umount=4755 正确。
+- 待办：用户 QEMU 实测新 ISO 无三个 FAILED；磁盘 C 仅剩 4.3GB，`D:\iso-fix` 工作目录约占用 1.5GB+，验证后可删。
 - [ ] 10. （可选）清理 `D:\wbw121124` 遗留 `ghlog.py tail --latest` 进程（PID 4732）。
 
 ## run#17 结果（2026-08-14，回顾）

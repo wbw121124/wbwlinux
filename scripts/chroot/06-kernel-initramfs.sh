@@ -189,6 +189,17 @@ mount -t proc proc /newroot/proc
 mount -t sysfs sysfs /newroot/sys
 mount -t devtmpfs devtmpfs /newroot/dev
 
+# /var and /home must be writable. The overlay upper layer lives under
+# /run/upper+/run/work on the initramfs root tmpfs, which switch_root tears
+# down and systemd then replaces with a fresh tmpfs on /run -> the writable
+# overlay upper is detached, leaving /var read-only on the squashfs lower.
+# systemd-timesyncd/logind/journal-catalog-update all write to /var/lib/...
+# (StateDirectory) and fail ENOENT. Mount tmpfs on /var and /home so they
+# are writable independently of the overlay upper lifecycle.
+mkdir -p /newroot/var /newroot/home
+mount -t tmpfs tmpfs /newroot/var
+mount -t tmpfs tmpfs /newroot/home
+
 echo "live: switching root" > /dev/console
 exec switch_root /newroot /sbin/init
 EOF
