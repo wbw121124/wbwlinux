@@ -236,7 +236,7 @@ if [ ! -e /dev/fb0 ]; then
     export FBTTERM=1
     exec bash -i
 fi
-if ! fbterm --fontname="WenQuanYi Micro Hei" --font-size=16 -n 2 2>/dev/null; then
+if ! fbterm --font-names="WenQuanYi Micro Hei" --font-size=16 2>/dev/null; then
     echo "fbterm-zh: fbterm failed (font/device), staying on plain console" >&2
     export FBTTERM=1
     exec bash -i
