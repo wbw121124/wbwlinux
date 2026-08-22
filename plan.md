@@ -78,6 +78,13 @@
   - **pacman.conf 关键决策**：DBPath=/usr/local/lib/pacman（live 系统 /var 是 tmpfs 会遮蔽 squashfs 且重启即失）；SigLevel=Never（无 gpgme）；[lfscn] file:// 本地仓库；Arch core/extra 注释模板附 glibc 错配警告。
   - **Phase 2 打包**：pkg_register() 硬链接暂存（cp -al）+ 手写 .PKGINFO + tar --zstd → repo-add 入库 → pacman -U 注册所有权 → 删归档防 squashfs 体积翻倍。八包：nodejs/rust/powershell/neovim/fira-code-fonts/wqy-microhei-fonts/fbterm-ucimf-stack/man-pages-zh。效果：pacman -Q/-Qi/-R 可管理。
   - **persistence（W4）**：initramfs 补 losetup；init 在 overlay 装配前探测分区（ext4/vfat 根含 upper/ 目录 → 直用；或含 lfs-cn-persistence.img → loop0 挂载），找不到回退原 tmpfs 行为；persist=off 内核参数显式关闭；GRUB 加「volatile session」第二菜单项。kernel-live.fragment 无需改（LOOP/EXT4/VFAT 均 =y 已确认）。
+  - **run#52–#56 迭代实录（全部已修，run#56 全绿：ISO 761MB 产出）**：
+    - 根因十九：GNU tar 用 `.` 打包时成员带 `./` 前缀，pacman 按精确名找 `.PKGINFO` 失败报「缺少软件包元数据」→ 改为 null 分隔显式清单（printf .PKGINFO + find %P）。
+    - 根因二十：pkgver 含连字符非法（1.6.4.5-1-1、0.2.0-beta）→ 去掉 Debian 修订号、beta 改下划线，pkg_register 加防御校验。
+    - 根因二十一：pacman 拒绝覆盖无主文件（我们打包的恰是本脚本先前装好的软件），58.6 万行冲突清单后中止 → `pacman -U --overwrite '*'`。
+    - 根因二十二：tar `-T` 清单遇目录会再递归一遍，重复成员变成自引用硬链接，解包时被跳过导致 `/usr/bin/fbterm` 凭空消失 → `--no-recursion`（本地 Git Bash GNU tar 复现实证：修复前后成员数 19→8）。
+    - 遗留（外观级）：fontconfig monospace 别名仍落到文泉驿（根因十七）；实证 99-fira-code-prefer.conf 已加载（wqy 正是列表第二项），疑 Fira Code 字体声明 spacing/proportional 导致匹配评分落败；FC_DEBUG=1024 日志已写入快照 /root/downloads/fc-debug.log 待分析。fbterm-zh 显式字体列表不受影响。
+  - **代理备注（2026-08-22）**：本机直连 GitHub 大文件下载会截断，需 `curl --proxy http://127.0.0.1:7890` 拉 run 日志 zip。
 
 ## 本地 ISO 修复（initramfs 重打包，2026-08-20，无管理员/无 WSL/Docker/无 QEMU 验证）
 **对 `C:\Users\yl\Downloads\lfs-cn-live-iso\lfs-cn-13.0-systemd-x86_64.iso`（781MB，含旧 initramfs）手工重打包，仅改 initramfs（不碰 squashfs）。**
