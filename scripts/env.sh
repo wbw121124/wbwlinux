@@ -50,5 +50,14 @@ export FIRACODE_VER=6.2
 # cmake+opencc which the chroot lacks; the deb ships converted simplified pages)
 export MANPAGES_ZH_VER=1.6.4.5-1
 
+# pacman package manager stack (ninja+meson are pacman's build deps;
+# curl+libarchive are its runtime deps). Versions verified via GitHub API
+# / gitlab release pages on 2026-08-22.
+export NINJA_VER=1.13.2
+export MESON_VER=1.12.0
+export CURL_VER=8.21.0
+export LIBARCHIVE_VER=3.8.9
+export PACMAN_VER=7.1.0
+
 # Host side of the chroot filesystems
 export KERNFS="proc sys run dev"

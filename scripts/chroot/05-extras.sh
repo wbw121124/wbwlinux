@@ -238,6 +238,93 @@ if [ ! -e /usr/share/man/zh_CN/man1/ls.1.gz ]; then
 fi
 
 # =====================================================================
+# pacman package manager (Arch's PM, distro-agnostic).
+# Build order matters: meson needs ninja, pacman needs curl+libarchive.
+# Verified against pacman 7.1.0 meson.build: libseccomp is optional
+# (required:false), gpgme/doc are feature options we disable, crypto
+# defaults to openssl which IS present in the base system.
+# =====================================================================
+if [ ! -e /usr/bin/pacman ]; then
+    log "==> ninja $NINJA_VER"
+    tar xf "ninja-$NINJA_VER.tar.gz"
+    cd "ninja-$NINJA_VER"
+    python3 configure.py --bootstrap
+    install -v -m755 ninja /usr/local/bin/ninja
+    cd "$DL"; rm -rf "ninja-$NINJA_VER"
+
+    log "==> meson $MESON_VER"
+    # install from source tree instead of pip: no ensurepip/network needed;
+    # meson.py supports being run straight out of its source directory
+    tar xf "meson-$MESON_VER.tar.gz"
+    mkdir -p /usr/local/lib
+    cp -a "meson-$MESON_VER" /usr/local/lib/meson
+    ln -sfv /usr/local/lib/meson/meson.py /usr/local/bin/meson
+    meson --version
+    rm -rf "meson-$MESON_VER"
+
+    log "==> curl $CURL_VER"
+    tar xf "curl-$CURL_VER.tar.xz"
+    cd "curl-$CURL_VER"
+    ./configure --prefix=/usr --with-openssl --disable-static \
+                --without-libpsl --without-brotli --without-zstd \
+                --without-nghttp2 --without-libssh2 --without-libidn2 \
+                --disable-ldap --disable-ldaps
+    make -j"$NPROC"
+    make install
+    ldconfig
+    cd "$DL"; rm -rf "curl-$CURL_VER"
+
+    log "==> libarchive $LIBARCHIVE_VER"
+    tar xf "libarchive-$LIBARCHIVE_VER.tar.xz"
+    cd "libarchive-$LIBARCHIVE_VER"
+    ./configure --prefix=/usr --disable-static --without-xml2
+    make -j"$NPROC"
+    make install
+    ldconfig
+    cd "$DL"; rm -rf "libarchive-$LIBARCHIVE_VER"
+
+    log "==> pacman $PACMAN_VER"
+    tar xf "pacman-$PACMAN_VER.tar.xz"
+    cd "pacman-$PACMAN_VER"
+    meson setup build --prefix=/usr \
+        -Dgpgme=disabled -Ddoc=disabled -Dcurl=enabled -Dcrypto=openssl
+    ninja -C build
+    ninja -C build install
+    pacman --version | head -1
+    cd "$DL"; rm -rf "pacman-$PACMAN_VER"
+fi
+
+# live-friendly pacman config:
+#   DBPath moved OUT of /var - on the live system /var is a tmpfs that
+#   would shadow the squashfs DB on every boot and lose all state.
+#   SigLevel=Never because gpgme is not compiled in; the [lfscn] repo is
+#   our own local catalog. Arch repos stay commented out: Arch is rolling
+#   release and links binaries against the newest glibc/openssl while this
+#   system runs LFS 13.0's toolchain - installing core packages WILL break
+#   things. Kept as a template for self-contained software only.
+mkdir -p /usr/local/lib/pacman /usr/local/repo/lfscn /var/cache/pacman/pkg
+cat > /etc/pacman.conf << 'EOF'
+[options]
+HoldPkg     = pacman glibc
+Architecture = auto
+DBPath      = /usr/local/lib/pacman
+CacheDir    = /var/cache/pacman/pkg/
+LogFile     = /var/log/pacman.log
+SigLevel    = Never
+LocalFileSigLevel = Never
+ParallelDownloads = 5
+
+[lfscn]
+Server = file:///usr/local/repo/lfscn
+
+#[core]
+#Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch
+#[extra]
+#Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch
+EOF
+pacman-conf DBPath > /dev/null || die "extras: pacman.conf parse failed"
+
+# =====================================================================
 # ucimf console input method stack (Chinese input inside fbterm)
 #   libucimf          framework, loads IMF plugins from $libdir/ucimf/
 #   ucimf-openvanilla bridge IMF plugin ($libdir/ucimf/openvanilla.so)
@@ -250,6 +337,10 @@ if [ ! -e /usr/lib/libucimf.so ]; then
     log "==> libucimf $UCIMF_VER"
     tar xf "libucimf-$UCIMF_VER.tar.gz"
     cd "libucimf-$UCIMF_VER"
+    # GCC (C++11) parses "str"format as a user-defined literal; keep the
+    # traditional adjacent-literal+macro-arg concatenation with a space
+    # (root cause #18: build failure on run#51)
+    sed -i 's/:"format/:" format/g' include/debug.h
     ./configure --prefix=/usr CXXFLAGS="-O2 -Wno-narrowing"
     make -j"$NPROC"
     make install
@@ -261,6 +352,8 @@ if [ ! -e /usr/lib/ucimf/openvanilla.so ]; then
     log "==> ucimf-openvanilla $OV_BRIDGE_VER"
     tar xf "ucimf-openvanilla-$OV_BRIDGE_VER.tar.gz"
     cd "ucimf-openvanilla-$OV_BRIDGE_VER"
+    # same user-defined-literal issue as libucimf (root cause #18)
+    sed -i 's/:"format/:" format/g' src/debug.h
     ./configure --prefix=/usr CXXFLAGS="-O2 -Wno-narrowing"
     make -j"$NPROC"
     make install
@@ -398,13 +491,99 @@ cat > /root/.bash_profile << 'EOF'
 [ -f /root/.bashrc ] && . /root/.bashrc
 EOF
 
-# hard self-check: input method stack + fonts must all be in place
+# =====================================================================
+# Phase 2: register the bundled software as local [lfscn] repo packages
+# so pacman -Q/-Qi/-R/-S manage them like any distro package.
+# Staging uses hardlinks (cp -al) so copying is nearly free; archives
+# feed repo-add + pacman -U and are then deleted - keeping them would
+# nearly double everything inside the squashfs (mksquashfs dedupes
+# identical FILES, not different archive payloads).
+# =====================================================================
+pkg_register() {
+    local name="$1" ver="$2" desc="$3"
+    shift 3
+    local stage="/tmp/pkgstage/$name"
+    rm -rf "$stage"
+    mkdir -p "$stage"
+    local p f dest
+    for p in "$@"; do
+        # unquoted on purpose: allows glob patterns in the path list
+        for f in $p; do
+            if [ -e "$f" ]; then
+                dest="$stage$f"
+                mkdir -p "$(dirname "$dest")"
+                cp -al "$f" "$dest" 2>/dev/null || cp -a "$f" "$dest"
+            else
+                log "WARNING: pkg $name: optional path missing, skipped: $f"
+            fi
+        done
+    done
+    cat > "$stage/.PKGINFO" << EOF
+pkgname = $name
+pkgver = ${ver}-1
+pkgdesc = ${desc}
+url = https://github.com/wbw121124/wbwlinux
+arch = x86_64
+packager = LFS-CN Build <build@lfs-cn.local>
+license = GPL/custom
+EOF
+    tar --zstd -cf "/tmp/pkgstage/$name-$ver-1-x86_64.pkg.tar.zst" -C "$stage" .
+    rm -rf "$stage"
+}
+
+log '==> registering bundled software as local [lfscn] packages'
+NVIM_V="$(nvim --version 2>/dev/null | sed -n 's/^NVIM //p' | tr -d v)"
+if [ -z "$NVIM_V" ]; then NVIM_V="stable"; fi
+
+pkg_register nodejs "$NODE_VER" "Node.js JavaScript runtime (prebuilt)" \
+    /usr/local/lib/nodejs /usr/local/bin/node /usr/local/bin/npm /usr/local/bin/npx
+pkg_register rust "$RUST_VER" "Rust toolchain (prebuilt)" \
+    /opt/rust \
+    /usr/local/bin/rustc /usr/local/bin/cargo /usr/local/bin/rustdoc \
+    /usr/local/bin/rustfmt /usr/local/bin/cargo-fmt \
+    /usr/local/bin/clippy-driver /usr/local/bin/cargo-clippy \
+    /usr/local/bin/rust-analyzer /usr/local/bin/rust-lld
+pkg_register powershell "$PWSH_VER" "PowerShell 7 (prebuilt)" \
+    /opt/microsoft/powershell/7 /usr/local/bin/pwsh
+pkg_register neovim "$NVIM_V" "Neovim editor (prebuilt)" \
+    /opt/nvim-linux-x86_64 /usr/local/bin/nvim
+pkg_register fira-code-fonts "$FIRACODE_VER" "Fira Code monospace coding font" \
+    /usr/share/fonts/fira-code
+pkg_register wqy-microhei-fonts "0.2.0-beta" "WenQuanYi Micro Hei CJK font" \
+    /usr/share/fonts/wqy-microhei
+pkg_register fbterm-ucimf-stack "$UCIMF_VER" \
+    "fbterm + ucimf Chinese console input method stack" \
+    /usr/bin/fbterm /usr/bin/fbterm_ucimf /usr/bin/ucimf_start \
+    /usr/lib/libucimf.so* /usr/lib/ucimf /usr/lib/openvanilla \
+    /usr/share/openvanilla /etc/ucimf.conf /etc/fbterm \
+    /usr/local/bin/fbterm-zh /usr/share/man/man1/fbterm.1
+pkg_register man-pages-zh "$MANPAGES_ZH_VER" "Chinese man pages (zh_CN)" \
+    /usr/share/man/zh_CN
+
+log '==> building local [lfscn] repository'
+if ! repo-add /usr/local/repo/lfscn/lfscn.db.tar.gz \
+        /tmp/pkgstage/*.pkg.tar.zst > /dev/null 2>&1; then
+    log 'repo-add failed, retrying verbosely:'
+    repo-add /usr/local/repo/lfscn/lfscn.db.tar.gz /tmp/pkgstage/*.pkg.tar.zst
+fi
+ln -sfv lfscn.db.tar.gz /usr/local/repo/lfscn/lfscn.db > /dev/null
+
+log '==> registering package ownership with pacman'
+pacman -U --noconfirm /tmp/pkgstage/*.pkg.tar.zst > /dev/null
+rm -rf /tmp/pkgstage
+pacman -Q
+
+# hard self-check: input method stack + fonts + pacman must all be in place
 for f in /usr/bin/fbterm /usr/bin/fbterm_ucimf \
          /usr/lib/libucimf.so /usr/lib/ucimf/openvanilla.so \
          /usr/lib/openvanilla/OVIMGeneric.so \
          /usr/share/openvanilla/OVIMGeneric/pinyin.cin \
          /usr/share/fonts/fira-code/FiraCode-Regular.ttf \
-         /usr/share/man/zh_CN/man1/ls.1.gz; do
+         /usr/share/man/zh_CN/man1/ls.1.gz \
+         /usr/bin/pacman /usr/bin/repo-add /etc/pacman.conf \
+         /usr/local/lib/meson/meson.py /usr/local/bin/ninja \
+         /usr/bin/curl /usr/lib/libarchive.so \
+         /usr/local/repo/lfscn/lfscn.db.tar.gz; do
     [ -e "$f" ] || die "extras self-check: missing $f"
 done
 
@@ -413,3 +592,4 @@ node --version 2>/dev/null || true
 /opt/rust/bin/rustc --version 2>/dev/null || true
 pwsh --version 2>/dev/null || true
 nvim --version 2>/dev/null | head -1 || true
+pacman --version 2>/dev/null | head -1 || true

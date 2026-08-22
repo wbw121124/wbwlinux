@@ -79,6 +79,13 @@ menuentry "LFS-CN $LFS_VERSION (Live x86_64)" {
     initrd /boot/initramfs-lfs-cn.img
 }
 
+# persistence auto-detection can be skipped entirely with persist=off:
+# nothing on disk is ever written, useful for untrusted hosts
+menuentry "LFS-CN $LFS_VERSION (Live x86_64, volatile session)" {
+    linux /boot/vmlinuz-$LFS_KERNEL_VER-lfs-cn quiet vga=791 persist=off locale.LANG=C.UTF-8 locale.LC_MESSAGES=C.UTF-8
+    initrd /boot/initramfs-lfs-cn.img
+}
+
 menuentry "LFS-CN $LFS_VERSION - Troubleshooting (console)" {
     linux /boot/vmlinuz-$LFS_KERNEL_VER-lfs-cn quiet vga=791 systemd.unit=emergency.target locale.LANG=C.UTF-8 locale.LC_MESSAGES=C.UTF-8
     initrd /boot/initramfs-lfs-cn.img

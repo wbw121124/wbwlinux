@@ -36,6 +36,12 @@ declare -A urls=(
   ["$OV_MODULES_TARBALL"]="https://codeload.github.com/pkg-ime/openvanilla-modules/tar.gz/$OV_MODULES_COMMIT"
   ["Fira_Code_v$FIRACODE_VER.zip"]="https://github.com/tonsky/FiraCode/releases/download/$FIRACODE_VER/Fira_Code_v$FIRACODE_VER.zip"
   ["manpages-zh_${MANPAGES_ZH_VER}_all.deb"]="https://deb.debian.org/debian/pool/main/m/manpages-zh/manpages-zh_${MANPAGES_ZH_VER}_all.deb"
+  # ninja has no source asset in its releases -> tag auto-archive
+  ["ninja-$NINJA_VER.tar.gz"]="https://github.com/ninja-build/ninja/archive/refs/tags/v$NINJA_VER.tar.gz"
+  ["meson-$MESON_VER.tar.gz"]="https://github.com/MesonBuild/meson/releases/download/$MESON_VER/meson-$MESON_VER.tar.gz"
+  ["curl-$CURL_VER.tar.xz"]="https://curl.se/download/curl-$CURL_VER.tar.xz"
+  ["libarchive-$LIBARCHIVE_VER.tar.xz"]="https://github.com/libarchive/libarchive/releases/download/v$LIBARCHIVE_VER/libarchive-$LIBARCHIVE_VER.tar.xz"
+  ["pacman-$PACMAN_VER.tar.xz"]="https://gitlab.archlinux.org/pacman/pacman/-/releases/v$PACMAN_VER/downloads/pacman-$PACMAN_VER.tar.xz"
 )
 declare -A mirrors=(
   ["node-$NODE_VER-linux-x64.tar.xz"]="https://registry.npmmirror.com/-/binary/node/$NODE_VER/node-$NODE_VER-linux-x64.tar.xz"

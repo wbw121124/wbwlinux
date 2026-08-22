@@ -118,6 +118,7 @@ copy_deps insmod
 copy_deps modprobe
 copy_deps blkid
 copy_deps mknod
+copy_deps losetup
 
 # the dynamic linker must be in the expected location
 cp -avL /lib64/ld-linux-x86-64.so.2 "$INITRAMFS_DIR/lib64/" 2>/dev/null || true
@@ -131,7 +132,7 @@ ln -sfv /usr/bin/bash "$INITRAMFS_DIR/bin/sh"
 for t in mount umount sleep cat mkdir cp grep awk sed mknod; do
     [ -e "$INITRAMFS_DIR/usr/bin/$t" ] || log "ERROR: initramfs missing required tool /usr/bin/$t"
 done
-for t in switch_root insmod modprobe blkid; do
+for t in switch_root insmod modprobe blkid losetup; do
     [ -e "$INITRAMFS_DIR/usr/sbin/$t" ] || log "ERROR: initramfs missing required tool /usr/sbin/$t"
 done
 [ -e "$INITRAMFS_DIR/lib64/ld-linux-x86-64.so.2" ] || die "initramfs: dynamic loader missing"
@@ -186,10 +187,62 @@ mount -t squashfs -o loop /mnt/live/rootfs.squashfs /run/rootfs
 # dropping /etc and /var to the read-only squashfs lower, and
 # systemd-timesyncd/logind/journal-catalog-update failed at STATE_DIRECTORY
 # (ENOENT) plus hwdb-update/update-done failed writing /etc.
+#
+# ---- persistence (W4): reuse an upperdir across boots ------------------
+# Unless persist=off is on the cmdline, probe partitions for either:
+#   a) a filesystem whose root contains an upper/ directory (dedicated
+#      persistence fs; label it LFS-CN-PERSIST for convenience), or
+#   b) a file lfs-cn-persistence.img in its root - an ext4 image attached
+#      via loop0 (works from FAT/exFAT sticks too).
+# With no medium found the boot falls back to the stock volatile tmpfs.
+PERSIST_UPPER=""
+if ! grep -q 'persist=off' /proc/cmdline; then
+    mkdir -p /run/persist
+    for dev in $(cat /proc/partitions | awk '{print $4}' | grep -E '^(sd|vd|hd|nvme|mtd)[a-z0-9]*p?[0-9]+$' | sort -u); do
+        if [ "/dev/$dev" = "$iso_dev" ]; then continue; fi
+        if mount -t ext4 -o rw "/dev/$dev" /run/persist 2>/dev/null; then
+            :
+        elif mount -t vfat -o rw,umask=000 "/dev/$dev" /run/persist 2>/dev/null; then
+            :
+        else
+            continue
+        fi
+        if [ -d /run/persist/upper ]; then
+            mkdir -p /run/persist/work
+            PERSIST_UPPER=/run/persist/upper
+            PERSIST_WORK=/run/persist/work
+            echo "live: persistent session on /dev/$dev" > /dev/console
+            break
+        fi
+        if [ -f /run/persist/lfs-cn-persistence.img ]; then
+            [ -e /dev/loop-control ] || mknod /dev/loop-control c 10 237 2>/dev/null
+            [ -e /dev/loop0 ] || mknod /dev/loop0 b 7 0 2>/dev/null
+            if losetup /dev/loop0 /run/persist/lfs-cn-persistence.img 2>/dev/null \
+               && mount -t ext4 -o rw /dev/loop0 /run/persist 2>/dev/null; then
+                mkdir -p /run/persist/upper /run/persist/work
+                PERSIST_UPPER=/run/persist/upper
+                PERSIST_WORK=/run/persist/work
+                echo "live: persistent session via lfs-cn-persistence.img on /dev/$dev" > /dev/console
+                break
+            fi
+        fi
+        umount /run/persist 2>/dev/null
+    done
+fi
+
 mkdir -p /run/overlay
-mount -t tmpfs tmpfs /run/overlay
-mkdir -p /run/overlay/upper /run/overlay/work
-mount -t overlay overlay -o lowerdir=/run/rootfs,upperdir=/run/overlay/upper,workdir=/run/overlay/work /newroot
+if [ -n "$PERSIST_UPPER" ]; then
+    # persistent store already mounted under /run; like the tmpfs case the
+    # overlay pins its dentries so it survives switch_root + fstab's /run
+    :
+else
+    mount -t tmpfs tmpfs /run/overlay
+    mkdir -p /run/overlay/upper /run/overlay/work
+    PERSIST_UPPER=/run/overlay/upper
+    PERSIST_WORK=/run/overlay/work
+    echo "live: volatile session (no persistence medium found)" > /dev/console
+fi
+mount -t overlay overlay -o lowerdir=/run/rootfs,upperdir=$PERSIST_UPPER,workdir=$PERSIST_WORK /newroot
 
 mkdir -p /newroot/proc /newroot/sys /newroot/dev /newroot/run /newroot/mnt
 mount -t proc proc /newroot/proc

@@ -24,6 +24,7 @@ Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
 | OVIMGeneric + zh_CN 码表 | openvanilla-modules | 源码编译（拼音/双拼/五笔/郑码等） |
 | man-pages-zh | 1.6.4.5-1 | Debian 预编译数据包解包（简体中文 man 手册） |
 | Fira Code 字体优先级 + 彩色 prompt | — | fontconfig prefer + /root/.bashrc |
+| pacman | 7.1.0 | 源码编译（含 ninja/meson/curl/libarchive 依赖链，`[lfscn]` 本地仓库） |
 
 以及 LFS 书中全部基础包（glibc、systemd、perl、openssl、util-linux 等）。
 
@@ -38,6 +39,22 @@ Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
 - `man ls` 等命令中文手册（man-pages-zh，zh_CN 会话自动生效；英文会话保持英文页）
 - 彩色提示符（root 红 user@host + 蓝路径）与 `ls --color=auto`
 - systemd-networkd 自动 DHCP
+
+## 包管理器（pacman）与持久化
+
+- 预装 pacman 7.1.0，配置文件 `/etc/pacman.conf`：
+  - 数据库放在 `/usr/local/lib/pacman`（`/var` 在 live 系统是 tmpfs，不能存状态）
+  - 内置本地仓库 `[lfscn]`：nodejs、rust、powershell、neovim、fira-code-fonts、
+    wqy-microhei-fonts、fbterm-ucimf-stack、man-pages-zh 八个包已注册，
+    可用 `pacman -Q`/`pacman -Qi <包名>` 查询、`pacman -R <包名>` 卸载
+  - Arch 官方源默认注释禁用——Arch 滚动版二进制链接最新 glibc，与本系统的
+    LFS 13.0 工具链不匹配，启用并安装核心包会破坏系统；仅适合自包含软件
+- **会话持久化**：引导时 initramfs 自动探测各分区
+  - 分区根目录含 `upper/` 目录 → 直接作为 overlay 上层（建议 ext4 并设卷标 `LFS-CN-PERSIST`）
+  - 或分区根目录含 `lfs-cn-persistence.img` 文件（ext4 镜像，FAT/exFAT U 盘也可用）→ loop 挂载后作为上层
+  - 找到任一介质即「持久会话」：写入 /etc、/root 等在重启后保留（`/var`、`/home` 仍为 tmpfs）
+  - GRUB 第二菜单项「volatile session」加 `persist=off` 强制关闭探测
+  - 制作镜像文件示例（在任意 FAT32 U 盘上）：`truncate -s 8G lfs-cn-persistence.img && mkfs.ext4 -F lfs-cn-persistence.img`
 
 ## 流水线结构（4 个串行 job）
 
