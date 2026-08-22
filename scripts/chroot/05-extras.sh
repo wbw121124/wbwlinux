@@ -502,6 +502,11 @@ EOF
 pkg_register() {
     local name="$1" ver="$2" desc="$3"
     shift 3
+    # pacman pkgver is "<version>-<pkgrel>": exactly one hyphen allowed,
+    # everything before it must be alnum/./_ only
+    if [ "${ver#*-}" != "$ver" ]; then
+        die "pkg_register $name: version '$ver' contains '-', not a valid pacman pkgver"
+    fi
     local stage="/tmp/pkgstage/$name"
     rm -rf "$stage"
     mkdir -p "$stage"
@@ -561,7 +566,7 @@ pkg_register neovim "$NVIM_V" "Neovim editor (prebuilt)" \
     /opt/nvim-linux-x86_64 /usr/local/bin/nvim
 pkg_register fira-code-fonts "$FIRACODE_VER" "Fira Code monospace coding font" \
     /usr/share/fonts/fira-code
-pkg_register wqy-microhei-fonts "0.2.0-beta" "WenQuanYi Micro Hei CJK font" \
+pkg_register wqy-microhei-fonts "0.2.0_beta" "WenQuanYi Micro Hei CJK font" \
     /usr/share/fonts/wqy-microhei
 pkg_register fbterm-ucimf-stack "$UCIMF_VER" \
     "fbterm + ucimf Chinese console input method stack" \
@@ -569,7 +574,8 @@ pkg_register fbterm-ucimf-stack "$UCIMF_VER" \
     /usr/lib/libucimf.so* /usr/lib/ucimf /usr/lib/openvanilla \
     /usr/share/openvanilla /etc/ucimf.conf /etc/fbterm \
     /usr/local/bin/fbterm-zh /usr/share/man/man1/fbterm.1
-pkg_register man-pages-zh "$MANPAGES_ZH_VER" "Chinese man pages (zh_CN)" \
+# strip the Debian revision: pacman pkgver allows exactly one hyphen
+pkg_register man-pages-zh "${MANPAGES_ZH_VER%-*}" "Chinese man pages (zh_CN)" \
     /usr/share/man/zh_CN
 
 log '==> building local [lfscn] repository'
