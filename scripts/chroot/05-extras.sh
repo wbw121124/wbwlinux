@@ -195,9 +195,13 @@ fi
 
 # =====================================================================
 # fontconfig priority: Fira Code above the CJK font for generic
-# families - Latin glyphs come from Fira Code, CJK falls back to WQY
+# families - Latin glyphs come from Fira Code, CJK falls back to WQY.
+# NOTE: this fontconfig build's fonts.conf does NOT include
+# /etc/fonts/local.conf (only conf.d), so the rules must live in a
+# conf.d snippet; the 99- prefix sorts last = highest priority.
 # =====================================================================
-cat > /etc/fonts/local.conf << 'EOF'
+mkdir -p /etc/fonts/conf.d
+cat > /etc/fonts/conf.d/99-fira-code-prefer.conf << 'EOF'
 <?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
 <fontconfig>
@@ -227,7 +231,7 @@ fi
 # (inside fbterm); C.UTF-8 sessions keep English pages.
 # =====================================================================
 log "==> man-pages-zh $MANPAGES_ZH_VER"
-ar p "$SOURCES/manpages-zh_${MANPAGES_ZH_VER}_all.deb" data.tar.xz \
+ar p "manpages-zh_${MANPAGES_ZH_VER}_all.deb" data.tar.xz \
     | tar xJ -C /usr/share --strip-components=3 --wildcards './usr/share/man/zh_CN/*'
 if [ ! -e /usr/share/man/zh_CN/man1/ls.1.gz ]; then
     die "extras: man-pages-zh extraction failed (no ls.1.gz)"

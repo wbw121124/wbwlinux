@@ -66,6 +66,9 @@
 - [ ] 13. **根因十四（登录界面中文乱码）+ Fira Code 字体优先级** → 已实施（2026-08-22，见「根因十四」），待 run#49+ QEMU 复测：登录界面无乱码、fbterm 西文为 Fira Code、Ctrl+Space 中文输入可用。
 - [x] 14. **体验补全包（2026-08-22，[iso:from-base] 验证）**：
   - **根因十五：nano 启动报 `/etc/nanorc: unknown option "utf8"`** —— `set utf8` 在 nano 6.x 起移除（UTF-8 随 locale 自动启用），chroot 的 nano 8.7.1 每次启动报错。修复：删除该行并注释原因。
+  - **run#50 失败复盘（两个新根因，已修，待 run#51 验证）**：
+    - **根因十六：man-pages-zh deb 路径错配** —— extras 全部下载到 `/root/downloads` 且 chroot 脚本 `cd` 该目录用相对路径构建；man-pages-zh 块误用 `$SOURCES`（=/mnt/lfs/sources，LFS 书源码目录，extras 不往那放东西）→ `ar: No such file or directory`。修复：改相对路径（deb 已确认正常下载，17 文件齐）。
+    - **根因十七：fontconfig 根本不加载 local.conf** —— LFS 构建的 fontconfig 2.17.1 `/etc/fonts/fonts.conf` 只有 `<include>conf.d</include>`（注释声称 customizations belong in local.conf 但无对应 include 行；.ci/sfs 快照实证）→ 写的 `/etc/fonts/local.conf` 完全被忽略 → run#50 日志 `WARNING: 'monospace' did not resolve to Fira Code -> wqy-microhei.ttc`。修复：prefer 规则改写入 `/etc/fonts/conf.d/99-fira-code-prefer.conf`（99 前缀排序最后=优先级最高）。
   - **man 中文手册（man-pages-zh 1.6.4.5）**：上游 1.6.x 构建需 cmake+OpenCC（源码为繁体、构建期 t2s 转简体——1.6.4.0/1.6.4.5 本地解包实证），chroot 无此二者 → 改用 Debian 预编译 `_all.deb`（纯数据，含已转简体 gz 页面）：`ar p ... data.tar.xz | tar xJ --strip-components=3 --wildcards` 仅取 zh_CN 到 /usr/share/man/。Git Bash 宿主 ar 会 CRLF 损坏二进制成员（魔数完好后续损坏），本地校验用 Python 按 ar 头精确切成员完成；chroot Linux ar 无此问题。zh_CN 会话（fbterm 内）`man ls` 出中文，C.UTF-8 会话保持英文；自检加 ls.1.gz。
   - **shell 体验**：/root/.bashrc 加 `alias ls='ls --color=auto'` 与彩色 PS1（root 红 user@host + 蓝 cwd，纯 ANSI，vconsole/fbterm/serial 通吃）。
 
