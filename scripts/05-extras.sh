@@ -30,6 +30,11 @@ declare -A urls=(
   ["fbterm-1.7.tar.gz"]="https://deb.debian.org/debian/pool/main/f/fbterm/fbterm_1.7.orig.tar.gz"
   ["wqy-microhei-0.2.0-beta.tar.gz"]="https://downloads.sourceforge.net/project/wqy/wqy-microhei/0.2.0-beta/wqy-microhei-0.2.0-beta.tar.gz"
   ["libunwind-1.6.2.tar.gz"]="https://github.com/libunwind/libunwind/releases/download/v1.6.2/libunwind-1.6.2.tar.gz"
+  ["libucimf-$UCIMF_VER.tar.gz"]="https://deb.debian.org/debian/pool/main/libu/libucimf/libucimf_${UCIMF_VER}.orig.tar.gz"
+  ["ucimf-openvanilla-$OV_BRIDGE_VER.tar.gz"]="https://deb.debian.org/debian/pool/main/u/ucimf-openvanilla/ucimf-openvanilla_${OV_BRIDGE_VER}.orig.tar.gz"
+  ["fbterm-ucimf-$FBTERM_UCIMF_VER.tar.gz"]="https://deb.debian.org/debian/pool/main/f/fbterm-ucimf/fbterm-ucimf_${FBTERM_UCIMF_VER}.orig.tar.gz"
+  ["$OV_MODULES_TARBALL"]="https://codeload.github.com/pkg-ime/openvanilla-modules/tar.gz/$OV_MODULES_COMMIT"
+  ["Fira_Code_v$FIRACODE_VER.zip"]="https://github.com/tonsky/FiraCode/releases/download/$FIRACODE_VER/Fira_Code_v$FIRACODE_VER.zip"
 )
 declare -A mirrors=(
   ["node-$NODE_VER-linux-x64.tar.xz"]="https://registry.npmmirror.com/-/binary/node/$NODE_VER/node-$NODE_VER-linux-x64.tar.xz"

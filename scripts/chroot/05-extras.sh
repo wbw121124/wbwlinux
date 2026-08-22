@@ -179,6 +179,82 @@ if ! fc-match "WenQuanYi Micro Hei" | grep -q wqy-microhei; then
 fi
 
 # =====================================================================
+# Fira Code (coding font; Latin glyphs, CJK falls back to WenQuanYi)
+# =====================================================================
+if [ ! -e /usr/share/fonts/fira-code/FiraCode-Regular.ttf ]; then
+    log "==> Fira Code $FIRACODE_VER"
+    mkdir -p /usr/share/fonts/fira-code
+    python3 -m zipfile -e "Fira_Code_v$FIRACODE_VER.zip" fira-code-extract
+    cp -v fira-code-extract/ttf/FiraCode-*.ttf /usr/share/fonts/fira-code/
+    rm -rf fira-code-extract
+    fc-cache -fv /usr/share/fonts/fira-code > /dev/null
+fi
+if ! fc-match "Fira Code" | grep -qi firacode; then
+    log "WARNING: fc-match did not resolve 'Fira Code' -> $(fc-match 'Fira Code')"
+fi
+
+# =====================================================================
+# ucimf console input method stack (Chinese input inside fbterm)
+#   libucimf          framework, loads IMF plugins from $libdir/ucimf/
+#   ucimf-openvanilla bridge IMF plugin ($libdir/ucimf/openvanilla.so)
+#   openvanilla-modules OVIMGeneric engine ($libdir/openvanilla/) +
+#                     zh_CN .cin tables (pinyin/shuangpin/wubi/zhengma...)
+#   fbterm-ucimf      frontend binary started by `fbterm -i fbterm_ucimf`
+# Usage once running: Ctrl+Space toggles IM, Ctrl+Shift switches IMs
+# =====================================================================
+if [ ! -e /usr/lib/libucimf.so ]; then
+    log "==> libucimf $UCIMF_VER"
+    tar xf "libucimf-$UCIMF_VER.tar.gz"
+    cd "libucimf-$UCIMF_VER"
+    ./configure --prefix=/usr CXXFLAGS="-O2 -Wno-narrowing"
+    make -j"$NPROC"
+    make install
+    cd "$DL"
+    rm -rf "libucimf-$UCIMF_VER"
+fi
+
+if [ ! -e /usr/lib/ucimf/openvanilla.so ]; then
+    log "==> ucimf-openvanilla $OV_BRIDGE_VER"
+    tar xf "ucimf-openvanilla-$OV_BRIDGE_VER.tar.gz"
+    cd "ucimf-openvanilla-$OV_BRIDGE_VER"
+    ./configure --prefix=/usr CXXFLAGS="-O2 -Wno-narrowing"
+    make -j"$NPROC"
+    make install
+    cd "$DL"
+    rm -rf "ucimf-openvanilla-$OV_BRIDGE_VER"
+fi
+
+if [ ! -e /usr/lib/openvanilla/OVIMGeneric.so ]; then
+    log "==> openvanilla-modules git-${OV_MODULES_COMMIT:0:7} (OVIMGeneric + zh_CN tables)"
+    mkdir -p openvanilla-modules-src
+    tar xf "$OV_MODULES_TARBALL" -C openvanilla-modules-src --strip-components=1
+    cd openvanilla-modules-src
+    ./configure --prefix=/usr --disable-asia --enable-zh_CN \
+                CXXFLAGS="-O2 -Wno-narrowing"
+    make -j"$NPROC"
+    make install
+    cd "$DL"
+    rm -rf openvanilla-modules-src
+fi
+
+if [ ! -e /usr/bin/fbterm_ucimf ]; then
+    log "==> fbterm-ucimf $FBTERM_UCIMF_VER"
+    tar xf "fbterm-ucimf-$FBTERM_UCIMF_VER.tar.gz"
+    # upstream dir name uses an underscore while the tarball uses a hyphen
+    cd "fbterm_ucimf-$FBTERM_UCIMF_VER"
+    ./configure --prefix=/usr CXXFLAGS="-O2 -Wno-narrowing"
+    make -j"$NPROC"
+    make install
+    cd "$DL"
+    rm -rf "fbterm_ucimf-$FBTERM_UCIMF_VER"
+fi
+
+# compose/preedit/candidate window font must cover CJK
+if [ -e /etc/ucimf.conf ] && ! grep -q '^font-name=WenQuanYi Micro Hei' /etc/ucimf.conf; then
+    sed -i 's|^font-name=.*|font-name=WenQuanYi Micro Hei|' /etc/ucimf.conf
+fi
+
+# =====================================================================
 # editor configs for Chinese text
 # =====================================================================
 # vim
@@ -215,7 +291,7 @@ EOF
 # fbterm: Chinese-capable terminal + launcher script
 mkdir -p /etc/fbterm
 cat > /etc/fbterm/fbtermrc << 'EOF'
-font-name=WenQuanYi Micro Hei
+font-names=Fira Code,WenQuanYi Micro Hei
 font-size=16
 font-width=0
 font-height=0
@@ -231,22 +307,31 @@ cat > /usr/local/bin/fbterm-zh << 'EOF'
 # Chinese-capable framebuffer terminal. Falls back to a plain shell if the
 # framebuffer or CJK font is unavailable so the session never dies silently.
 export LANG=zh_CN.UTF-8 LC_ALL=zh_CN.UTF-8
+FONT_NAMES="Fira Code,WenQuanYi Micro Hei"
 if [ ! -e /dev/fb0 ]; then
     echo "fbterm-zh: /dev/fb0 not available, staying on plain console" >&2
     export FBTTERM=1
     exec bash -i
 fi
-if ! fbterm --font-names="WenQuanYi Micro Hei" --font-size=16 2>/dev/null; then
-    echo "fbterm-zh: fbterm failed (font/device), staying on plain console" >&2
-    export FBTTERM=1
-    exec bash -i
+if command -v fbterm_ucimf >/dev/null 2>&1; then
+    # ucimf input method: Ctrl+Space on/off, Ctrl+Shift switch IMs
+    if fbterm --font-names="$FONT_NAMES" --font-size=16 -i fbterm_ucimf 2>/dev/null; then
+        exit 0
+    fi
 fi
+if fbterm --font-names="$FONT_NAMES" --font-size=16 2>/dev/null; then
+    exit 0
+fi
+echo "fbterm-zh: fbterm failed (font/device), staying on plain console" >&2
+export FBTTERM=1
+exec bash -i
 EOF
 chmod +x /usr/local/bin/fbterm-zh
 
 # root login shell convenience (auto fbterm on tty1)
 cat > /root/.bashrc << 'EOF'
 # LFS-CN live environment
+export PATH="/opt/rust/bin:/opt/nvim-linux-x86_64/bin:/opt/microsoft/powershell/7:$PATH"
 if [ "$TERM" = "linux" ] && [ -x /usr/local/bin/fbterm-zh ] && [ -z "$FBTTERM" ] && [ "$(tty)" = "/dev/tty1" ]; then
     export FBTTERM=1
     exec /usr/local/bin/fbterm-zh
@@ -260,6 +345,15 @@ EOF
 cat > /root/.bash_profile << 'EOF'
 [ -f /root/.bashrc ] && . /root/.bashrc
 EOF
+
+# hard self-check: input method stack + fonts must all be in place
+for f in /usr/bin/fbterm /usr/bin/fbterm_ucimf \
+         /usr/lib/libucimf.so /usr/lib/ucimf/openvanilla.so \
+         /usr/lib/openvanilla/OVIMGeneric.so \
+         /usr/share/openvanilla/OVIMGeneric/pinyin.cin \
+         /usr/share/fonts/fira-code/FiraCode-Regular.ttf; do
+    [ -e "$f" ] || die "extras self-check: missing $f"
+done
 
 log '==> extras installed'
 node --version 2>/dev/null || true

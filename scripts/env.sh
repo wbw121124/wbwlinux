@@ -37,5 +37,15 @@ export ICU_URL=https://github.com/unicode-org/icu/releases/download/release-78.2
 # Powershell 7.6.4 (linux-x64 tarball)
 export PWSH_VER=7.6.4
 
+# fbterm console input method stack (ucimf) + coding font
+export UCIMF_VER=2.3.8
+export OV_BRIDGE_VER=2.10.11
+export FBTERM_UCIMF_VER=0.2.9
+# openvanilla-modules (OVIMGeneric + .cin tables) has no release tarballs;
+# pinned to a verified commit of the pkg-ime GitHub snapshot
+export OV_MODULES_COMMIT=28d0dd62b710f563d04ee926b548da9cb41a409a
+export OV_MODULES_TARBALL="openvanilla-modules-git${OV_MODULES_COMMIT:0:7}.tar.gz"
+export FIRACODE_VER=6.2
+
 # Host side of the chroot filesystems
 export KERNFS="proc sys run dev"

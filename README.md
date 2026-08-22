@@ -19,6 +19,9 @@ Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
 | Nano | 8.7.1 | BLFS 源码编译（UTF-8） |
 | ICU | 78.2 | BLFS 源码编译 |
 | fbterm + 文泉驿微米黑 | 1.7 / 0.2.0-beta | 源码/字体 |
+| Fira Code | 6.2 | 官方 release（等宽编程字体） |
+| ucimf + fbterm-ucimf | 2.3.8 / 0.2.9 | 源码编译（控制台输入法框架） |
+| OVIMGeneric + zh_CN 码表 | openvanilla-modules | 源码编译（拼音/双拼/五笔/郑码等） |
 
 以及 LFS 书中全部基础包（glibc、systemd、perl、openssl、util-linux 等）。
 
@@ -26,7 +29,8 @@ Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
 
 - `zh_CN.UTF-8` locale（含 GB18030）
 - `/etc/vimrc`、`/etc/nanorc`、`/etc/xdg/nvim/init.lua` 已配置 UTF-8/GB18030
-- tty1 自动登录 root，自动启动 fbterm（文泉驿微米黑，16 号）
+- tty1 自动登录 root，自动启动 fbterm（Fira Code 西文 + 文泉驿微米黑中文，16 号）
+- `Ctrl+Space` 开/关中文输入，`Ctrl+Shift` 切换输入法（拼音、双拼、五笔86、郑码等 12 种 zh_CN 码表）
 - `fbterm-zh` 命令可手动启动中文终端
 - systemd-networkd 自动 DHCP
 

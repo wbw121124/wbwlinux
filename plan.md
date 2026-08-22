@@ -1,7 +1,18 @@
 # LFS-CN Live ISO 构建计划
 
 ## 目标
-在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**根因十三已彻底解决并经 CI run#48 产物 QEMU 实测通过**（整个根文件系统可写、引导干净进入自动登录、无 FAILED 单元）。
+在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**根因十三已彻底解决并经 CI run#48 产物 QEMU 实测通过**（整个根文件系统可写、引导干净进入自动登录、无 FAILED 单元）。2026-08-22 新增：ucimf 中文输入法栈 + Fira Code 字体（见下一节，待 CI 验证）。
+
+## 输入法栈 + Fira Code 扩展（2026-08-22，已实施，待 run#49+ 验证）
+**目标：live 环境在 fbterm 内可输入中文。无 X11 → ibus/fcitx（X11 IM 平台）不适用且依赖链巨大；选型 ucimf 生态：libucimf（框架）→ ucimf-openvanilla（桥接 IMF 插件 /usr/lib/ucimf/openvanilla.so）→ openvanilla-modules（OVIMGeneric 引擎 /usr/lib/openvanilla/ + zh_CN .cin 码表）→ fbterm-ucimf（`fbterm -i fbterm_ucimf` 前端）。**
+- 改动：
+  - `scripts/env.sh`：UCIMF_VER=2.3.8、OV_BRIDGE_VER=2.10.11、FBTERM_UCIMF_VER=0.2.9、OV_MODULES_COMMIT=28d0dd6（pkg-ime/openvanilla-modules GitHub 快照固定 commit，无官方 release tarball）、FIRACODE_VER=6.2。
+  - `scripts/05-extras.sh`：宿主侧新增下载 libucimf/ucimf-openvanilla/fbterm-ucimf（均 deb.debian.org orig tarball）+ openvanilla-modules（codeload 固定 commit）+ Fira_Code_v6.2.zip（github release）。5 个 URL 已 HEAD 200 实测。
+  - `scripts/chroot/05-extras.sh`：四连源码构建（全部 `-Wno-narrowing` 防 GCC15 narrowing）；openvanilla-modules 用 `--disable-asia --enable-zh_CN` 只装 12 张 zh_CN 码表（pinyin/pinyin0/shuangpin/wubizixing/wbx/zhengma 等 → /usr/share/openvanilla/OVIMGeneric/）；/etc/ucimf.conf 字体改 WQY（候选窗 CJK 可渲染）；Fira Code 六个 TTF → /usr/share/fonts/fira-code/（chroot 无 unzip → `python3 -m zipfile -e` 解压，Python 为 ch8 自建）；fbtermrc 键名修正 `font-name`→`font-names`（fbterm 1.7 实际键名），主字体 "Fira Code,WenQuanYi Micro Hei"；fbterm-zh 启动器优先 `-i fbterm_ucimf`（Ctrl+Space 开关输入法、Ctrl+Shift 切换），失败逐级回退纯 fbterm → bash；脚本尾部硬性自检（fbterm_ucimf/libucimf.so/openvanilla.so/OVIMGeneric.so/pinyin.cin/FiraCode-Regular.ttf 缺一即 die）。
+- 依赖核实（本地解包审计源码）：libucimf 需 ltdl（AC_CHECK_LIB 强制）+ freetype2/fontconfig（PKG_CHECK_MODULES）——LFS ch8 已含 libtool-2.5.4（ltdl）与 pkgconf-2.5.1（30-ch8-stage.sh:583/:304），libucimf.pc 装 $(libdir)/pkgconfig（Makefile.am:21）→ fbterm-ucimf 的 PKG_CHECK_MODULES(libucimf) 可解析；openvanilla-modules 的 sqlite3 检查非致命且源码未用；LIBDIR/DATADIR 由 AC_DEFINE_DIR 注入 ✓；码表安装路径与 ovimf.cpp 搜索路径（DATADIR/openvanilla/OVIMGeneric/）吻合 ✓。
+- 用法：tty1 自动登录进 fbterm 后 Ctrl+Space 开关中文输入；Ctrl+Shift 在拼音/双拼/五笔86/郑码等间切换。
+- **bash PATH 集成（同日）**：`/etc/profile`（04-sysconfig.sh）与 `/root/.bashrc`（05-extras.sh，覆盖 fbterm 内层 shell 与纯控制台回退的非登录交互 shell——它们不读 profile）均前置 `export PATH="/opt/rust/bin:/opt/nvim-linux-x86_64/bin:/opt/microsoft/powershell/7:$PATH"`。
+- 风险（Windows 宿主无法本地编译验证）：2010 年代 C++ 在 GCC15 下除 narrowing 外或现缺头文件类问题 → 若 extras job 失败看首个报错包补 sed/-include；老代码假定 GNU ld `-Wl,-E -Bsymbolic`（x86_64 Linux OK）。改 scripts/** 触发 ccache 全 miss → toolchain 重编 ~17min（预期内）。
 
 ## 根因十三（QEMU 实测实证，已彻底修复：Option A 双保险 + Option B 根治）
 **Live overlay 的可写 upper 层随 switch_root + fstab 的 /run tmpfs 重挂而脱离 → /var 与 /etc 落到只读 squashfs 下层 → 必须写 /var 的 systemd 单元（timesyncd/logind/journal-catalog-update）在 STATE_DIRECTORY 步失败（ENOENT），hwdb-update/update-done 写 /etc 也失败。**
@@ -43,6 +54,7 @@
 - [x] 9c. **systemd 全量编译卡死修复（swap 兜底）**（workflow base job + common.sh）→ 宿主加 swap 防 GCC -O3 内存尖峰 cgroup 冻结；超时快照加 free -h/meminfo。run#27 因镜像自带 /swapfile 冲突失败 → run#28 实证 swap 生效（Swap: 3.0Gi 就位），systemd-259.1 编译通过（此轮 j2 无卡死）；systemd 卡死根因仍存疑，但本轮未复现。
 - [ ] 9. ch8 剩余（8.79 D-Bus 起）逐个处理后续失败直至 ISO → **run#30 ch8 全部完成（8.85/8.86 通过）**；后续链条：config+extras（fbterm URL 已修，run#31 验证）→ iso job（内核/initramfs/squashfs/GRUB，尚未跑过，新领域）。
 - [x] 11. **Live 引导后 /var 只读 → systemd 三个写 /var 单元 STATE_DIRECTORY 失败（根因十三）** → 双保险：(a) fstab 增 `tmpfs /var` + `tmpfs /home`；(b) initramfs init 脚本在 switch_root 前对 `/newroot/var`、`/newroot/home` 挂 tmpfs。本地 ISO 已用 (b) 手工重打包修复（见下），CI 双法均生效。待 QEMU 验证三 FAILED 消失。
+- [ ] 12. **输入法栈（libucimf→openvanilla→OVIMGeneric→fbterm_ucimf）+ Fira Code** → 已实施（2026-08-22，见顶部专节），待 run#49+ 验证 extras 四连构建通过 + QEMU 内 Ctrl+Space 中文实测。
 
 ## 本地 ISO 修复（initramfs 重打包，2026-08-20，无管理员/无 WSL/Docker/无 QEMU 验证）
 **对 `C:\Users\yl\Downloads\lfs-cn-live-iso\lfs-cn-13.0-systemd-x86_64.iso`（781MB，含旧 initramfs）手工重打包，仅改 initramfs（不碰 squashfs）。**

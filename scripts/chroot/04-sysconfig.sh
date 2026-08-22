@@ -92,6 +92,9 @@ else
   done
 fi
 
+# LFS-CN: preinstalled toolchains under /opt (Node/Rust/pwsh/nvim)
+export PATH="/opt/rust/bin:/opt/nvim-linux-x86_64/bin:/opt/microsoft/powershell/7:$PATH"
+
 # End /etc/profile
 EOF
 
