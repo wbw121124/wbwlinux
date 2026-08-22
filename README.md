@@ -22,6 +22,8 @@ Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
 | Fira Code | 6.2 | 官方 release（等宽编程字体） |
 | ucimf + fbterm-ucimf | 2.3.8 / 0.2.9 | 源码编译（控制台输入法框架） |
 | OVIMGeneric + zh_CN 码表 | openvanilla-modules | 源码编译（拼音/双拼/五笔/郑码等） |
+| man-pages-zh | 1.6.4.5-1 | Debian 预编译数据包解包（简体中文 man 手册） |
+| Fira Code 字体优先级 + 彩色 prompt | — | fontconfig prefer + /root/.bashrc |
 
 以及 LFS 书中全部基础包（glibc、systemd、perl、openssl、util-linux 等）。
 
@@ -33,6 +35,8 @@ Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
 - 引导与文本登录界面保持英文（vconsole 无中文字形）；进入 fbterm 后界面与消息全中文
 - `Ctrl+Space` 开/关中文输入，`Ctrl+Shift` 切换输入法（拼音、双拼、五笔86、郑码等 12 种 zh_CN 码表）
 - `fbterm-zh` 命令可手动启动中文终端
+- `man ls` 等命令中文手册（man-pages-zh，zh_CN 会话自动生效；英文会话保持英文页）
+- 彩色提示符（root 红 user@host + 蓝路径）与 `ls --color=auto`
 - systemd-networkd 自动 DHCP
 
 ## 流水线结构（4 个串行 job）

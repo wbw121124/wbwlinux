@@ -35,6 +35,7 @@ declare -A urls=(
   ["fbterm-ucimf-$FBTERM_UCIMF_VER.tar.gz"]="https://deb.debian.org/debian/pool/main/f/fbterm-ucimf/fbterm-ucimf_${FBTERM_UCIMF_VER}.orig.tar.gz"
   ["$OV_MODULES_TARBALL"]="https://codeload.github.com/pkg-ime/openvanilla-modules/tar.gz/$OV_MODULES_COMMIT"
   ["Fira_Code_v$FIRACODE_VER.zip"]="https://github.com/tonsky/FiraCode/releases/download/$FIRACODE_VER/Fira_Code_v$FIRACODE_VER.zip"
+  ["manpages-zh_${MANPAGES_ZH_VER}_all.deb"]="https://deb.debian.org/debian/pool/main/m/manpages-zh/manpages-zh_${MANPAGES_ZH_VER}_all.deb"
 )
 declare -A mirrors=(
   ["node-$NODE_VER-linux-x64.tar.xz"]="https://registry.npmmirror.com/-/binary/node/$NODE_VER/node-$NODE_VER-linux-x64.tar.xz"

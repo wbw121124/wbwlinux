@@ -218,6 +218,22 @@ if ! fc-match monospace | grep -qi firacode; then
 fi
 
 # =====================================================================
+# Chinese man pages (man-pages-zh)
+# Debian prebuilt data-only package: upstream 1.6.x converts traditional
+# sources to simplified via opencc during build, which needs cmake+opencc
+# that the chroot does not have. The _all.deb ships the converted pages
+# as plain gzipped roff - extract the data member with binutils ar + tar.
+# man-db picks up /usr/share/man/zh_CN automatically for zh_CN sessions
+# (inside fbterm); C.UTF-8 sessions keep English pages.
+# =====================================================================
+log "==> man-pages-zh $MANPAGES_ZH_VER"
+ar p "$SOURCES/manpages-zh_${MANPAGES_ZH_VER}_all.deb" data.tar.xz \
+    | tar xJ -C /usr/share --strip-components=3 --wildcards './usr/share/man/zh_CN/*'
+if [ ! -e /usr/share/man/zh_CN/man1/ls.1.gz ]; then
+    die "extras: man-pages-zh extraction failed (no ls.1.gz)"
+fi
+
+# =====================================================================
 # ucimf console input method stack (Chinese input inside fbterm)
 #   libucimf          framework, loads IMF plugins from $libdir/ucimf/
 #   ucimf-openvanilla bridge IMF plugin ($libdir/ucimf/openvanilla.so)
@@ -293,8 +309,10 @@ syntax on
 EOF
 
 # nano
+# NOTE: no 'set utf8' - the option was removed in nano 6.x (UTF-8 is
+# auto-enabled for UTF-8 locales) and makes nano print "unknown option" on
+# every start under nano $NANO_VER
 cat > /etc/nanorc << 'EOF'
-set utf8
 set softwrap
 set tabsize 4
 set linenumbers
@@ -358,6 +376,10 @@ chmod +x /usr/local/bin/fbterm-zh
 cat > /root/.bashrc << 'EOF'
 # LFS-CN live environment
 export PATH="/opt/rust/bin:/opt/nvim-linux-x86_64/bin:/opt/microsoft/powershell/7:$PATH"
+alias ls='ls --color=auto'
+# colored prompt: red user@host for root, blue path; works on vconsole,
+# fbterm and serial alike (plain ANSI)
+PS1='\[\e[01;31m\]\u@\h\[\e[0m\]:\[\e[01;34m\]\w\[\e[0m\]\$ '
 if [ "$TERM" = "linux" ] && [ -x /usr/local/bin/fbterm-zh ] && [ -z "$FBTTERM" ] && [ "$(tty)" = "/dev/tty1" ]; then
     export FBTTERM=1
     exec /usr/local/bin/fbterm-zh
@@ -377,7 +399,8 @@ for f in /usr/bin/fbterm /usr/bin/fbterm_ucimf \
          /usr/lib/libucimf.so /usr/lib/ucimf/openvanilla.so \
          /usr/lib/openvanilla/OVIMGeneric.so \
          /usr/share/openvanilla/OVIMGeneric/pinyin.cin \
-         /usr/share/fonts/fira-code/FiraCode-Regular.ttf; do
+         /usr/share/fonts/fira-code/FiraCode-Regular.ttf \
+         /usr/share/man/zh_CN/man1/ls.1.gz; do
     [ -e "$f" ] || die "extras self-check: missing $f"
 done
 

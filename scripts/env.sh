@@ -46,6 +46,9 @@ export FBTERM_UCIMF_VER=0.2.9
 export OV_MODULES_COMMIT=28d0dd62b710f563d04ee926b548da9cb41a409a
 export OV_MODULES_TARBALL="openvanilla-modules-git${OV_MODULES_COMMIT:0:7}.tar.gz"
 export FIRACODE_VER=6.2
+# man-pages-zh: Debian prebuilt data-only package (upstream 1.6.x builds need
+# cmake+opencc which the chroot lacks; the deb ships converted simplified pages)
+export MANPAGES_ZH_VER=1.6.4.5-1
 
 # Host side of the chroot filesystems
 export KERNFS="proc sys run dev"

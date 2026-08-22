@@ -64,6 +64,10 @@
 - [x] 11. **Live 引导后 /var 只读 → systemd 三个写 /var 单元 STATE_DIRECTORY 失败（根因十三）** → 双保险：(a) fstab 增 `tmpfs /var` + `tmpfs /home`；(b) initramfs init 脚本在 switch_root 前对 `/newroot/var`、`/newroot/home` 挂 tmpfs。本地 ISO 已用 (b) 手工重打包修复（见下），CI 双法均生效。待 QEMU 验证三 FAILED 消失。
 - [ ] 12. **输入法栈（libucimf→openvanilla→OVIMGeneric→fbterm_ucimf）+ Fira Code** → 已实施（2026-08-22，见顶部专节），待 run#49+ 验证 extras 四连构建通过 + QEMU 内 Ctrl+Space 中文实测。
 - [ ] 13. **根因十四（登录界面中文乱码）+ Fira Code 字体优先级** → 已实施（2026-08-22，见「根因十四」），待 run#49+ QEMU 复测：登录界面无乱码、fbterm 西文为 Fira Code、Ctrl+Space 中文输入可用。
+- [x] 14. **体验补全包（2026-08-22，[iso:from-base] 验证）**：
+  - **根因十五：nano 启动报 `/etc/nanorc: unknown option "utf8"`** —— `set utf8` 在 nano 6.x 起移除（UTF-8 随 locale 自动启用），chroot 的 nano 8.7.1 每次启动报错。修复：删除该行并注释原因。
+  - **man 中文手册（man-pages-zh 1.6.4.5）**：上游 1.6.x 构建需 cmake+OpenCC（源码为繁体、构建期 t2s 转简体——1.6.4.0/1.6.4.5 本地解包实证），chroot 无此二者 → 改用 Debian 预编译 `_all.deb`（纯数据，含已转简体 gz 页面）：`ar p ... data.tar.xz | tar xJ --strip-components=3 --wildcards` 仅取 zh_CN 到 /usr/share/man/。Git Bash 宿主 ar 会 CRLF 损坏二进制成员（魔数完好后续损坏），本地校验用 Python 按 ar 头精确切成员完成；chroot Linux ar 无此问题。zh_CN 会话（fbterm 内）`man ls` 出中文，C.UTF-8 会话保持英文；自检加 ls.1.gz。
+  - **shell 体验**：/root/.bashrc 加 `alias ls='ls --color=auto'` 与彩色 PS1（root 红 user@host + 蓝 cwd，纯 ANSI，vconsole/fbterm/serial 通吃）。
 
 ## 本地 ISO 修复（initramfs 重打包，2026-08-20，无管理员/无 WSL/Docker/无 QEMU 验证）
 **对 `C:\Users\yl\Downloads\lfs-cn-live-iso\lfs-cn-13.0-systemd-x86_64.iso`（781MB，含旧 initramfs）手工重打包，仅改 initramfs（不碰 squashfs）。**
