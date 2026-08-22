@@ -30,6 +30,7 @@ Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
 - `zh_CN.UTF-8` locale（含 GB18030）
 - `/etc/vimrc`、`/etc/nanorc`、`/etc/xdg/nvim/init.lua` 已配置 UTF-8/GB18030
 - tty1 自动登录 root，自动启动 fbterm（Fira Code 西文 + 文泉驿微米黑中文，16 号）
+- 引导与文本登录界面保持英文（vconsole 无中文字形）；进入 fbterm 后界面与消息全中文
 - `Ctrl+Space` 开/关中文输入，`Ctrl+Shift` 切换输入法（拼音、双拼、五笔86、郑码等 12 种 zh_CN 码表）
 - `fbterm-zh` 命令可手动启动中文终端
 - systemd-networkd 自动 DHCP

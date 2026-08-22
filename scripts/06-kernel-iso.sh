@@ -63,6 +63,9 @@ cp -v "$LFS_ROOT/boot/initramfs-lfs-cn.img" "$ISO_ROOT/boot/initramfs-lfs-cn.img
 # NOTE: menu titles are English on purpose - GRUB has no CJK glyphs in its
 # default unicode.pf2, Chinese titles render as garbage in both BIOS (VGA)
 # and UEFI consoles. Chinese UI lives in the system itself (fbterm).
+# locale.* cmdline params (systemd.locale(7)) force PID1 + services +
+# getty/login to English: the vconsole cannot draw CJK, so any localized
+# boot/login output would be mojibake. zh_CN comes back inside fbterm.
 cat > "$ISO_ROOT/boot/grub/grub.cfg" << EOF
 set timeout=5
 set default=0
@@ -72,12 +75,12 @@ insmod part_msdos
 insmod iso9660
 
 menuentry "LFS-CN $LFS_VERSION (Live x86_64)" {
-    linux /boot/vmlinuz-$LFS_KERNEL_VER-lfs-cn quiet vga=791
+    linux /boot/vmlinuz-$LFS_KERNEL_VER-lfs-cn quiet vga=791 locale.LANG=C.UTF-8 locale.LC_MESSAGES=C.UTF-8
     initrd /boot/initramfs-lfs-cn.img
 }
 
 menuentry "LFS-CN $LFS_VERSION - Troubleshooting (console)" {
-    linux /boot/vmlinuz-$LFS_KERNEL_VER-lfs-cn quiet vga=791 systemd.unit=emergency.target
+    linux /boot/vmlinuz-$LFS_KERNEL_VER-lfs-cn quiet vga=791 systemd.unit=emergency.target locale.LANG=C.UTF-8 locale.LC_MESSAGES=C.UTF-8
     initrd /boot/initramfs-lfs-cn.img
 }
 EOF

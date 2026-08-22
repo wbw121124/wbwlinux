@@ -3,6 +3,14 @@
 ## 目标
 在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**根因十三已彻底解决并经 CI run#48 产物 QEMU 实测通过**（整个根文件系统可写、引导干净进入自动登录、无 FAILED 单元）。2026-08-22 新增：ucimf 中文输入法栈 + Fira Code 字体（见下一节，待 CI 验证）。
 
+## 根因十四（用户 QEMU 实测报告，已修）：登录界面中文乱码、fbterm 内正常
+**vconsole（eurlatgr）无 CJK 字形，但 /etc/locale.conf 全套 zh_CN.UTF-8 被 systemd PID1 与所有服务继承 → 开机状态消息 / agetty/login 横幅被本地化为中文 → 纯控制台渲染成方块；fbterm 内经 freetype+WQY 渲染故正常。**
+- 修复（三层，2026-08-22）：
+  1. GRUB 两菜单项内核参数加 `locale.LANG=C.UTF-8 locale.LC_MESSAGES=C.UTF-8`（systemd.locale(7) 的 locale.* cmdline 覆盖 locale.conf）→ PID1/服务/getty/login 输出全英文，登录界面不再出现任何中文；
+  2. `/etc/profile` TERM=linux 分支补 `export LC_ALL=C.UTF-8`（LC_ALL 压制继承的全部 LC_*，纯控制台会话彻底英文化——否则 LC_TIME=zh_CN 仍会让 ls/date 吐中文日期变方块）；
+  3. fbterm-zh 把顶层 `export LANG/LC_ALL=zh_CN` 改为仅以 env 前缀作用于 fbterm 调用本身；回退到纯控制台的 bash 分支继承 C.UTF-8。
+- 字体优先级（同请求「Fira Code 高于中文字体」）：fbterm 源码证实多字体按字形回退安全（src/font.cpp `fontIndex()` 遍历 FcFontSort 字体列表取首个含该字形的字体 → "Fira Code,WenQuanYi Micro Hei" 西文走 Fira、CJK 回落 WQY）；新增 `/etc/fonts/local.conf` 将 Fira Code 置于 monospace/sans-serif/serif prefer 首位并断言 `fc-match monospace` 解析到 Fira Code。
+
 ## 输入法栈 + Fira Code 扩展（2026-08-22，已实施，待 run#49+ 验证）
 **目标：live 环境在 fbterm 内可输入中文。无 X11 → ibus/fcitx（X11 IM 平台）不适用且依赖链巨大；选型 ucimf 生态：libucimf（框架）→ ucimf-openvanilla（桥接 IMF 插件 /usr/lib/ucimf/openvanilla.so）→ openvanilla-modules（OVIMGeneric 引擎 /usr/lib/openvanilla/ + zh_CN .cin 码表）→ fbterm-ucimf（`fbterm -i fbterm_ucimf` 前端）。**
 - 改动：
@@ -55,6 +63,7 @@
 - [ ] 9. ch8 剩余（8.79 D-Bus 起）逐个处理后续失败直至 ISO → **run#30 ch8 全部完成（8.85/8.86 通过）**；后续链条：config+extras（fbterm URL 已修，run#31 验证）→ iso job（内核/initramfs/squashfs/GRUB，尚未跑过，新领域）。
 - [x] 11. **Live 引导后 /var 只读 → systemd 三个写 /var 单元 STATE_DIRECTORY 失败（根因十三）** → 双保险：(a) fstab 增 `tmpfs /var` + `tmpfs /home`；(b) initramfs init 脚本在 switch_root 前对 `/newroot/var`、`/newroot/home` 挂 tmpfs。本地 ISO 已用 (b) 手工重打包修复（见下），CI 双法均生效。待 QEMU 验证三 FAILED 消失。
 - [ ] 12. **输入法栈（libucimf→openvanilla→OVIMGeneric→fbterm_ucimf）+ Fira Code** → 已实施（2026-08-22，见顶部专节），待 run#49+ 验证 extras 四连构建通过 + QEMU 内 Ctrl+Space 中文实测。
+- [ ] 13. **根因十四（登录界面中文乱码）+ Fira Code 字体优先级** → 已实施（2026-08-22，见「根因十四」），待 run#49+ QEMU 复测：登录界面无乱码、fbterm 西文为 Fira Code、Ctrl+Space 中文输入可用。
 
 ## 本地 ISO 修复（initramfs 重打包，2026-08-20，无管理员/无 WSL/Docker/无 QEMU 验证）
 **对 `C:\Users\yl\Downloads\lfs-cn-live-iso\lfs-cn-13.0-systemd-x86_64.iso`（781MB，含旧 initramfs）手工重打包，仅改 initramfs（不碰 squashfs）。**

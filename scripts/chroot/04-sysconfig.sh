@@ -80,7 +80,10 @@ for i in $(locale); do
 done
 
 if [[ "$TERM" = linux ]]; then
+  # plain vconsole has no CJK glyphs: force full English env (LC_ALL wins
+  # over every inherited LC_* from locale.conf) so nothing prints mojibake
   export LANG=C.UTF-8
+  export LC_ALL=C.UTF-8
 else
   source /etc/locale.conf
 

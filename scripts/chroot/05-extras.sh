@@ -194,6 +194,30 @@ if ! fc-match "Fira Code" | grep -qi firacode; then
 fi
 
 # =====================================================================
+# fontconfig priority: Fira Code above the CJK font for generic
+# families - Latin glyphs come from Fira Code, CJK falls back to WQY
+# =====================================================================
+cat > /etc/fonts/local.conf << 'EOF'
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <alias><family>monospace</family>
+    <prefer><family>Fira Code</family><family>WenQuanYi Micro Hei</family></prefer>
+  </alias>
+  <alias><family>sans-serif</family>
+    <prefer><family>Fira Code</family><family>WenQuanYi Micro Hei</family></prefer>
+  </alias>
+  <alias><family>serif</family>
+    <prefer><family>Fira Code</family><family>WenQuanYi Micro Hei</family></prefer>
+  </alias>
+</fontconfig>
+EOF
+fc-cache -fv > /dev/null
+if ! fc-match monospace | grep -qi firacode; then
+    log "WARNING: 'monospace' did not resolve to Fira Code -> $(fc-match monospace)"
+fi
+
+# =====================================================================
 # ucimf console input method stack (Chinese input inside fbterm)
 #   libucimf          framework, loads IMF plugins from $libdir/ucimf/
 #   ucimf-openvanilla bridge IMF plugin ($libdir/ucimf/openvanilla.so)
@@ -306,7 +330,9 @@ cat > /usr/local/bin/fbterm-zh << 'EOF'
 #!/bin/sh
 # Chinese-capable framebuffer terminal. Falls back to a plain shell if the
 # framebuffer or CJK font is unavailable so the session never dies silently.
-export LANG=zh_CN.UTF-8 LC_ALL=zh_CN.UTF-8
+# zh_CN applies ONLY inside fbterm: the vconsole has no CJK glyphs, so any
+# localized text outside fbterm would render as boxes. Fallback shells stay
+# on the inherited C.UTF-8 environment.
 FONT_NAMES="Fira Code,WenQuanYi Micro Hei"
 if [ ! -e /dev/fb0 ]; then
     echo "fbterm-zh: /dev/fb0 not available, staying on plain console" >&2
@@ -315,11 +341,11 @@ if [ ! -e /dev/fb0 ]; then
 fi
 if command -v fbterm_ucimf >/dev/null 2>&1; then
     # ucimf input method: Ctrl+Space on/off, Ctrl+Shift switch IMs
-    if fbterm --font-names="$FONT_NAMES" --font-size=16 -i fbterm_ucimf 2>/dev/null; then
+    if LANG=zh_CN.UTF-8 LC_ALL=zh_CN.UTF-8 fbterm --font-names="$FONT_NAMES" --font-size=16 -i fbterm_ucimf 2>/dev/null; then
         exit 0
     fi
 fi
-if fbterm --font-names="$FONT_NAMES" --font-size=16 2>/dev/null; then
+if LANG=zh_CN.UTF-8 LC_ALL=zh_CN.UTF-8 fbterm --font-names="$FONT_NAMES" --font-size=16 2>/dev/null; then
     exit 0
 fi
 echo "fbterm-zh: fbterm failed (font/device), staying on plain console" >&2
