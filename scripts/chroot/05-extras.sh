@@ -527,7 +527,19 @@ arch = x86_64
 packager = LFS-CN Build <build@lfs-cn.local>
 license = GPL/custom
 EOF
-    tar --zstd -cf "/tmp/pkgstage/$name-$ver-1-x86_64.pkg.tar.zst" -C "$stage" .
+    local archive="/tmp/pkgstage/$name-$ver-1-x86_64.pkg.tar.zst"
+    (
+        cd "$stage"
+        # member names must NOT carry the ./ prefix: pacman locates .PKGINFO
+        # by exact name match, while GNU tar "." recursion emits "./.PKGINFO"
+        # -> pacman -U aborts with "missing package metadata" (root cause #19;
+        # repo-add is lenient about it, pacman -U is not)
+        : > "/tmp/pkgfiles.$$"
+        printf '%s\0' .PKGINFO >> "/tmp/pkgfiles.$$"
+        find . -mindepth 1 ! -path './.PKGINFO' -printf '%P\0' >> "/tmp/pkgfiles.$$"
+        tar --zstd --null -T "/tmp/pkgfiles.$$" -cf "$archive"
+        rm -f "/tmp/pkgfiles.$$"
+    )
     rm -rf "$stage"
 }
 
@@ -569,6 +581,8 @@ fi
 ln -sfv lfscn.db.tar.gz /usr/local/repo/lfscn/lfscn.db > /dev/null
 
 log '==> registering package ownership with pacman'
+# sync the [lfscn] db into DBPath first, else pacman -U warns
+pacman -Sy > /dev/null
 pacman -U --noconfirm /tmp/pkgstage/*.pkg.tar.zst > /dev/null
 rm -rf /tmp/pkgstage
 pacman -Q
