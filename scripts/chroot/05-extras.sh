@@ -547,7 +547,12 @@ EOF
         : > "/tmp/pkgfiles.$$"
         printf '%s\0' .PKGINFO >> "/tmp/pkgfiles.$$"
         find . -mindepth 1 ! -path './.PKGINFO' -printf '%P\0' >> "/tmp/pkgfiles.$$"
-        tar --zstd --null -T "/tmp/pkgfiles.$$" -cf "$archive"
+        # --no-recursion is REQUIRED: the list already contains every path;
+        # without it tar recurses into each listed dir AGAIN, emitting
+        # duplicate members that turn into self-referential hard links,
+        # which makes pacman skip those files on extraction (root cause
+        # #22: /usr/bin/fbterm vanished during registration)
+        tar --zstd --null --no-recursion -T "/tmp/pkgfiles.$$" -cf "$archive"
         rm -f "/tmp/pkgfiles.$$"
     )
     rm -rf "$stage"
