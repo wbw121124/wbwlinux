@@ -219,6 +219,11 @@ EOF
 fc-cache -fv > /dev/null
 if ! fc-match monospace | grep -qi firacode; then
     log "WARNING: 'monospace' did not resolve to Fira Code -> $(fc-match monospace)"
+    # root cause #17 still open: dump the substitution trace + conf.d state
+    # for offline postmortem (direct fc-match "Fira Code" DOES resolve)
+    FC_DEBUG=1024 fc-match monospace > "$DL/fc-debug.log" 2>&1 || true
+    log "fc-debug.log written to $DL ($(wc -l < "$DL/fc-debug.log") lines); conf.d:"
+    ls -1 /etc/fonts/conf.d/ || true
 fi
 
 # =====================================================================
@@ -589,7 +594,10 @@ ln -sfv lfscn.db.tar.gz /usr/local/repo/lfscn/lfscn.db > /dev/null
 log '==> registering package ownership with pacman'
 # sync the [lfscn] db into DBPath first, else pacman -U warns
 pacman -Sy > /dev/null
-pacman -U --noconfirm /tmp/pkgstage/*.pkg.tar.zst > /dev/null
+# --overwrite is required: the bundled software already exists on disk as
+# UNOWNED files (we installed it ourselves earlier in this script) and
+# pacman refuses to clobber unowned files without it (root cause #21)
+pacman -U --noconfirm --overwrite '*' /tmp/pkgstage/*.pkg.tar.zst > /dev/null
 rm -rf /tmp/pkgstage
 pacman -Q
 
