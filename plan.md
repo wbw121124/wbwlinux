@@ -16,7 +16,8 @@
   - kernel-live.fragment 加 DRM 块：DRM=y、FBDEV_EMULATION=y、VIRTIO_GPU=y（QEMU）、BOCHS=y、I915/AMDGPU/RADEON=m（真机）——Xorg modesetting 需要 KMS。
 - 本地验证：bash -n 全部脚本通过；arch-resolve.py 合成 fixture 端到端测试（SKIP 生效/glibc>=版本剥离/libx11|libx12 alternates/BFS 传递闭包/repo 归属正确/坏依赖仅 WARN/空闭包与种子丢失 FATAL）全部符合预期。
 - **根因二十六（run#65 实证）**：宿主下载 map 键用了缩短名（fd-10.4.2.tar.gz），chroot 脚本按上游资产原名开文件（fd-v10.4.2-x86_64-unknown-linux-musl.tar.gz）→ tar ENOENT。与根因八（node 双 v）同类：**两侧文件名必须逐字一致**。修复：map 键改为上游 release 资产原名（ripgrep/bat 同改；htop/wget 原本一致未动），并在 urls 注释中立规。
-- **根因二十七（run#66/67 实证）**：Debian 构建的 htop 链接平名 `libtinfo.so.6`，而 LFS ncurses 6.6（无 --enable-widec 旧式指令、仅 ncursesw 系列 + 窄名兼容链接，stages 实证）不装任何独立 tinfo 库 → `error while loading shared libraries`，符号链接方案也落空（libtinfow.so.6 同样不存在，die 守卫触发）。修复：**弃 deb 改源码编译**（htop 3.5.3 tarball 有预生成 configure，pkg-config 找到 LFS 的 ncursesw.pc 即可，编译约 30 秒）；HTOP_DEB → HTOP_VER，下载 URL 换 github release 资产。教训：Debian 预编译二进制只适合纯数据或零 C 库依赖的包。
+- **根因二十七（run#66/67 实证）**：Debian 构建的 htop 链接平名 `libtinfo.so.6`，而 LFS ncurses 6.6 不装任何独立 tinfo 库（libtinfow.so.6 也不存在，die 守卫触发）→ 弃 deb 改源码编译（htop 3.5.3 tarball 自带 configure，pkg-config 解析 LFS ncursesw.pc，约 30 秒）。教训：Debian 预编译二进制只适合纯数据或零 C 库依赖的包。
+- **根因二十八（run#68 实证，CI 日志直接抓到 install 行）**：`--prefix=/usr` 下 automake 默认 `sysconfdir=${prefix}/etc` → libucimf 的 `make install` 一直把 ucimf.conf 装到 **/usr/etc**（日志：`install -c -m 644 ucimf.conf '/usr/etc'`），运行期 UCIMF_CONF 宏同样指向 /usr/etc。历史代码 `[ -e /etc/ucimf.conf ] && sed` 因守卫而**静默空转**（候选窗字体其实一直是默认值），后加的 /etc/ucimf.conf 自检断言从未被绿跑覆盖 → 本轮改为硬性 sed 后立刻爆「无法读取」。修复：libucimf configure 加 `--sysconfdir=/etc`（conf 安装点与 UCIMF_CONF 运行期路径同时归位），#24 字体对齐自此才真正生效。教训：autotools 包配 --prefix 时必须显式核对 sysconfdir/localstatedir。
 - 风险：Arch 滚动仓库快照漂移（新库 soname 或依赖图变化）→ 解析器 WARN 不致命，仅种子消失才 die；xfwm4 合成标题栏需 GTK3 主题（Adwaita 随 gtk3 包自带）；QEMU 测试用 `-device virtio-gpu` 或默认 std VGA（bochs 驱动覆盖）。
 
 ## 根因十四（用户 QEMU 实测报告，已修）：登录界面中文乱码、fbterm 内正常

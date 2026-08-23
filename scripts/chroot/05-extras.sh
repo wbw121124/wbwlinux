@@ -437,7 +437,11 @@ if [ ! -e /usr/lib/libucimf.so ]; then
     # traditional adjacent-literal+macro-arg concatenation with a space
     # (root cause #18: build failure on run#51)
     sed -i 's/:"format/:" format/g' include/debug.h
-    ./configure --prefix=/usr CXXFLAGS="-O2 -Wno-narrowing"
+    # --sysconfdir is REQUIRED: automake defaults it to ${prefix}/etc, so
+    # without it the conf lands in /usr/etc/ucimf.conf while UCIMF_CONF
+    # (runtime fallback path) also points there - our /etc/ucimf.conf font
+    # alignment below would edit a file nothing reads (root cause #28)
+    ./configure --prefix=/usr --sysconfdir=/etc CXXFLAGS="-O2 -Wno-narrowing"
     make -j"$NPROC"
     make install
     cd "$DL"
