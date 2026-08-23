@@ -95,8 +95,11 @@ else
   done
 fi
 
-# LFS-CN: preinstalled toolchains under /opt (Node/Rust/pwsh/nvim)
-export PATH="/opt/rust/bin:/opt/nvim-linux-x86_64/bin:/opt/microsoft/powershell/7:$PATH"
+# LFS-CN: FULLY explicit PATH - never rely on what the session inherited.
+# Depending on how a shell was started (agetty/login, serial console,
+# fbterm's child shell, su, cron) the inherited PATH may lack /usr/local/bin
+# or the /opt tool dirs entirely (root cause #23: node "not in PATH").
+export PATH="/usr/local/sbin:/usr/local/bin:/opt/rust/bin:/opt/nvim-linux-x86_64/bin:/opt/microsoft/powershell/7:/usr/sbin:/usr/bin:/sbin:/bin"
 
 # End /etc/profile
 EOF

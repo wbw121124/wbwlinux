@@ -42,6 +42,13 @@ declare -A urls=(
   ["curl-$CURL_VER.tar.xz"]="https://curl.se/download/curl-$CURL_VER.tar.xz"
   ["libarchive-$LIBARCHIVE_VER.tar.xz"]="https://github.com/libarchive/libarchive/releases/download/v$LIBARCHIVE_VER/libarchive-$LIBARCHIVE_VER.tar.xz"
   ["pacman-$PACMAN_VER.tar.xz"]="https://gitlab.archlinux.org/pacman/pacman/-/releases/v$PACMAN_VER/downloads/pacman-$PACMAN_VER.tar.xz"
+  # CLI tool bundle: fd/rg/bat official musl static binaries, htop Debian
+  # prebuilt, wget GNU source (versions verified 2026-08-23)
+  ["fd-$FD_VER.tar.gz"]="https://github.com/sharkdp/fd/releases/download/v$FD_VER/fd-v$FD_VER-x86_64-unknown-linux-musl.tar.gz"
+  ["ripgrep-$RIPGREP_VER.tar.gz"]="https://github.com/BurntSushi/ripgrep/releases/download/$RIPGREP_VER/ripgrep-$RIPGREP_VER-x86_64-unknown-linux-musl.tar.gz"
+  ["bat-$BAT_VER.tar.gz"]="https://github.com/sharkdp/bat/releases/download/v$BAT_VER/bat-v$BAT_VER-x86_64-unknown-linux-musl.tar.gz"
+  ["htop_${HTOP_DEB}_amd64.deb"]="https://deb.debian.org/debian/pool/main/h/htop/htop_${HTOP_DEB}_amd64.deb"
+  ["wget-$WGET_VER.tar.gz"]="https://ftp.gnu.org/gnu/wget/wget-$WGET_VER.tar.gz"
 )
 declare -A mirrors=(
   ["node-$NODE_VER-linux-x64.tar.xz"]="https://registry.npmmirror.com/-/binary/node/$NODE_VER/node-$NODE_VER-linux-x64.tar.xz"
@@ -78,13 +85,21 @@ mount_kernfs
 
 mkdir -p "$LFS_ROOT/build/chroot"
 cp -v env.sh common.sh "$LFS_ROOT/build/"
-cp -v chroot/05-extras.sh "$LFS_ROOT/build/chroot/"
+cp -v chroot/05-extras.sh chroot/06-xorg-xfce.sh chroot/arch-resolve.py \
+      "$LFS_ROOT/build/chroot/"
 
 chroot "$LFS_ROOT" /usr/bin/env -i \
     HOME=/root TERM="$TERM" PS1='(lfs chroot) \u:\w\$ ' \
-    PATH=/usr/bin:/usr/sbin \
+    PATH=/usr/bin:/usr/sbin:/usr/local/bin \
     MAKEFLAGS="$MAKEFLAGS" \
     /bin/bash --login /build/chroot/05-extras.sh
+
+# X.Org + XFCE from the Arch binary repos (needs curl/zstd/python3 from
+# the extras run just above); baked into the squashfs, startx -> XFCE
+chroot "$LFS_ROOT" /usr/bin/env -i \
+    HOME=/root TERM="$TERM" PS1='(lfs chroot) \u:\w\$ ' \
+    PATH=/usr/bin:/usr/sbin:/usr/local/bin \
+    /bin/bash --login /build/chroot/06-xorg-xfce.sh
 
 touch "$LFS_ROOT/opt/.extras-complete"
 log "==> extras complete"

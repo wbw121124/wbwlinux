@@ -1,7 +1,21 @@
 # LFS-CN Live ISO 构建计划
 
 ## 目标
-在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**根因十三已彻底解决并经 CI run#48 产物 QEMU 实测通过**（整个根文件系统可写、引导干净进入自动登录、无 FAILED 单元）。2026-08-22 新增：ucimf 中文输入法栈 + Fira Code 字体（见下一节，待 CI 验证）。
+在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**根因十三已彻底解决并经 CI run#48 产物 QEMU 实测通过**（整个根文件系统可写、引导干净进入自动登录、无 FAILED 单元）。2026-08-22 新增：ucimf 中文输入法栈 + Fira Code 字体（见下一节，待 CI 验证）。2026-08-23 新增：CLI 工具包 + X.Org/XFCE 预装 + 竞赛码表（见下节，待 CI 验证）。
+
+## 2026-08-23 扩展：CLI 工具包 + X.Org/XFCE + 竞赛码表 + 三处根因修复
+**用户需求五项：①node 不在 PATH 且无 which；②新增 fd/rg/bat/curl/wget/htop/xorg/xfce（pacman 包、不编译）；③pacman CacheDir 报错；④ucimf 候选窗字体与终端不一致；⑤计算机/信息学竞赛中文码表。**
+- **根因二十三（node PATH）**：`/etc/profile` 用 `PATH="/opt/...:$PATH"` 前置继承值——agetty 自动登录的 shell 由 systemd 拉起时 PATH 可能缺 `/usr/local/bin` → node 找不到。修复：04-sysconfig.sh 与 chroot/05-extras.sh 的 .bashrc 都改为**完整显式 PATH** `/usr/local/sbin:/usr/local/bin:/opt/rust/bin:/opt/nvim-linux-x86_64/bin:/opt/microsoft/powershell/7:/usr/sbin:/usr/bin:/sbin:/bin`。
+- **根因二十四（ucimf 字体不一致）**：libucimf font.cpp 抄自 fbterm，`setInfo` 把 font-name 整串交给 FcNameParse（逗号=family 列表分隔符），但 /etc/ucimf.conf 此前只配了文泉驿单字体 → 候选窗西文与 fbterm 主区（Fira Code 优先）字形不一致。修复：sed 改为 `font-name=Fira Code,WenQuanYi Micro Hei`（29 字符 < mFontNames 64 字节缓冲 ✓）+ `font-size=16` 与终端一致，grep 断言。
+- **根因二十五（pacman CacheDir）**：fstab `tmpfs /var` 每次开机遮蔽 squashfs 内目录 → pacman 报 `failed to resolve path '/var/cache/pacman/pkg/' passed to 'CacheDir'`。修复：`/usr/lib/tmpfiles.d/lfscn-pacman.conf` 两行 d 规则（/var/cache/pacman/pkg 与 /var/log）让 systemd-tmpfiles 开机重建 + extras 内立即 --create 并 test 断言。
+- **CLI 工具包**（版本 2026-08-23 实证）：fd v10.4.2 / ripgrep 15.2.0 / bat v0.26.1 官方 musl 静态二进制直接 install；htop 3.5.3-1 Debian pool deb 解包（仅依赖 ncurses/libc）；wget 1.25.0 源码编译（Debian 构建链 gnutls 缺失 → `--with-ssl=openssl`，LFS stages 无 wget 已 grep 实证）；curl 已由 pacman 五连编译（8.21.0）只补注册；which 为最小 POSIX sh 实现。六包全部 pkg_register 入 [lfscn] 仓库（8→14 包）。env.sh 加 FD_VER/RIPGREP_VER/BAT_VER/HTOP_DEB/WGET_VER；宿主 05-extras.sh 加 5 个下载 URL。
+- **cs-oi.cin 竞赛码表**（220 词条，本地校验：码唯一 ✓ 全 [a-z]+ ✓ keyname 26 字母全覆盖 ✓）：简拼缩写→算法竞赛中文术语（dp→动态规划、bcj→并查集、xds→线段树、zdl→最短路等），OVIMGeneric 运行时扫描 *.cin 自动加载（无 CIN-Defaults 仅禁用达长保护，实证 pinyin.cin 多字词条可行），参与 Ctrl+Shift 轮换。
+- **X.Org+XFCE 二进制闭包导入**（新 scripts/chroot/06-xorg-xfce.sh + arch-resolve.py）：
+  - 设计：下载 {core,extra}.db → python3 解析 desc 做 BFS 闭包（种子 xorg-server/xorg-xinit + xfce4-session/panel/wm/desktop/settings/appfinder/xfconf/garcon/thunar/thunar-volman/tumbler/xfce4-terminal/mousepad）→ SKIP 集=LFS 已有名（glibc/gcc-libs/coreutils/dbus/python 等，**不含** krb5/libtirpc/libxml2——LFS 没有）→ tar `--skip-old-files` 解包到 /（已有文件 LFS 胜出，仅新增文件落盘）→ ldconfig+glib schemas+pixbuf loaders+desktop/mime/icon cache+fccache 刷新 → /root/.xinitrc `exec dbus-launch --exit-with-session startxfce4`。
+  - 防线：闭包解析绝不引入 Arch glibc（README「Arch 源保持禁用」守则的受控例外）；解压前 df 检查 >3GB；闭包 <50 包 die；种子从仓库消失 die；自检断言 Xorg/startx/startxfce4/libX11.so.6/libgtk-3.so.0。
+  - kernel-live.fragment 加 DRM 块：DRM=y、FBDEV_EMULATION=y、VIRTIO_GPU=y（QEMU）、BOCHS=y、I915/AMDGPU/RADEON=m（真机）——Xorg modesetting 需要 KMS。
+- 本地验证：bash -n 全部脚本通过；arch-resolve.py 合成 fixture 端到端测试（SKIP 生效/glibc>=版本剥离/libx11|libx12 alternates/BFS 传递闭包/repo 归属正确/坏依赖仅 WARN/空闭包与种子丢失 FATAL）全部符合预期。
+- 风险：Arch 滚动仓库快照漂移（新库 soname 或依赖图变化）→ 解析器 WARN 不致命，仅种子消失才 die；xfwm4 合成标题栏需 GTK3 主题（Adwaita 随 gtk3 包自带）；QEMU 测试用 `-device virtio-gpu` 或默认 std VGA（bochs 驱动覆盖）。
 
 ## 根因十四（用户 QEMU 实测报告，已修）：登录界面中文乱码、fbterm 内正常
 **vconsole（eurlatgr）无 CJK 字形，但 /etc/locale.conf 全套 zh_CN.UTF-8 被 systemd PID1 与所有服务继承 → 开机状态消息 / agetty/login 横幅被本地化为中文 → 纯控制台渲染成方块；fbterm 内经 freetype+WQY 渲染故正常。**

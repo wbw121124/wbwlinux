@@ -25,6 +25,12 @@ Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
 | man-pages-zh | 1.6.4.5-1 | Debian 预编译数据包解包（简体中文 man 手册） |
 | Fira Code 字体优先级 + 彩色 prompt | — | fontconfig prefer + /root/.bashrc |
 | pacman | 7.1.0 | 源码编译（含 ninja/meson/curl/libarchive 依赖链，`[lfscn]` 本地仓库） |
+| curl | 8.21.0 | LFS 源码编译（pacman 依赖链，同时作为独立工具注册） |
+| wget | 1.25.0 | 源码编译（`--with-ssl=openssl`） |
+| fd / ripgrep / bat | 10.4.2 / 15.2.0 / 0.26.1 | 官方 musl 静态二进制（零依赖直接运行） |
+| htop | 3.5.3 | Debian 预编译（仅依赖 ncurses/libc） |
+| which | — | 最小 POSIX sh 脚本实现 |
+| X.Org Server + XFCE4 | xorg-server / xfce4 全家桶 | Arch 二进制仓库依赖闭包导入（构建期解析，LFS 已有库全部跳过） |
 
 以及 LFS 书中全部基础包（glibc、systemd、perl、openssl、util-linux 等）。
 
@@ -34,7 +40,8 @@ Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
 - `/etc/vimrc`、`/etc/nanorc`、`/etc/xdg/nvim/init.lua` 已配置 UTF-8/GB18030
 - tty1 自动登录 root，自动启动 fbterm（Fira Code 西文 + 文泉驿微米黑中文，16 号）
 - 引导与文本登录界面保持英文（vconsole 无中文字形）；进入 fbterm 后界面与消息全中文
-- `Ctrl+Space` 开/关中文输入，`Ctrl+Shift` 切换输入法（拼音、双拼、五笔86、郑码等 12 种 zh_CN 码表）
+- `Ctrl+Space` 开/关中文输入，`Ctrl+Shift` 切换输入法（拼音、双拼、五笔86、郑码等 12 种 zh_CN 码表，
+  另含自建 **cs-oi.cin**：简拼缩写 → 算法竞赛中文术语 220 词条，如 `dp`→动态规划、`bcj`→并查集、`xds`→线段树）
 - `fbterm-zh` 命令可手动启动中文终端
 - `man ls` 等命令中文手册（man-pages-zh，zh_CN 会话自动生效；英文会话保持英文页）
 - 彩色提示符（root 红 user@host + 蓝路径）与 `ls --color=auto`
@@ -45,10 +52,13 @@ Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
 - 预装 pacman 7.1.0，配置文件 `/etc/pacman.conf`：
   - 数据库放在 `/usr/local/lib/pacman`（`/var` 在 live 系统是 tmpfs，不能存状态）
   - 内置本地仓库 `[lfscn]`：nodejs、rust、powershell、neovim、fira-code-fonts、
-    wqy-microhei-fonts、fbterm-ucimf-stack、man-pages-zh 八个包已注册，
+    wqy-microhei-fonts、fbterm-ucimf-stack、man-pages-zh、curl、wget、fd、ripgrep、
+    bat、htop 十四个包已注册，
     可用 `pacman -Q`/`pacman -Qi <包名>` 查询、`pacman -R <包名>` 卸载
-  - Arch 官方源默认注释禁用——Arch 滚动版二进制链接最新 glibc，与本系统的
-    LFS 13.0 工具链不匹配，启用并安装核心包会破坏系统；仅适合自包含软件
+  - Arch 官方源默认注释禁用——运行期 pacman 不可直接安装 Arch 包（滚动版二进制
+    链接最新 glibc，与本系统的 LFS 13.0 工具链不匹配）。X.Org+XFCE 是**构建期**
+    受控导入：依赖闭包解析时 LFS 已提供的库全部跳过（绝不引入 Arch 的 glibc/gcc-libs），
+    解包用 tar `--skip-old-files` 保证已有文件以 LFS 版本为准，仅新增文件落盘
 - **会话持久化**：引导时 initramfs 自动探测各分区
   - 分区根目录含 `upper/` 目录 → 直接作为 overlay 上层（建议 ext4 并设卷标 `LFS-CN-PERSIST`）
   - 或分区根目录含 `lfs-cn-persistence.img` 文件（ext4 镜像，FAT/exFAT U 盘也可用）→ loop 挂载后作为上层
@@ -61,6 +71,7 @@ Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
 1. **toolchain** — 宿主依赖 + 下载校验全部源码 + ch5/ch6 交叉工具链
 2. **base** — 进入 chroot 构建 ch7.5–7.13 + ch8 全部基础包
 3. **config+extras** — 系统配置（中文 locale/网络/时区）+ 预编译软件 + ICU/nano/fbterm/字体
+   + CLI 工具包（fd/rg/bat/htop/wget/which）+ X.Org+XFCE 二进制闭包导入
 4. **iso** — 内核（defconfig + 定制 fragment）+ initramfs + squashfs + GRUB live ISO
 
 每 job 结束把 `/mnt/lfs` 打成 `tar.zst` 快照，经 artifact 传给下一 job，
@@ -92,8 +103,12 @@ scripts/
   03-chroot-base.sh                   # ch7.5-7.13 + ch8（chroot 内）
   04-sysconfig.sh                     # 系统配置（zh_CN/网络/自动登录）
   05-extras.sh                        # Node/Rust/PowerShell/Neovim/ICU/nano/fbterm/字体
+                                      # + fd/rg/bat/htop/wget/which 下载与分发
   06-kernel-iso.sh                    # 内核 + initramfs + squashfs + GRUB ISO
   chroot/                             # chroot 内执行的脚本
+    05-extras.sh                      #   extras 安装（含 cs-oi.cin 码表、pacman tmpfiles 修复）
+    06-xorg-xfce.sh                   #   Arch 二进制闭包导入 X.Org+XFCE
+    arch-resolve.py                   #   依赖闭包解析器（SKIP LFS 已有库）
   stages/                             # 由 LFS 书自动生成的构建块（tools/gen_stage_scripts.py）
 tools/
   gen_stage_scripts.py                # 从 LFS 书 HTML 提取命令生成 stages

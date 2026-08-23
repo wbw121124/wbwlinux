@@ -16,6 +16,36 @@ DL=/root/downloads
 cd "$DL"
 
 # =====================================================================
+# which(1): nothing in LFS provides it (util-linux dropped it ages ago
+# and no ch8 package ships it), but scripts and interactive users both
+# expect it. Minimal POSIX implementation, exit 0 iff something matched.
+# =====================================================================
+if [ ! -e /usr/bin/which ]; then
+    log '==> installing minimal which(1)'
+    cat > /usr/bin/which << 'EOF'
+#!/bin/sh
+# which: locate a command in PATH; prints every match, exit 0 if any.
+found=1
+for name in "$@"; do
+    case "$name" in
+    */*) [ -f "$name" ] && [ -x "$name" ] && { printf '%s\n' "$name"; found=0; } ;;
+    *)   savedIFS=$IFS; IFS=:
+         for dir in $PATH; do
+             if [ -f "$dir/$name" ] && [ -x "$dir/$name" ]; then
+                 printf '%s\n' "$dir/$name"
+                 found=0
+             fi
+         done
+         IFS=$savedIFS ;;
+    esac
+done
+exit $found
+EOF
+    chmod 755 /usr/bin/which
+    which bash
+fi
+
+# =====================================================================
 # Node.js (official prebuilt, x86_64)
 # =====================================================================
 if [ ! -e /usr/local/bin/node ]; then
@@ -329,6 +359,62 @@ Server = file:///usr/local/repo/lfscn
 EOF
 pacman-conf DBPath > /dev/null || die "extras: pacman.conf parse failed"
 
+# live boot mounts a FRESH tmpfs over /var (fstab belt-and-suspenders for
+# root cause #13), shadowing the cache/log dirs created inside the image -
+# so systemd-tmpfiles-setup must recreate them on every boot, else pacman
+# aborts with "failed to resolve path '/var/cache/pacman/pkg/' passed to
+# 'CacheDir': No such file or directory" (root cause #25).
+mkdir -p /usr/lib/tmpfiles.d
+cat > /usr/lib/tmpfiles.d/lfscn-pacman.conf << 'EOF'
+d /var/cache/pacman/pkg 0755 root root -
+d /var/log              0755 root root -
+EOF
+systemd-tmpfiles --create /usr/lib/tmpfiles.d/lfscn-pacman.conf
+test -d /var/cache/pacman/pkg || die "extras: tmpfiles failed to create /var/cache/pacman/pkg"
+
+# =====================================================================
+# CLI tool bundle: fd / ripgrep / bat ship official musl STATIC
+# binaries (zero compilation, zero runtime deps); htop comes from a
+# Debian deb (dynamic, needs only ncursesw6/libc which LFS has); wget
+# is NOT in any ch8 stage and Debian's build links gnutls (absent here),
+# so wget is one tiny source build against openssl.
+# =====================================================================
+log "==> fd $FD_VER (static musl)"
+tar xf "fd-v$FD_VER-x86_64-unknown-linux-musl.tar.gz"
+install -vm755 "fd-v$FD_VER-x86_64-unknown-linux-musl/fd" /usr/bin/fd
+rm -rf "fd-v$FD_VER-x86_64-unknown-linux-musl"
+
+log "==> ripgrep $RIPGREP_VER (static musl)"
+tar xf "ripgrep-$RIPGREP_VER-x86_64-unknown-linux-musl.tar.gz"
+install -vm755 "ripgrep-$RIPGREP_VER-x86_64-unknown-linux-musl/rg" /usr/bin/rg
+rm -rf "ripgrep-$RIPGREP_VER-x86_64-unknown-linux-musl"
+
+log "==> bat $BAT_VER (static musl)"
+tar xf "bat-v$BAT_VER-x86_64-unknown-linux-musl.tar.gz"
+install -vm755 "bat-v$BAT_VER-x86_64-unknown-linux-musl/bat" /usr/bin/bat
+rm -rf "bat-v$BAT_VER-x86_64-unknown-linux-musl"
+
+log "==> htop $HTOP_DEB (Debian prebuilt)"
+ar p "htop_${HTOP_DEB}_amd64.deb" data.tar.xz \
+    | tar xJ -C / --wildcards './usr/bin/htop' './usr/share/man/man1/htop.1.gz'
+
+if [ ! -e /usr/bin/wget ]; then
+    log "==> wget $WGET_VER (source; Debian build needs absent gnutls)"
+    tar xf "wget-$WGET_VER.tar.gz"
+    cd "wget-$WGET_VER"
+    ./configure --prefix=/usr --sysconfdir=/etc --with-ssl=openssl
+    make -j"$NPROC"
+    make install
+    cd "$DL"
+    rm -rf "wget-$WGET_VER"
+fi
+
+fd --version
+rg --version | head -1
+bat --version
+htop --version
+wget --version | head -1
+
 # =====================================================================
 # ucimf console input method stack (Chinese input inside fbterm)
 #   libucimf          framework, loads IMF plugins from $libdir/ucimf/
@@ -391,10 +477,291 @@ if [ ! -e /usr/bin/fbterm_ucimf ]; then
     rm -rf "fbterm_ucimf-$FBTERM_UCIMF_VER"
 fi
 
-# compose/preedit/candidate window font must cover CJK
-if [ -e /etc/ucimf.conf ] && ! grep -q '^font-name=WenQuanYi Micro Hei' /etc/ucimf.conf; then
-    sed -i 's|^font-name=.*|font-name=WenQuanYi Micro Hei|' /etc/ucimf.conf
+# =====================================================================
+# CS/OI contest glossary table (jianpin initials -> term). OVIMGeneric
+# scans its data dir for *.cin at RUNTIME (Modules/OVIMGeneric/
+# OVIMGeneric.cpp: cinlist->load(datapath, ".cin")), so dropping the
+# file here is enough - no rebuild needed. Unknown filenames have no
+# CIN-Defaults entry, which merely disables the hit-max guard; codes of
+# any length work. Switch IMs with Ctrl+Shift until 信竞术语 appears.
+# =====================================================================
+log '==> installing CS/OI contest cin table (cs-oi.cin)'
+OVIM_DIR=/usr/share/openvanilla/OVIMGeneric
+mkdir -p "$OVIM_DIR"
+cat > "$OVIM_DIR/cs-oi.cin" << 'CINEOF'
+%gen_inp
+%ename CS-OI Contest Glossary
+%cname 信竞术语（简拼）
+%encoding UTF-8
+%selkey 1234567890
+%keyname begin
+a a
+b b
+c c
+d d
+e e
+f f
+g g
+h h
+i i
+j j
+k k
+l l
+m m
+n n
+o o
+p p
+q q
+r r
+s s
+t t
+u u
+v v
+w w
+x x
+y y
+z z
+%keyname end
+%chardef begin
+mn 模拟
+mh 枚举
+bl 暴力
+dg 递归
+dt 递推
+fz 分治
+tx 贪心
+ef 二分
+efda 二分答案
+efcc 二分查找
+sf 三分
+px 排序
+pl 排列
+kspx 快速排序
+gbpx 归并排序
+mbpx 冒泡排序
+crpx 插入排序
+xzpx 选择排序
+dpx 堆排序
+tpx 桶排序
+qzh 前缀和
+cf 差分
+szz 双指针
+lsh 离散化
+gz 构造
+jh 交互
+db 打表
+jz 剪枝
+jyh 记忆化
+jyhss 记忆化搜索
+bz 倍增
+hx 哈希
+zfc 字符串
+zfchx 字符串哈希
+zfcpp 字符串匹配
+kmp KMP算法
+kzkmp 扩展KMP
+mlc 马拉车
+mlcsf 马拉车算法
+zzhs Z函数
+hzsz 后缀数组
+hzt 后缀树
+hzzdj 后缀自动机
+gyhzzdj 广义后缀自动机
+hzphs 后缀平衡树
+aczdj AC自动机
+hwzdj 回文自动机
+zxxhbs 最小循环表示
+dl 队列
+yxdly 优先队列
+ecd 二叉堆
+kbd 可并堆
+ddz 单调栈
+ddl 单调队列
+lb 链表
+kzlb 块状链表
+bcj 并查集
+szsz 树状数组
+xds 线段树
+zxs 主席树
+lcxds 李超线段树
+jsjxds 吉司机线段树
+kcjhxds 可持久化线段树
+kcjphs 可持久化平衡树
+phs 平衡树
+avl AVL树
+hhs 红黑树
+tgy 替罪羊
+dkess 笛卡尔树
+slpf 树链剖分
+clpf 重链剖分
+xs 虚树
+yfs 圆方树
+zps 左偏树
+fk 分块
+md 莫队
+mdsf 莫队算法
+kds KD树
+hfs 划分树
+gbs 归并树
+blglq 布隆过滤器
+tl 图论
+sdyxss 深度优先搜索
+gdyxss 广度优先搜索
+ddjs 迭代加深
+ddjsss 迭代加深搜索
+qfhss 启发式搜索
+ax A星搜索
+ljb 邻接表
+ljjz 邻接矩阵
+zdl 最短路
+dij Dijkstra
+spfa SPFA
+flyd 弗洛伊德
+bemft 贝尔曼福特
+zxscs 最小生成树
+cxscs 次小生成树
+klskr 克鲁斯卡尔
+pm Prim算法
+tplx 拓扑排序
+qlfl 强连通分量
+slfl 双连通分量
+gd 割点
+qb 桥
+cfys 差分约束
+wll 网络流
+zdliu 最大流
+zxg 最小割
+fyl 费用流
+ek EK算法
+dinic Dinic算法
+zgl 增广路
+dqfyh 当前弧优化
+eft 二分图
+xyalsf 匈牙利算法
+km KM算法
+dhs 带花树
+ybtpp 一般图匹配
+zjggzx 最近公共祖先
+sdzj 树的直径
+sdzx 树的重心
+dfz 点分治
+bfz 边分治
+stns 斯坦纳树
+zlsf 朱刘算法
+jzsddl 矩阵树定理
+mnth 模拟退火
+sx 数学
+st 数论
+gl 概率
+jl 矩阵
+jzc 矩阵乘法
+jksm 矩阵快速幂
+ksm 快速幂
+gjd 高精度
+zdgys 最大公约数
+zxgbs 最小公倍数
+gcd gcd
+lcm lcm
+jc 阶乘
+zhs 组合数
+stls 斯特林数
+ss 筛法
+xssl 线性筛
+djs 杜教筛
+mbwsfy 莫比乌斯反演
+zgysdl 中国剩余定理
+oyhs 欧拉函数
+oydl 欧拉定理
+olhl 欧拉回路
+ollj 欧拉路径
+yg 原根
+ecsy 二次剩余
+rc 容斥
+rcyl 容斥原理
+ktls 卡特兰数
+ply Pólya定理
+lksdl 卢卡斯定理
+exgcd 扩展欧几里得
+bsgs 大步小步
+fbq 斐波那契
+fbqs 斐波那契数列
+yhsj 杨辉三角
+ktzk 康托展开
+cp 错排
+qlpl 全排列
+zdx 字典序
+gsxy 高斯消元
+xxj 线性基
+dcx 单纯形
+fft FFT
+ntt NTT
+fwt FWT
+jsjh 计算几何
+cj 叉积
+dj 点积
+tb 凸包
+bpmj 半平面交
+xzkq 旋转卡壳
+smx 扫描线
+dp 动态规划
+zydp 状压DP
+qjdp 区间DP
+swdp 数位DP
+sxdp 树形DP
+hrdp 换根DP
+ctdp 插头DP
+gldp 概率DP
+jhs 基环树
+xlyh 斜率优化
+cdq CDQ分治
+ztef 整体二分
+jcdyx 决策单调性
+sbxbds 四边形不等式
+ztzyfc 状态转移方程
+whxx 无后效性
+zyzjg 最优子结构
+dup 对拍
+duyh 读入优化
+scyh 输出优化
+kc 卡常
+wys 位运算
+byq 编译器
+czxt 操作系统
+byyl 编译原理
+sjk 数据库
+jsjwl 计算机网络
+jqxx 机器学习
+sdxx 深度学习
+sjwl 神经网络
+sfdl 算法导论
+xj 信竞
+oi OI
+acm ACM
+icpc ICPC
+noip NOIP
+csp CSP认证
+lqb 蓝桥杯
+sjfzd 时间复杂度
+kjfzd 空间复杂度
+%chardef end
+CINEOF
+grep -q '动态规划' "$OVIM_DIR/cs-oi.cin" || die "extras: cs-oi.cin content broken"
+
+# IME popup font MUST match the terminal: libucimf's font.cpp is lifted
+# from fbterm and feeds the whole font-name string to FcNameParse, where
+# commas separate family alternatives - so the exact same chain as
+# fbtermrc ("Fira Code,WenQuanYi Micro Hei") renders Latin via Fira Code
+# and CJK via WenQuanYi, and font-size must equal fbterm's font-size so
+# glyph metrics agree (root cause #24: popup font mismatched terminal).
+sed -i 's|^font-name=.*|font-name=Fira Code,WenQuanYi Micro Hei|' /etc/ucimf.conf
+if grep -q '^font-size=' /etc/ucimf.conf; then
+    sed -i 's|^font-size=.*|font-size=16|' /etc/ucimf.conf
+else
+    printf 'font-size=16\n' >> /etc/ucimf.conf
 fi
+grep -q '^font-name=Fira Code,WenQuanYi Micro Hei$' /etc/ucimf.conf \
+    && grep -q '^font-size=16$' /etc/ucimf.conf \
+    || die "extras: ucimf.conf font alignment failed"
 
 # =====================================================================
 # editor configs for Chinese text
@@ -477,7 +844,10 @@ chmod +x /usr/local/bin/fbterm-zh
 # root login shell convenience (auto fbterm on tty1)
 cat > /root/.bashrc << 'EOF'
 # LFS-CN live environment
-export PATH="/opt/rust/bin:/opt/nvim-linux-x86_64/bin:/opt/microsoft/powershell/7:$PATH"
+# FULLY explicit PATH: this file is sourced by interactive NON-login
+# shells (fbterm's child shell, plain `bash`) which may have inherited a
+# PATH missing /usr/local/bin or the /opt tool dirs (root cause #23)
+export PATH="/usr/local/sbin:/usr/local/bin:/opt/rust/bin:/opt/nvim-linux-x86_64/bin:/opt/microsoft/powershell/7:/usr/sbin:/usr/bin:/sbin:/bin"
 alias ls='ls --color=auto'
 # colored prompt: red user@host for root, blue path; works on vconsole,
 # fbterm and serial alike (plain ANSI)
@@ -587,6 +957,20 @@ pkg_register fbterm-ucimf-stack "$UCIMF_VER" \
 # strip the Debian revision: pacman pkgver allows exactly one hyphen
 pkg_register man-pages-zh "${MANPAGES_ZH_VER%-*}" "Chinese man pages (zh_CN)" \
     /usr/share/man/zh_CN
+# CLI tool bundle: curl/wget were built from source above, fd/rg/bat are
+# static musl binaries, htop came out of the Debian deb
+pkg_register curl "$CURL_VER" "curl command line tool and library" \
+    /usr/bin/curl /usr/bin/curl-config /usr/include/curl /usr/lib/libcurl.so*
+pkg_register wget "$WGET_VER" "GNU Wget network downloader" \
+    /usr/bin/wget /usr/share/man/man1/wget.1.gz
+pkg_register fd "$FD_VER" "fd - simple, fast, user-friendly find alternative" \
+    /usr/bin/fd
+pkg_register ripgrep "$RIPGREP_VER" "ripgrep recursively searches dirs with regex" \
+    /usr/bin/rg
+pkg_register bat "$BAT_VER" "bat - cat clone with syntax highlighting" \
+    /usr/bin/bat
+pkg_register htop "${HTOP_DEB%-*}" "interactive process viewer" \
+    /usr/bin/htop /usr/share/man/man1/htop.1.gz
 
 log '==> building local [lfscn] repository'
 if ! repo-add /usr/local/repo/lfscn/lfscn.db.tar.gz \
@@ -606,16 +990,19 @@ pacman -U --noconfirm --overwrite '*' /tmp/pkgstage/*.pkg.tar.zst > /dev/null
 rm -rf /tmp/pkgstage
 pacman -Q
 
-# hard self-check: input method stack + fonts + pacman must all be in place
+# hard self-check: input method stack + fonts + pacman + tool bundle
 for f in /usr/bin/fbterm /usr/bin/fbterm_ucimf \
          /usr/lib/libucimf.so /usr/lib/ucimf/openvanilla.so \
          /usr/lib/openvanilla/OVIMGeneric.so \
          /usr/share/openvanilla/OVIMGeneric/pinyin.cin \
+         /usr/share/openvanilla/OVIMGeneric/cs-oi.cin \
          /usr/share/fonts/fira-code/FiraCode-Regular.ttf \
          /usr/share/man/zh_CN/man1/ls.1.gz \
          /usr/bin/pacman /usr/bin/repo-add /etc/pacman.conf \
          /usr/local/lib/meson/meson.py /usr/local/bin/ninja \
          /usr/bin/curl /usr/lib/libarchive.so \
+         /usr/bin/which /usr/bin/wget /usr/bin/fd /usr/bin/rg \
+         /usr/bin/bat /usr/bin/htop \
          /usr/local/repo/lfscn/lfscn.db.tar.gz; do
     [ -e "$f" ] || die "extras self-check: missing $f"
 done

@@ -23,6 +23,17 @@ CONFIG_FRAMEBUFFER_CONSOLE=y
 CONFIG_FONTS=y
 CONFIG_FONT_8x16=y
 
+# --- DRM/KMS: required by Xorg's modesetting driver (XFCE via startx);
+# virtio-gpu + bochs cover QEMU, i915/amdgpu/radeon as modules cover
+# common real hardware ---
+CONFIG_DRM=y
+CONFIG_DRM_FBDEV_EMULATION=y
+CONFIG_DRM_VIRTIO_GPU=y
+CONFIG_DRM_BOCHS=y
+CONFIG_DRM_I915=m
+CONFIG_DRM_AMDGPU=m
+CONFIG_DRM_RADEON=m
+
 # --- Unicode/UTF-8 NLS ---
 CONFIG_NLS=y
 CONFIG_NLS_DEFAULT="utf8"
