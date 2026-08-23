@@ -15,6 +15,7 @@
   - 防线：闭包解析绝不引入 Arch glibc（README「Arch 源保持禁用」守则的受控例外）；解压前 df 检查 >3GB；闭包 <50 包 die；种子从仓库消失 die；自检断言 Xorg/startx/startxfce4/libX11.so.6/libgtk-3.so.0。
   - kernel-live.fragment 加 DRM 块：DRM=y、FBDEV_EMULATION=y、VIRTIO_GPU=y（QEMU）、BOCHS=y、I915/AMDGPU/RADEON=m（真机）——Xorg modesetting 需要 KMS。
 - 本地验证：bash -n 全部脚本通过；arch-resolve.py 合成 fixture 端到端测试（SKIP 生效/glibc>=版本剥离/libx11|libx12 alternates/BFS 传递闭包/repo 归属正确/坏依赖仅 WARN/空闭包与种子丢失 FATAL）全部符合预期。
+- **根因二十六（run#65 实证）**：宿主下载 map 键用了缩短名（fd-10.4.2.tar.gz），chroot 脚本按上游资产原名开文件（fd-v10.4.2-x86_64-unknown-linux-musl.tar.gz）→ tar ENOENT。与根因八（node 双 v）同类：**两侧文件名必须逐字一致**。修复：map 键改为上游 release 资产原名（ripgrep/bat 同改；htop/wget 原本一致未动），并在 urls 注释中立规。
 - 风险：Arch 滚动仓库快照漂移（新库 soname 或依赖图变化）→ 解析器 WARN 不致命，仅种子消失才 die；xfwm4 合成标题栏需 GTK3 主题（Adwaita 随 gtk3 包自带）；QEMU 测试用 `-device virtio-gpu` 或默认 std VGA（bochs 驱动覆盖）。
 
 ## 根因十四（用户 QEMU 实测报告，已修）：登录界面中文乱码、fbterm 内正常

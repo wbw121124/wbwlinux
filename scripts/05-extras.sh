@@ -43,10 +43,14 @@ declare -A urls=(
   ["libarchive-$LIBARCHIVE_VER.tar.xz"]="https://github.com/libarchive/libarchive/releases/download/v$LIBARCHIVE_VER/libarchive-$LIBARCHIVE_VER.tar.xz"
   ["pacman-$PACMAN_VER.tar.xz"]="https://gitlab.archlinux.org/pacman/pacman/-/releases/v$PACMAN_VER/downloads/pacman-$PACMAN_VER.tar.xz"
   # CLI tool bundle: fd/rg/bat official musl static binaries, htop Debian
-  # prebuilt, wget GNU source (versions verified 2026-08-23)
-  ["fd-$FD_VER.tar.gz"]="https://github.com/sharkdp/fd/releases/download/v$FD_VER/fd-v$FD_VER-x86_64-unknown-linux-musl.tar.gz"
-  ["ripgrep-$RIPGREP_VER.tar.gz"]="https://github.com/BurntSushi/ripgrep/releases/download/$RIPGREP_VER/ripgrep-$RIPGREP_VER-x86_64-unknown-linux-musl.tar.gz"
-  ["bat-$BAT_VER.tar.gz"]="https://github.com/sharkdp/bat/releases/download/v$BAT_VER/bat-v$BAT_VER-x86_64-unknown-linux-musl.tar.gz"
+  # prebuilt, wget GNU source (versions verified 2026-08-23).
+  # KEYS MUST BE THE EXACT FILENAMES chroot/05-extras.sh opens - use the
+  # upstream release asset names verbatim (root cause #26: saving under a
+  # shortened key while the chroot script expected the asset name made tar
+  # fail with ENOENT)
+  ["fd-v$FD_VER-x86_64-unknown-linux-musl.tar.gz"]="https://github.com/sharkdp/fd/releases/download/v$FD_VER/fd-v$FD_VER-x86_64-unknown-linux-musl.tar.gz"
+  ["ripgrep-$RIPGREP_VER-x86_64-unknown-linux-musl.tar.gz"]="https://github.com/BurntSushi/ripgrep/releases/download/$RIPGREP_VER/ripgrep-$RIPGREP_VER-x86_64-unknown-linux-musl.tar.gz"
+  ["bat-v$BAT_VER-x86_64-unknown-linux-musl.tar.gz"]="https://github.com/sharkdp/bat/releases/download/v$BAT_VER/bat-v$BAT_VER-x86_64-unknown-linux-musl.tar.gz"
   ["htop_${HTOP_DEB}_amd64.deb"]="https://deb.debian.org/debian/pool/main/h/htop/htop_${HTOP_DEB}_amd64.deb"
   ["wget-$WGET_VER.tar.gz"]="https://ftp.gnu.org/gnu/wget/wget-$WGET_VER.tar.gz"
 )
