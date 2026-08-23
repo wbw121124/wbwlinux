@@ -60,14 +60,15 @@ export LIBARCHIVE_VER=3.8.9
 export PACMAN_VER=7.1.0
 
 # CLI tool bundle: fd/ripgrep/bat ship official musl STATIC binaries
-# (zero compilation, zero runtime deps); htop comes prebuilt from the
-# Debian pool; wget is absent from LFS ch8 and Debian's build links
-# gnutls which we lack, so it is a tiny source build against openssl.
+# (zero compilation, zero runtime deps); htop is a tiny source build (the
+# Debian deb links plain libtinfo which LFS ncurses does not provide);
+# wget is absent from LFS ch8 and Debian's build links gnutls which we
+# lack, so it is a tiny source build against openssl.
 # Versions verified against upstream releases on 2026-08-23.
 export FD_VER=10.4.2
 export RIPGREP_VER=15.2.0
 export BAT_VER=0.26.1
-export HTOP_DEB=3.5.3-1
+export HTOP_VER=3.5.3
 export WGET_VER=1.25.0
 
 # Arch binary stack (X.Org + XFCE) imported from repo databases at build

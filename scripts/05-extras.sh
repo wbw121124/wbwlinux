@@ -51,7 +51,7 @@ declare -A urls=(
   ["fd-v$FD_VER-x86_64-unknown-linux-musl.tar.gz"]="https://github.com/sharkdp/fd/releases/download/v$FD_VER/fd-v$FD_VER-x86_64-unknown-linux-musl.tar.gz"
   ["ripgrep-$RIPGREP_VER-x86_64-unknown-linux-musl.tar.gz"]="https://github.com/BurntSushi/ripgrep/releases/download/$RIPGREP_VER/ripgrep-$RIPGREP_VER-x86_64-unknown-linux-musl.tar.gz"
   ["bat-v$BAT_VER-x86_64-unknown-linux-musl.tar.gz"]="https://github.com/sharkdp/bat/releases/download/v$BAT_VER/bat-v$BAT_VER-x86_64-unknown-linux-musl.tar.gz"
-  ["htop_${HTOP_DEB}_amd64.deb"]="https://deb.debian.org/debian/pool/main/h/htop/htop_${HTOP_DEB}_amd64.deb"
+  ["htop-$HTOP_VER.tar.xz"]="https://github.com/htop-dev/htop/releases/download/$HTOP_VER/htop-$HTOP_VER.tar.xz"
   ["wget-$WGET_VER.tar.gz"]="https://ftp.gnu.org/gnu/wget/wget-$WGET_VER.tar.gz"
 )
 declare -A mirrors=(
