@@ -397,6 +397,13 @@ rm -rf "bat-v$BAT_VER-x86_64-unknown-linux-musl"
 log "==> htop $HTOP_DEB (Debian prebuilt)"
 ar p "htop_${HTOP_DEB}_amd64.deb" data.tar.xz \
     | tar xJ -C / --wildcards './usr/bin/htop' './usr/share/man/man1/htop.1.gz'
+# root cause #27: Debian binaries link plain libtinfo.so.6; LFS ncurses is
+# a widec-only build shipping libtinfow.so.6, which contains every tinfo
+# symbol -> alias instead of pulling another package
+if [ ! -e /usr/lib/libtinfo.so.6 ]; then
+    [ -e /usr/lib/libtinfow.so.6 ] || die "extras: neither libtinfo.so.6 nor libtinfow.so.6 present"
+    ln -sv libtinfow.so.6 /usr/lib/libtinfo.so.6
+fi
 
 if [ ! -e /usr/bin/wget ]; then
     log "==> wget $WGET_VER (source; Debian build needs absent gnutls)"
@@ -970,7 +977,7 @@ pkg_register ripgrep "$RIPGREP_VER" "ripgrep recursively searches dirs with rege
 pkg_register bat "$BAT_VER" "bat - cat clone with syntax highlighting" \
     /usr/bin/bat
 pkg_register htop "${HTOP_DEB%-*}" "interactive process viewer" \
-    /usr/bin/htop /usr/share/man/man1/htop.1.gz
+    /usr/bin/htop /usr/share/man/man1/htop.1.gz /usr/lib/libtinfo.so.6
 
 log '==> building local [lfscn] repository'
 if ! repo-add /usr/local/repo/lfscn/lfscn.db.tar.gz \
