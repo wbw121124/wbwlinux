@@ -999,17 +999,17 @@ scannet ScanNet
 matterport Matterport3D
 sunrgbd SUN RGB-D
 nyu NYU
-bfs BFS
-dfs DFS
-dij Dijkstra
-dijkstra Dijkstra
-floyd Floyd
-bellman Bellman
-bellmanford Bellman-Ford
-prim Prim
-kruskal Kruskal
-tarjan Tarjan
-kosaraju Kosaraju
+bfs 广度优先搜索
+dfs 深度优先搜索
+dij Dijkstra 算法
+dijkstra Dijkstra 算法
+floyd Floyd 算法
+bellman Bellman 算法
+bellmanford Bellman-Ford 算法
+prim Prim 算法
+kruskal Kruskal 算法
+tarjan Tarjan 算法
+kosaraju Kosaraju 算法
 scc 强连通分量
 bcc 双连通分量
 lca 最近公共祖先
@@ -1070,7 +1070,7 @@ isap 最大流
 hlpp 最大流
 mcmf 费用流
 mincost 费用流
-hungary Hungarian
+hungary 匈牙利算法
 km 二分图匹配
 blossom 带花树
 gauss Gaussian
