@@ -1080,8 +1080,8 @@ simplex 单纯形
 convex 凸包
 halfplane 半平面交
 rotating Rotating
-scanline Scanline
-sweep Sweep
+scanline 扫描线
+sweep 扫描线
 lgr 拉格朗日插值
 lagrange 拉格朗日插值
 newton 牛顿迭代
