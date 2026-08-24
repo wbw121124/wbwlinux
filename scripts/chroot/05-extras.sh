@@ -1053,6 +1053,8 @@ ac 自动机
 acauto AC自动机
 sam 后缀自动机
 suffix 后缀自动机
+sa 后缀数组
+sparse 稀疏表
 lcp 最长公共前缀
 lcs 最长公共子序列
 lis 最长上升子序列
@@ -1304,12 +1306,35 @@ grep -q '^font-name=Fira Code,WenQuanYi Micro Hei$' /etc/ucimf.conf \
     && grep -q '^prefix-match=1$' /etc/ucimf.conf \
     || die "extras: ucimf.conf font/prefix alignment failed"
 
+# Fix font rendering (too bold): disable autohint, enable subpixel
+if grep -q '^font-autohint=' /etc/ucimf.conf; then
+    sed -i 's|^font-autohint=.*|font-autohint=0|' /etc/ucimf.conf
+else
+    printf 'font-autohint=0\n' >> /etc/ucimf.conf
+fi
+if grep -q '^font-hinting=' /etc/ucimf.conf; then
+    sed -i 's|^font-hinting=.*|font-hinting=1|' /etc/ucimf.conf
+else
+    printf 'font-hinting=1\n' >> /etc/ucimf.conf
+fi
+if grep -q '^font-embedbitmap=' /etc/ucimf.conf; then
+    sed -i 's|^font-embedbitmap=.*|font-embedbitmap=0|' /etc/ucimf.conf
+else
+    printf 'font-embedbitmap=0\n' >> /etc/ucimf.conf
+fi
+
 # Fix fbterm restart issue: ensure ucimf knows where to find plugins
 # The openvanilla bridge plugin and OVIMGeneric modules must be in the plugin path
 if grep -q '^plugin-path=' /etc/ucimf.conf; then
     sed -i 's|^plugin-path=.*|plugin-path=/usr/lib/ucimf:/usr/lib/openvanilla|' /etc/ucimf.conf
 else
     printf 'plugin-path=/usr/lib/ucimf:/usr/lib/openvanilla\n' >> /etc/ucimf.conf
+fi
+# Ensure IM autoload: load fbterm_ucimf frontend at startup
+if grep -q '^im-autoload=' /etc/ucimf.conf; then
+    sed -i 's|^im-autoload=.*|im-autoload=fbterm_ucimf|' /etc/ucimf.conf
+else
+    printf 'im-autoload=fbterm_ucimf\n' >> /etc/ucimf.conf
 fi
 
 # Also ensure IM modules are loadable by creating a module index
@@ -1368,6 +1393,10 @@ color-background=0,0,0
 text-format=1
 cursor-shape=0
 cursor-interval=500
+# Fix font rendering: disable bold/autohint, enable subpixel rendering
+font-autohint=0
+font-hinting=1
+font-embedbitmap=0
 EOF
 
 cat > /usr/local/bin/fbterm-zh << 'EOF'
