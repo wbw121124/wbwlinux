@@ -17,8 +17,9 @@ import tarfile
 SEEDS = [
     # X.Org base (the modesetting driver is built into xorg-server)
     "xorg-server", "xorg-xinit",
-    # X.Org video drivers for QEMU virtio-gpu / bochs / basic fallback
-    "xf86-video-virtio", "xf86-video-fbdev", "xf86-video-vesa",
+    # X.Org video drivers for QEMU bochs / basic fallback
+    # xf86-video-virtio removed from Arch repos; modesetting covers virtio-gpu
+    "xf86-video-fbdev", "xf86-video-vesa",
     # XFCE core desktop
     "xfce4-session", "xfce4-panel", "xfwm4", "xfdesktop",
     "xfce4-settings", "xfce4-appfinder", "xfconf", "garcon",
@@ -38,6 +39,10 @@ SKIP = {
     "lz4", "acl", "attr", "elfutils", "libelf", "kbd", "tzdata",
     "file", "less", "kmod", "iproute2", "man-db", "pacman", "meson",
     "ninja", "libarchive", "sh", "awk",
+    # library sonames that LFS provides (resolver sees these as deps)
+    "libcom_err", "libcrypto", "libdbus", "libexpat", "libffi",
+    "libmount", "libncursesw", "libreadline", "libss", "libsystemd",
+    "libudev", "libz",
 }
 
 
