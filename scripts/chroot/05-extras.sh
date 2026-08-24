@@ -462,11 +462,11 @@ if [ ! -e /usr/lib/ucimf/openvanilla.so ]; then
 fi
 
 if [ ! -e /usr/lib/openvanilla/OVIMGeneric.so ]; then
-    log "==> openvanilla-modules git-${OV_MODULES_COMMIT:0:7} (OVIMGeneric + zh_CN tables)"
+    log "==> openvanilla-modules git-${OV_MODULES_COMMIT:0:7} (OVIMGeneric + OVIMChewing + zh_CN/zh_TW tables)"
     mkdir -p openvanilla-modules-src
     tar xf "$OV_MODULES_TARBALL" -C openvanilla-modules-src --strip-components=1
     cd openvanilla-modules-src
-    ./configure --prefix=/usr --disable-asia --enable-zh_CN \
+    ./configure --prefix=/usr --disable-asia --enable-zh_CN --enable-zh_TW --enable-chewing \
                 CXXFLAGS="-O2 -Wno-narrowing"
     make -j"$NPROC"
     make install
@@ -1280,9 +1280,17 @@ if grep -q '^font-size=' /etc/ucimf.conf; then
 else
     printf 'font-size=16\n' >> /etc/ucimf.conf
 fi
+# enable prefix-match (weak match): allows matching by first few chars
+# e.g., "zgs" -> "zgysdl" (中国剩余定理), "gdy" -> "gdyxss" (广度优先搜索)
+if grep -q '^prefix-match=' /etc/ucimf.conf; then
+    sed -i 's|^prefix-match=.*|prefix-match=1|' /etc/ucimf.conf
+else
+    printf 'prefix-match=1\n' >> /etc/ucimf.conf
+fi
 grep -q '^font-name=Fira Code,WenQuanYi Micro Hei$' /etc/ucimf.conf \
     && grep -q '^font-size=16$' /etc/ucimf.conf \
-    || die "extras: ucimf.conf font alignment failed"
+    && grep -q '^prefix-match=1$' /etc/ucimf.conf \
+    || die "extras: ucimf.conf font/prefix alignment failed"
 
 # =====================================================================
 # editor configs for Chinese text
@@ -1341,6 +1349,19 @@ cat > /usr/local/bin/fbterm-zh << 'EOF'
 # zh_CN applies ONLY inside fbterm: the vconsole has no CJK glyphs, so any
 # localized text outside fbterm would render as boxes. Fallback shells stay
 # on the inherited C.UTF-8 environment.
+#
+# Input Method (ucimf) keybindings:
+#   Ctrl+Space    Toggle input method ON/OFF
+#   Ctrl+Shift    Switch between input methods (OVIMGeneric, OVIMChewing, etc.)
+#   Space         Confirm/insert selected candidate
+#   1-9           Select candidate by number (depends on %selkey)
+#   Down/Up       Page through candidates
+#   Esc           Clear input buffer
+#   Backspace     Delete last input character
+#
+# Available IMs (OVIMGeneric tables in /usr/share/openvanilla/OVIMGeneric/):
+#   pinyin.cin, pinyin0.cin, shuangpin.cin, wubizixing.cin, wbx.cin,
+#   zhengma.cin, cs-oi.cin (算法竞赛术语), and zh_TW tables (Chewing, etc.)
 FONT_NAMES="Fira Code,WenQuanYi Micro Hei"
 if [ ! -e /dev/fb0 ]; then
     echo "fbterm-zh: /dev/fb0 not available, staying on plain console" >&2
