@@ -414,11 +414,43 @@ if [ ! -e /usr/bin/wget ]; then
     rm -rf "wget-$WGET_VER"
 fi
 
+# =====================================================================
+# sudo (BLFS-style source build; LFS ch8 does not ship it)
+#   no PAM in base LFS -> sudo falls back to its own shadow auth
+# =====================================================================
+if [ ! -e /usr/bin/sudo ]; then
+    log "==> sudo $SUDO_VER"
+    tar xf "sudo-$SUDO_VER.tar.gz"
+    cd "sudo-$SUDO_VER"
+    ./configure --prefix=/usr \
+                --libexecdir=/usr/lib \
+                --with-secure-path \
+                --with-env-editor \
+                --runstatedir=/run \
+                --docdir="/usr/share/doc/sudo-$SUDO_VER" \
+                --with-passprompt="%p's password: "
+    make -j"$NPROC"
+    make install
+    cd "$DL"
+    rm -rf "sudo-$SUDO_VER"
+    # sane defaults for the live system: root + wheel members may escalate
+    getent group wheel >/dev/null || groupadd -r wheel
+    cat > /etc/sudoers << 'EOF'
+Defaults env_reset
+Defaults secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+root ALL=(ALL) ALL
+%wheel ALL=(ALL) ALL
+EOF
+    chmod 440 /etc/sudoers
+fi
+
 fd --version
 rg --version | head -1
 bat --version
 htop --version
 wget --version | head -1
+sudo --version | head -1
 
 # =====================================================================
 # ucimf console input method stack (Chinese input inside fbterm)
@@ -1663,6 +1695,8 @@ pkg_register bat "$BAT_VER" "bat - cat clone with syntax highlighting" \
     /usr/bin/bat
 pkg_register htop "$HTOP_VER" "interactive process viewer" \
     /usr/bin/htop /usr/share/man/man1/htop.1.gz
+pkg_register sudo "$SUDO_VER" "sudo - execute a command as another user" \
+    /usr/bin/sudo /usr/bin/visudo /usr/bin/sudoreplay /etc/sudoers /usr/lib/sudo
 
 log '==> building local [lfscn] repository'
 if ! repo-add /usr/local/repo/lfscn/lfscn.db.tar.gz \
@@ -1695,6 +1729,7 @@ for f in /usr/bin/fbterm /usr/bin/fbterm_ucimf \
          /usr/bin/curl /usr/lib/libarchive.so \
          /usr/bin/which /usr/bin/wget /usr/bin/fd /usr/bin/rg \
          /usr/bin/bat /usr/bin/htop \
+         /usr/bin/sudo /usr/bin/visudo /etc/sudoers \
          /usr/local/repo/lfscn/lfscn.db.tar.gz; do
     [ -e "$f" ] || die "extras self-check: missing $f"
 done

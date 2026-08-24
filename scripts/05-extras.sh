@@ -53,6 +53,7 @@ declare -A urls=(
   ["bat-v$BAT_VER-x86_64-unknown-linux-musl.tar.gz"]="https://github.com/sharkdp/bat/releases/download/v$BAT_VER/bat-v$BAT_VER-x86_64-unknown-linux-musl.tar.gz"
   ["htop-$HTOP_VER.tar.xz"]="https://github.com/htop-dev/htop/releases/download/$HTOP_VER/htop-$HTOP_VER.tar.xz"
   ["wget-$WGET_VER.tar.gz"]="https://ftp.gnu.org/gnu/wget/wget-$WGET_VER.tar.gz"
+  ["sudo-$SUDO_VER.tar.gz"]="https://www.sudo.ws/dist/sudo-$SUDO_VER.tar.gz"
 )
 declare -A mirrors=(
   ["node-$NODE_VER-linux-x64.tar.xz"]="https://registry.npmmirror.com/-/binary/node/$NODE_VER/node-$NODE_VER-linux-x64.tar.xz"

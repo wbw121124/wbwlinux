@@ -1,7 +1,7 @@
 # LFS-CN Live ISO 构建计划
 
 ## 目标
-在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**根因二十九已修复（SSL 证书验证），run#56 全绿产出 ISO 761MB，run#69 config-extras 失败已修，准备 from-base 重跑**。根因十三已彻底解决并经 CI run#48 产物 QEMU 实测通过（整个根文件系统可写、引导干净进入自动登录、无 FAILED 单元）。2026-08-22 新增：ucimf 中文输入法栈 + Fira Code 字体。2026-08-23 新增：CLI 工具包 + X.Org/XFCE 预装 + 竞赛码表。
+在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**run#77/78 失败已修（xf86-video-virtio 从 Arch 仓库消失、zh_TW/chewing 缺 dayi3.cin），新增 initramfs sort、OVIMGeneric 补丁修正、sudo 包，准备 from-base 重跑**。根因十三已彻底解决并经 CI run#48 产物 QEMU 实测通过（整个根文件系统可写、引导干净进入自动登录、无 FAILED 单元）。2026-08-22 新增：ucimf 中文输入法栈 + Fira Code 字体。2026-08-23 新增：CLI 工具包 + X.Org/XFCE 预装 + 竞赛码表。2026-08-24 新增：sudo 1.9.17p2。
 
 ## 2026-08-23 扩展：CLI 工具包 + X.Org/XFCE + 竞赛码表 + 三处根因修复
 **用户需求五项：①node 不在 PATH 且无 which；②新增 fd/rg/bat/curl/wget/htop/xorg/xfce（pacman 包、不编译）；③pacman CacheDir 报错；④ucimf 候选窗字体与终端不一致；⑤计算机/信息学竞赛中文码表。**
@@ -108,6 +108,13 @@
     - 遗留（外观级）：fontconfig monospace 别名仍落到文泉驿（根因十七）；实证 99-fira-code-prefer.conf 已加载（wqy 正是列表第二项），疑 Fira Code 字体声明 spacing/proportional 导致匹配评分落败；FC_DEBUG=1024 日志已写入快照 /root/downloads/fc-debug.log 待分析。fbterm-zh 显式字体列表不受影响。
   - **代理备注（2026-08-22）**：本机直连 GitHub 大文件下载会截断，需 `curl --proxy http://127.0.0.1:7890` 拉 run 日志 zip。
 - [x] 16. **根因二十九：Arch 仓库下载 SSL 证书验证失败（run#69 实证，已修）** —— chroot 缺 ca-certificates 导致 curl 下载 core.db/extra.db 失败，修复：06-xorg-xfce.sh fetch() 加 `-k` 跳过验证。
+- [x] 17. **initramfs sort 缺失 + OVIMGeneric 补丁修正 + 字体渲染 + sudo（2026-08-24，待 from-base 验证）**：
+  - **根因三十：/init line 59 `sort: command not found`** —— initramfs init 脚本用 `sort` 排序 /proc/partitions 设备名，但 copy_deps 清单未包含它 → 添加 `copy_deps sort` 并纳入 /usr/bin 自检列表。
+  - **OVIMGeneric 补丁实证修正**：fuzzyMatch 参数语义纠正（对候选文本做子序列匹配，首字符必须匹配）；getCandidatesWithFuzzy 真正调用 fuzzyMatch 过滤；compose 中去重/locality bonus/弱匹配单候选直发均接入；candidateEvent 记录选中词供 locality bonus。
+  - **字体过粗追加修复**：ucimf.conf 补 font-antialias=1/font-rgba=rgb/font-lcdfilter=lcddefault（此前 autohint=0/hinting=1/embedbitmap=0 不够）。
+  - **fbterm 重启问题**：ucimf.conf plugin-path=/usr/lib/ucimf:/usr/lib/openvanilla + im-autoload=fbterm_ucimf + modules.list 索引。
+  - **ESC 关闭输入法**：fbterm-zh 快捷键文档更新（Esc 关闭输入法/清空缓冲）。
+  - **新增 sudo 1.9.17p2**（版本经 sudo.ws/releases/stable 实证）：env.sh 加 SUDO_VER；宿主侧下载表加 sudo.ws/dist 源码包；chroot 侧 BLFS 风格源码构建（--libexecdir=/usr/lib --with-secure-path --with-env-editor，无 PAM 回退 shadow 认证）+ /etc/sudoers（root + %wheel，secure_path 显式）+ wheel 组创建 + pkg_register 入 [lfscn] 本地仓 + 自检加 /usr/bin/sudo、visudo、/etc/sudoers。
 
 ## 本地 ISO 修复（initramfs 重打包，2026-08-20，无管理员/无 WSL/Docker/无 QEMU 验证）
 **对 `C:\Users\yl\Downloads\lfs-cn-live-iso\lfs-cn-13.0-systemd-x86_64.iso`（781MB，含旧 initramfs）手工重打包，仅改 initramfs（不碰 squashfs）。**

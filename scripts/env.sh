@@ -71,6 +71,10 @@ export BAT_VER=0.26.1
 export HTOP_VER=3.5.3
 export WGET_VER=1.25.0
 
+# sudo (privilege escalation for non-root users on the live system)
+# Version verified against https://www.sudo.ws/releases/stable/ on 2026-08-24
+export SUDO_VER=1.9.17p2
+
 # Arch binary stack (X.Org + XFCE) imported from repo databases at build
 # time by chroot/06-xorg-xfce.sh; rolling release, pinned per run only.
 export ARCH_MIRRORS="https://geo.mirror.pkgbuild.com https://mirror.rackspace.com/archlinux https://mirrors.kernel.org/archlinux"
