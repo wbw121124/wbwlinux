@@ -38,7 +38,7 @@ fetch() { # fetch <repo-relative-url> <outfile>
     local u="$1" o="$2" m
     for m in $ARCH_MIRRORS; do
         log "    try $m/$u"
-        if curl -fSL --retry 2 --max-time 900 -o "$o" "$m/$u" && [ -s "$o" ]; then
+        if curl -kfSL --retry 2 --max-time 900 -o "$o" "$m/$u" && [ -s "$o" ]; then
             return 0
         fi
         rm -f "$o"
