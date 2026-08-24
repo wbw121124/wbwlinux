@@ -80,23 +80,23 @@
 +}
 +
 +// VSCode-like fuzzy matching (filterGraceful): subsequence matching
-+// Input "zgs" matches key "zgysdl" (中国剩余定理) - characters in order but not necessarily contiguous
-+bool OVGenericContext::fuzzyMatch(const std::string& key, const std::string& input) {
++// Input "zgs" matches candidate "zgysdl" (中国剩余定理) - characters in order but not necessarily contiguous
++bool OVGenericContext::fuzzyMatch(const std::string& candidate, const std::string& input) {
 +    if (input.empty()) return true;
-+    if (key.empty()) return false;
++    if (candidate.empty()) return false;
 +    // First character must match (VSCode rule)
-+    if (key[0] != input[0]) return false;
-+    // Subsequence matching: all input chars must appear in key in order
-+    size_t keyIdx = 0;
++    if (candidate[0] != input[0]) return false;
++    // Subsequence matching: all input chars must appear in candidate in order
++    size_t candIdx = 0;
 +    for (size_t i = 0; i < input.size(); ++i) {
 +        bool found = false;
-+        while (keyIdx < key.size()) {
-+            if (key[keyIdx] == input[i]) {
++        while (candIdx < candidate.size()) {
++            if (candidate[candIdx] == input[i]) {
 +                found = true;
-+                ++keyIdx;
++                ++candIdx;
 +                break;
 +            }
-+            ++keyIdx;
++            ++candIdx;
 +        }
 +        if (!found) return false;
 +    }
@@ -120,10 +120,11 @@
 +        // Get all candidates for this key prefix (broader search)
 +        cintab->getWordVectorByChar(seq, fuzzyResults);
 +        for (const auto& cand : fuzzyResults) {
-+            // The key is already the seq, so we check if the candidate's key would fuzzy match
-+            // For now, just add all as fallback
-+            if (std::find(out.begin(), out.end(), cand) == out.end()) {
-+                out.push_back(cand);
++            // Use fuzzy matching to filter: match input seq against candidate text
++            if (fuzzyMatch(cand, seq)) {
++                if (std::find(out.begin(), out.end(), cand) == out.end()) {
++                    out.push_back(cand);
++                }
 +            }
 +        }
 +    }
@@ -176,6 +177,7 @@
 +            candi.prepare(&candidateStringVector,
 +                          const_cast<char*>(currentSelKey.c_str()), textbar);
 +        }
++    }
 +    }
      return 1;
  }

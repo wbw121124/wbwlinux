@@ -114,6 +114,7 @@ copy_deps cp
 copy_deps grep
 copy_deps awk
 copy_deps sed
+copy_deps sort
 copy_deps insmod
 copy_deps modprobe
 copy_deps blkid
@@ -129,7 +130,7 @@ ln -sfv /usr/bin/bash "$INITRAMFS_DIR/bin/sh"
 # ---- hard self-checks: a broken initramfs must fail the build, not ship ----
 [ -x "$INITRAMFS_DIR/usr/bin/bash" ] || die "initramfs: /usr/bin/bash missing (copy_deps failed to find bash)"
 [ -e "$INITRAMFS_DIR/bin/sh" ] || die "initramfs: bin/sh symlink missing"
-for t in mount umount sleep cat mkdir cp grep awk sed mknod; do
+for t in mount umount sleep cat mkdir cp grep awk sed sort mknod; do
     [ -e "$INITRAMFS_DIR/usr/bin/$t" ] || log "ERROR: initramfs missing required tool /usr/bin/$t"
 done
 for t in switch_root insmod modprobe blkid losetup; do

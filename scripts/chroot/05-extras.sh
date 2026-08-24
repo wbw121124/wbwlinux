@@ -1399,6 +1399,22 @@ if grep -q '^font-embedbitmap=' /etc/ucimf.conf; then
 else
     printf 'font-embedbitmap=0\n' >> /etc/ucimf.conf
 fi
+# Additional font rendering fixes: disable antialias for CJK, enable RGB subpixel
+if grep -q '^font-antialias=' /etc/ucimf.conf; then
+    sed -i 's|^font-antialias=.*|font-antialias=1|' /etc/ucimf.conf
+else
+    printf 'font-antialias=1\n' >> /etc/ucimf.conf
+fi
+if grep -q '^font-rgba=' /etc/ucimf.conf; then
+    sed -i 's|^font-rgba=.*|font-rgba=rgb|' /etc/ucimf.conf
+else
+    printf 'font-rgba=rgb\n' >> /etc/ucimf.conf
+fi
+if grep -q '^font-lcdfilter=' /etc/ucimf.conf; then
+    sed -i 's|^font-lcdfilter=.*|font-lcdfilter=lcddefault|' /etc/ucimf.conf
+else
+    printf 'font-lcdfilter=lcddefault\n' >> /etc/ucimf.conf
+fi
 
 # Fix fbterm restart issue: ensure ucimf knows where to find plugins
 # The openvanilla bridge plugin and OVIMGeneric modules must be in the plugin path
@@ -1490,7 +1506,7 @@ cat > /usr/local/bin/fbterm-zh << 'EOF'
 #   Space         Confirm/insert selected candidate
 #   1-9           Select candidate by number (depends on %selkey)
 #   Down/Up       Page through candidates
-#   Esc           Clear input buffer
+#   Esc           Close input method / Clear input buffer
 #   Backspace     Delete last input character
 #
 # Available IMs (OVIMGeneric tables in /usr/share/openvanilla/OVIMGeneric/):
