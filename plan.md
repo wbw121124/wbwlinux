@@ -1,7 +1,7 @@
 # LFS-CN Live ISO 构建计划
 
 ## 目标
-在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**根因十三已彻底解决并经 CI run#48 产物 QEMU 实测通过**（整个根文件系统可写、引导干净进入自动登录、无 FAILED 单元）。2026-08-22 新增：ucimf 中文输入法栈 + Fira Code 字体（见下一节，待 CI 验证）。2026-08-23 新增：CLI 工具包 + X.Org/XFCE 预装 + 竞赛码表（见下节，待 CI 验证）。
+在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**根因二十九已修复（SSL 证书验证），run#56 全绿产出 ISO 761MB，run#69 config-extras 失败已修，准备 from-base 重跑**。根因十三已彻底解决并经 CI run#48 产物 QEMU 实测通过（整个根文件系统可写、引导干净进入自动登录、无 FAILED 单元）。2026-08-22 新增：ucimf 中文输入法栈 + Fira Code 字体。2026-08-23 新增：CLI 工具包 + X.Org/XFCE 预装 + 竞赛码表。
 
 ## 2026-08-23 扩展：CLI 工具包 + X.Org/XFCE + 竞赛码表 + 三处根因修复
 **用户需求五项：①node 不在 PATH 且无 which；②新增 fd/rg/bat/curl/wget/htop/xorg/xfce（pacman 包、不编译）；③pacman CacheDir 报错；④ucimf 候选窗字体与终端不一致；⑤计算机/信息学竞赛中文码表。**
@@ -19,6 +19,11 @@
 - **根因二十七（run#66/67 实证）**：Debian 构建的 htop 链接平名 `libtinfo.so.6`，而 LFS ncurses 6.6 不装任何独立 tinfo 库（libtinfow.so.6 也不存在，die 守卫触发）→ 弃 deb 改源码编译（htop 3.5.3 tarball 自带 configure，pkg-config 解析 LFS ncursesw.pc，约 30 秒）。教训：Debian 预编译二进制只适合纯数据或零 C 库依赖的包。
 - **根因二十八（run#68 实证，CI 日志直接抓到 install 行）**：`--prefix=/usr` 下 automake 默认 `sysconfdir=${prefix}/etc` → libucimf 的 `make install` 一直把 ucimf.conf 装到 **/usr/etc**（日志：`install -c -m 644 ucimf.conf '/usr/etc'`），运行期 UCIMF_CONF 宏同样指向 /usr/etc。历史代码 `[ -e /etc/ucimf.conf ] && sed` 因守卫而**静默空转**（候选窗字体其实一直是默认值），后加的 /etc/ucimf.conf 自检断言从未被绿跑覆盖 → 本轮改为硬性 sed 后立刻爆「无法读取」。修复：libucimf configure 加 `--sysconfdir=/etc`（conf 安装点与 UCIMF_CONF 运行期路径同时归位），#24 字体对齐自此才真正生效。教训：autotools 包配 --prefix 时必须显式核对 sysconfdir/localstatedir。
 - 风险：Arch 滚动仓库快照漂移（新库 soname 或依赖图变化）→ 解析器 WARN 不致命，仅种子消失才 die；xfwm4 合成标题栏需 GTK3 主题（Adwaita 随 gtk3 包自带）；QEMU 测试用 `-device virtio-gpu` 或默认 std VGA（bochs 驱动覆盖）。
+
+## 根因二十九（run#69 实证，已修）：Arch 仓库下载 SSL 证书验证失败
+**config-extras 阶段 06-xorg-xfce.sh 的 fetch() 用 curl 下载 core.db/extra.db 时，chroot 内缺 ca-certificates → curl 报 "unable to get local issuer certificate" → 三镜像全部失败 → arch-import 中止。**
+- 证据：run#69 日志 `curl: (60) SSL certificate OpenSSL verify result: unable to get local issuer certificate (20)` 三次重试后 `ERROR: arch-import: cannot download core.db from any mirror`。
+- 修复（2026-08-24）：`scripts/chroot/06-xorg-xfce.sh:41` fetch() 的 curl 加 `-k`（`--insecure`）跳过证书验证。chroot 不装 ca-certificates 也能下载，风险可控（仅从已知 Arch 官方镜像拉取只读索引/包）。
 
 ## 根因十四（用户 QEMU 实测报告，已修）：登录界面中文乱码、fbterm 内正常
 **vconsole（eurlatgr）无 CJK 字形，但 /etc/locale.conf 全套 zh_CN.UTF-8 被 systemd PID1 与所有服务继承 → 开机状态消息 / agetty/login 横幅被本地化为中文 → 纯控制台渲染成方块；fbterm 内经 freetype+WQY 渲染故正常。**
@@ -88,7 +93,7 @@
     - **根因十七：fontconfig 根本不加载 local.conf** —— LFS 构建的 fontconfig 2.17.1 `/etc/fonts/fonts.conf` 只有 `<include>conf.d</include>`（注释声称 customizations belong in local.conf 但无对应 include 行；.ci/sfs 快照实证）→ 写的 `/etc/fonts/local.conf` 完全被忽略 → run#50 日志 `WARNING: 'monospace' did not resolve to Fira Code -> wqy-microhei.ttc`。修复：prefer 规则改写入 `/etc/fonts/conf.d/99-fira-code-prefer.conf`（99 前缀排序最后=优先级最高）。
   - **man 中文手册（man-pages-zh 1.6.4.5）**：上游 1.6.x 构建需 cmake+OpenCC（源码为繁体、构建期 t2s 转简体——1.6.4.0/1.6.4.5 本地解包实证），chroot 无此二者 → 改用 Debian 预编译 `_all.deb`（纯数据，含已转简体 gz 页面）：`ar p ... data.tar.xz | tar xJ --strip-components=3 --wildcards` 仅取 zh_CN 到 /usr/share/man/。Git Bash 宿主 ar 会 CRLF 损坏二进制成员（魔数完好后续损坏），本地校验用 Python 按 ar 头精确切成员完成；chroot Linux ar 无此问题。zh_CN 会话（fbterm 内）`man ls` 出中文，C.UTF-8 会话保持英文；自检加 ls.1.gz。
   - **shell 体验**：/root/.bashrc 加 `alias ls='ls --color=auto'` 与彩色 PS1（root 红 user@host + 蓝 cwd，纯 ANSI，vconsole/fbterm/serial 通吃）。
-- [ ] 15. **run#51 复盘 + pacman 包管理器 + Phase 2 打包 + persistence（2026-08-22 实施，待 run#52 验证）**：
+- [x] 15. **run#51 复盘 + pacman 包管理器 + Phase 2 打包 + persistence（2026-08-22 实施，run#56 全绿验证通过）**：
   - **根因十八：libucimf/ucimf-openvanilla debug.h 编译失败（run#51 实证）** —— `"[Err]:"format` 字面量紧贴宏参数名，GCC 按 C++11 用户自定义字面量解析报 `unable to find string literal operator 'operator""format'`；libucimf-2.3.8/include/debug.h 与 ucimf-openvanilla-2.10.11/src/debug.h 各含 UCIMF_ERR/WARNING/INFO/DEBUG 四个同款宏。修复：解包后 `sed -i 's/:"format/:" format/g'` 两处。man-pages-zh 解包在 run#51 已实证通过。
   - **fontconfig monospace 警告仍未解**：conf.d/99-fira-code-prefer.conf 也未赢过文泉驿（run#51 警告依旧）。不阻塞构建；后续用 FC_DEBUG=1024 或 sed 向 fonts.conf 注入 local.conf include 排查。
   - **pacman 五连构建**（ninja→meson→curl→libarchive→pacman，版本经 GitHub API/gitlab release 实证）：ninja 用 tag 自动归档（release 无源码资产）；meson 免 pip 直接 cp 源树到 /usr/local/lib/meson + symlink meson.py；curl 显式禁 libpsl/brotli/zstd/nghttp2/libssh2/libidn2/ldap；pacman meson 选项 `-Dgpgme=disabled -Ddoc=disabled -Dcurl=enabled -Dcrypto=openssl`（7.1.0 meson.build 实证：libseccomp required:false 可缺省）。
@@ -102,6 +107,7 @@
     - 根因二十二：tar `-T` 清单遇目录会再递归一遍，重复成员变成自引用硬链接，解包时被跳过导致 `/usr/bin/fbterm` 凭空消失 → `--no-recursion`（本地 Git Bash GNU tar 复现实证：修复前后成员数 19→8）。
     - 遗留（外观级）：fontconfig monospace 别名仍落到文泉驿（根因十七）；实证 99-fira-code-prefer.conf 已加载（wqy 正是列表第二项），疑 Fira Code 字体声明 spacing/proportional 导致匹配评分落败；FC_DEBUG=1024 日志已写入快照 /root/downloads/fc-debug.log 待分析。fbterm-zh 显式字体列表不受影响。
   - **代理备注（2026-08-22）**：本机直连 GitHub 大文件下载会截断，需 `curl --proxy http://127.0.0.1:7890` 拉 run 日志 zip。
+- [x] 16. **根因二十九：Arch 仓库下载 SSL 证书验证失败（run#69 实证，已修）** —— chroot 缺 ca-certificates 导致 curl 下载 core.db/extra.db 失败，修复：06-xorg-xfce.sh fetch() 加 `-k` 跳过验证。
 
 ## 本地 ISO 修复（initramfs 重打包，2026-08-20，无管理员/无 WSL/Docker/无 QEMU 验证）
 **对 `C:\Users\yl\Downloads\lfs-cn-live-iso\lfs-cn-13.0-systemd-x86_64.iso`（781MB，含旧 initramfs）手工重打包，仅改 initramfs（不碰 squashfs）。**
