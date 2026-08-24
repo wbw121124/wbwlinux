@@ -1,18 +1,22 @@
 --- a/Modules/OVIMGeneric/OVIMGeneric.cpp
 +++ b/Modules/OVIMGeneric/OVIMGeneric.cpp
-@@ -10,6 +10,8 @@
+@@ -10,6 +10,10 @@
  #include "OVIMGeneric.h"
  #include "CIN-Defaults.h"
  
 +#include <unordered_set>
++#include <unordered_map>
 +#include <algorithm>
++#include <deque>
  #ifdef __linux__
  #include <stdio.h>
  #endif
-@@ -230,6 +232,55 @@ void OVGenericContext::updateDisplay(OVBuffer *buf)
+@@ -230,6 +234,85 @@ void OVGenericContext::updateDisplay(OVBuffer *buf)
      buf->update();
  }
  
++// ===== VSCode-like features =====
++
 +// Deduplicate candidates: remove entries with same text but different keys
 +void OVGenericContext::deduplicateCandidates(std::vector<std::string>& candidates) {
 +    std::unordered_set<std::string> seen;
@@ -24,6 +28,55 @@
 +        }
 +    }
 +    candidates.swap(result);
++}
++
++// Locality bonus: track recently selected words for priority boost (VSCode-like localityBonus)
++// Words selected recently in the same session get higher score
++static const size_t MAX_RECENT_WORDS = 50;
++static std::deque<std::string> s_recentWords;
++static std::unordered_map<std::string, int> s_wordFrequency;
++
++void OVGenericContext::recordSelectedWord(const std::string& word) {
++    if (word.empty()) return;
++    // Update frequency
++    s_wordFrequency[word]++;
++    // Add to recent words (MRU)
++    auto it = std::find(s_recentWords.begin(), s_recentWords.end(), word);
++    if (it != s_recentWords.end()) {
++        s_recentWords.erase(it);
++    }
++    s_recentWords.push_front(word);
++    if (s_recentWords.size() > MAX_RECENT_WORDS) {
++        s_recentWords.pop_back();
++    }
++}
++
++// Calculate locality bonus score (lower = better priority)
++// Similar to VSCode's WordDistance: words in recent context get boost
++int OVGenericContext::localityBonus(const std::string& word) const {
++    // High frequency bonus
++    auto freqIt = s_wordFrequency.find(word);
++    if (freqIt != s_wordFrequency.end()) {
++        return -std::min(freqIt->second * 10, 100);  // cap at -100
++    }
++    // Recent words bonus (MRU position)
++    auto recentIt = std::find(s_recentWords.begin(), s_recentWords.end(), word);
++    if (recentIt != s_recentWords.end()) {
++        size_t pos = std::distance(s_recentWords.begin(), recentIt);
++        return -static_cast<int>(50 - pos * 2);  // recent words get -10 to -50
++    }
++    return 0;
++}
++
++// Apply locality bonus: sort candidates by (baseScore + localityBonus)
++void OVGenericContext::applyLocalityBonus(std::vector<std::string>& candidates) {
++    std::stable_sort(candidates.begin(), candidates.end(),
++        [this](const std::string& a, const std::string& b) {
++            int scoreA = localityBonus(a);
++            int scoreB = localityBonus(b);
++            if (scoreA != scoreB) return scoreA < scoreB;  // lower = better
++            return a < b;  // stable tie-break
++        });
 +}
 +
 +// VSCode-like fuzzy matching (filterGraceful): subsequence matching
@@ -80,18 +133,21 @@
  void OVGenericContext::clear() {
      keyseq.clear();
      autocomposing = false;
-@@ -350,6 +389,8 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
+@@ -350,6 +407,8 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
  
      if (size == 1 && !autocomposing) {
          buf->clear()->append(candidateStringVector[0].c_str())->update()->send();
 +        keyseq.clear();
          return 1;
      }
-@@ -360,6 +401,16 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
+@@ -360,6 +419,26 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
      }
  
      // Deduplicate candidates before showing
 +    deduplicateCandidates(candidateStringVector);
++    
++    // Apply locality bonus (VSCode-like): recently used / high frequency words first
++    applyLocalityBonus(candidateStringVector);
 +    
 +    // Weak matching: if only one candidate after dedup and not autocomposing, use it
 +    if (candidateStringVector.size() == 1 && !autocomposing) {
@@ -103,11 +159,12 @@
 +    // VSCode-like fuzzy matching fallback
 +    if (isWeakMatchEnabled() && candidateStringVector.size() < 3) {
 +        getCandidatesWithFuzzy(keyseq.getSeq(), candidateStringVector);
++        applyLocalityBonus(candidateStringVector);
 +    }
  
      if (!autocomposing) {
          buf->clear()->append(candidateStringVector[0].c_str())->update();
-@@ -370,6 +420,15 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
+@@ -370,6 +449,15 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
      candi.prepare(&candidateStringVector,
                    const_cast<char*>(currentSelKey.c_str()), textbar);
  
@@ -115,16 +172,36 @@
 +    if (candidateStringVector.empty() && isWeakMatchEnabled()) {
 +        getCandidatesWithFuzzy(keyseq.getSeq(), candidateStringVector);
 +        if (!candidateStringVector.empty()) {
++            applyLocalityBonus(candidateStringVector);
 +            candi.prepare(&candidateStringVector,
 +                          const_cast<char*>(currentSelKey.c_str()), textbar);
 +        }
 +    }
      return 1;
  }
-@@ -420,6 +479,10 @@ int OVGenericContext::candidateEvent(OVKeyCode *key, OVBuffer *buf,
+@@ -420,6 +508,15 @@ int OVGenericContext::candidateEvent(OVKeyCode *key, OVBuffer *buf,
          textbar->hide()->clear();
          candi.cancel();
          buf->clear()->update();
 +        keyseq.clear();
          return 1;
      }
+ 
+@@ -430,6 +527,16 @@ int OVGenericContext::candidateEvent(OVKeyCode *key, OVBuffer *buf,
+         candi.pageUp()->update(textbar);
+         return 1;
+     }
+ 
++    // Record selected word for locality bonus
++    if (key->code() == ovkReturn ||
++        (candi.onePage() && key->code()==ovkSpace)) {
++        char c = candi.getSelKey()[0];
++        string output;
++        if (candi.select(c, output)) {
++            recordSelectedWord(output);
++        }
++    }
++
+     // enter == first candidate
+     // space (when candidate list has only one page) == first candidate
+     char c = key->code();
