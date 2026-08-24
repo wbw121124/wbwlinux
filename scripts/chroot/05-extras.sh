@@ -565,6 +565,10 @@ jyhss 记忆化搜索
 bz 倍增
 hx 哈希
 zfc 字符串
+zfc 字符串哈希
+zfc 字符串匹配
+str 字符串
+string 字符串
 zfchx 字符串哈希
 zfcpp 字符串匹配
 kmp KMP算法
@@ -589,16 +593,26 @@ ddl 单调队列
 lb 链表
 kzlb 块状链表
 bcj 并查集
+bcj Disjoint Set Union
+bcj DSU
 szsz 树状数组
+szsz Binary Indexed Tree
+szsz BIT
+szsz Fenwick
 xds 线段树
+xds Segment Tree
+xds SegTree
 zxs 主席树
-lcxds 李超线段树
-jsjxds 吉司机线段树
-kcjhxds 可持久化线段树
-kcjphs 可持久化平衡树
+zxs Persistent Segment Tree
+zxs Chairman Tree
 phs 平衡树
+phs Balanced Tree
+phs AVL树
+phs 红黑树
 avl AVL树
 hhs 红黑树
+rbt 红黑树
+redblack 红黑树
 tgy 替罪羊
 dkess 笛卡尔树
 slpf 树链剖分
@@ -623,14 +637,22 @@ ax A星搜索
 ljb 邻接表
 ljjz 邻接矩阵
 zdl 最短路
-dij Dijkstra
+zdl Dijkstra 算法
+zdl SPFA
+zdl Floyd 算法
+zdl Bellman-Ford 算法
+zdl Prim 算法
+zdl Kruskal 算法
+dij Dijkstra 算法
 spfa SPFA
-flyd 弗洛伊德
-bemft 贝尔曼福特
+flyd Floyd 算法
+bemft Bellman-Ford 算法
 zxscs 最小生成树
+zxscs Kruskal 算法
+zxscs Prim 算法
 cxscs 次小生成树
-klskr 克鲁斯卡尔
-pm Prim算法
+klskr Kruskal 算法
+pm Prim 算法
 tplx 拓扑排序
 qlfl 强连通分量
 slfl 双连通分量
@@ -1234,6 +1256,11 @@ sdx 深度学习
 sjw 神经网络
 sfd 算法导论
 icp ICPC
+icpc ICPC
+noi NOIP
+usaco USACO
+ioi IOI
+ccpc CCPC
 noi NOIP
 sjf 时间复杂度
 kjf 空间复杂度
