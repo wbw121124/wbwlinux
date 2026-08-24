@@ -462,11 +462,11 @@ if [ ! -e /usr/lib/ucimf/openvanilla.so ]; then
 fi
 
 if [ ! -e /usr/lib/openvanilla/OVIMGeneric.so ]; then
-    log "==> openvanilla-modules git-${OV_MODULES_COMMIT:0:7} (OVIMGeneric + OVIMChewing + zh_CN/zh_TW tables)"
+    log "==> openvanilla-modules git-${OV_MODULES_COMMIT:0:7} (OVIMGeneric + zh_CN tables)"
     mkdir -p openvanilla-modules-src
     tar xf "$OV_MODULES_TARBALL" -C openvanilla-modules-src --strip-components=1
     cd openvanilla-modules-src
-    ./configure --prefix=/usr --disable-asia --enable-zh_CN --enable-zh_TW --enable-chewing \
+    ./configure --prefix=/usr --disable-asia --enable-zh_CN \
                 CXXFLAGS="-O2 -Wno-narrowing"
     make -j"$NPROC"
     make install
@@ -1361,7 +1361,7 @@ cat > /usr/local/bin/fbterm-zh << 'EOF'
 #
 # Available IMs (OVIMGeneric tables in /usr/share/openvanilla/OVIMGeneric/):
 #   pinyin.cin, pinyin0.cin, shuangpin.cin, wubizixing.cin, wbx.cin,
-#   zhengma.cin, cs-oi.cin (算法竞赛术语), and zh_TW tables (Chewing, etc.)
+#   zhengma.cin, cs-oi.cin (算法竞赛术语)
 FONT_NAMES="Fira Code,WenQuanYi Micro Hei"
 if [ ! -e /dev/fb0 ]; then
     echo "fbterm-zh: /dev/fb0 not available, staying on plain console" >&2
