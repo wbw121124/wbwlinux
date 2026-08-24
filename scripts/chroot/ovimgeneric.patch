@@ -1,0 +1,82 @@
+--- a/Modules/OVIMGeneric/OVIMGeneric.cpp
++++ b/Modules/OVIMGeneric/OVIMGeneric.cpp
+@@ -10,6 +10,8 @@
+ #include "OVIMGeneric.h"
+ #include "CIN-Defaults.h"
+ 
++#include <unordered_set>
++#include <algorithm>
+ #ifdef __linux__
+ #include <stdio.h>
+ #endif
+@@ -230,6 +232,28 @@ void OVGenericContext::updateDisplay(OVBuffer *buf)
+     buf->update();
+ }
+ 
++// Deduplicate candidates: remove entries with same text but different keys
++void OVGenericContext::deduplicateCandidates(std::vector<std::string>& candidates) {
++    std::unordered_set<std::string> seen;
++    std::vector<std::string> result;
++    result.reserve(candidates.size());
++    for (const auto& cand : candidates) {
++        if (seen.insert(cand).second) {
++            result.push_back(cand);
++        }
++    }
++    candidates.swap(result);
++}
++
++// Weak matching: if prefix-match enabled, also match by prefix
++bool OVGenericContext::weakMatch(const std::string& key, const std::string& prefix) {
++    if (key.size() >= prefix.size() && key.compare(0, prefix.size(), prefix) == 0) {
++        return true;
++    }
++    return false;
++}
++
+ void OVGenericContext::clear() {
+     keyseq.clear();
+     autocomposing = false;
+@@ -350,6 +374,8 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
+ 
+     if (size == 1 && !autocomposing) {
+         buf->clear()->append(candidateStringVector[0].c_str())->update()->send();
++        keyseq.clear();
+         return 1;
+     }
+@@ -360,6 +386,11 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
+     }
+ 
+     // Deduplicate candidates before showing
++    deduplicateCandidates(candidateStringVector);
++    
++    // Weak matching: if only one candidate after dedup and not autocomposing, use it
++    if (candidateStringVector.size() == 1 && !autocomposing) {
++        buf->clear()->append(candidateStringVector[0].c_str())->update()->send();
++        keyseq.clear();
++        return 1;
++    }
+ 
+     if (!autocomposing) {
+         buf->clear()->append(candidateStringVector[0].c_str())->update();
+@@ -370,6 +401,15 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
+     candi.prepare(&candidateStringVector,
+                   const_cast<char*>(currentSelKey.c_str()), textbar);
+ 
++    // If weak match enabled and no exact match, try prefix match
++    // This is handled by ucimf's prefix-match=1 config, but we also support it here
++    // for cases where ucimf config is not loaded yet
++    if (candidateStringVector.empty() && parent->isAutoCompose()) {
++        // Try to get candidates with wildcard support
++        cintab->getWordVectorByCharWithWildcardSupport(keyseq.getSeq(), candidateStringVector, parent->matchOneChar(), parent->matchZeroOrMoreChar());
++        deduplicateCandidates(candidateStringVector);
++    }
+     return 1;
+ }
+@@ -420,6 +460,10 @@ int OVGenericContext::candidateEvent(OVKeyCode *key, OVBuffer *buf,
+         textbar->hide()->clear();
+         candi.cancel();
+         buf->clear()->update();
++        keyseq.clear();
+         return 1;
+     }

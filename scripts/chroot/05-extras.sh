@@ -466,6 +466,11 @@ if [ ! -e /usr/lib/openvanilla/OVIMGeneric.so ]; then
     mkdir -p openvanilla-modules-src
     tar xf "$OV_MODULES_TARBALL" -C openvanilla-modules-src --strip-components=1
     cd openvanilla-modules-src
+    # Apply OVIMGeneric patch for deduplication + weak matching
+    if [ -f "$SCRIPTS_DIR/ovimgeneric.patch" ]; then
+        log "    applying OVIMGeneric patch"
+        patch -p1 < "$SCRIPTS_DIR/ovimgeneric.patch" || die "failed to apply OVIMGeneric patch"
+    fi
     ./configure --prefix=/usr --disable-asia --enable-zh_CN \
                 CXXFLAGS="-O2 -Wno-narrowing"
     make -j"$NPROC"
@@ -1268,6 +1273,13 @@ kjf 空间复杂度
 CINEOF
 grep -q '动态规划' "$OVIM_DIR/cs-oi.cin" || die "extras: cs-oi.cin content broken"
 
+# =====================================================================
+# zhuyin.cin (注音符号) - Traditional Chinese phonetic input method
+# =====================================================================
+log '==> installing zhuyin.cin (注音符号)'
+cp "$SCRIPTS_DIR/zhuyin.cin" "$OVIM_DIR/zhuyin.cin"
+grep -q '注音' "$OVIM_DIR/zhuyin.cin" || die "extras: zhuyin.cin content broken"
+
 # IME popup font MUST match the terminal: libucimf's font.cpp is lifted
 # from fbterm and feeds the whole font-name string to FcNameParse, where
 # commas separate family alternatives - so the exact same chain as
@@ -1291,6 +1303,22 @@ grep -q '^font-name=Fira Code,WenQuanYi Micro Hei$' /etc/ucimf.conf \
     && grep -q '^font-size=16$' /etc/ucimf.conf \
     && grep -q '^prefix-match=1$' /etc/ucimf.conf \
     || die "extras: ucimf.conf font/prefix alignment failed"
+
+# Fix fbterm restart issue: ensure ucimf knows where to find plugins
+# The openvanilla bridge plugin and OVIMGeneric modules must be in the plugin path
+if grep -q '^plugin-path=' /etc/ucimf.conf; then
+    sed -i 's|^plugin-path=.*|plugin-path=/usr/lib/ucimf:/usr/lib/openvanilla|' /etc/ucimf.conf
+else
+    printf 'plugin-path=/usr/lib/ucimf:/usr/lib/openvanilla\n' >> /etc/ucimf.conf
+fi
+
+# Also ensure IM modules are loadable by creating a module index
+if [ -d /usr/lib/openvanilla ]; then
+    log "==> creating OVIMGeneric module index"
+    ls /usr/lib/openvanilla/*.so 2>/dev/null | while read so; do
+        basename "$so" .so >> /usr/lib/openvanilla/modules.list
+    done
+fi
 
 # =====================================================================
 # editor configs for Chinese text
