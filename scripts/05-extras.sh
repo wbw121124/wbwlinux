@@ -90,7 +90,9 @@ mount_kernfs
 mkdir -p "$LFS_ROOT/build/chroot"
 cp -v env.sh common.sh "$LFS_ROOT/build/"
 cp -v chroot/05-extras.sh chroot/06-xorg-xfce.sh chroot/arch-resolve.py \
+      chroot/ovimgeneric.patch chroot/zhuyin.cin \
       "$LFS_ROOT/build/chroot/"
+cp -v chroot/zhuyin.cin "$LFS_ROOT/build/zhuyin.cin"
 
 chroot "$LFS_ROOT" /usr/bin/env -i \
     HOME=/root TERM="$TERM" PS1='(lfs chroot) \u:\w\$ ' \
