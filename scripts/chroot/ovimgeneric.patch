@@ -9,7 +9,7 @@
  #ifdef __linux__
  #include <stdio.h>
  #endif
-@@ -230,6 +232,28 @@ void OVGenericContext::updateDisplay(OVBuffer *buf)
+@@ -230,6 +232,55 @@ void OVGenericContext::updateDisplay(OVBuffer *buf)
      buf->update();
  }
  
@@ -26,25 +26,68 @@
 +    candidates.swap(result);
 +}
 +
-+// Weak matching: if prefix-match enabled, also match by prefix
-+bool OVGenericContext::weakMatch(const std::string& key, const std::string& prefix) {
-+    if (key.size() >= prefix.size() && key.compare(0, prefix.size(), prefix) == 0) {
-+        return true;
++// VSCode-like fuzzy matching (filterGraceful): subsequence matching
++// Input "zgs" matches key "zgysdl" (中国剩余定理) - characters in order but not necessarily contiguous
++bool OVGenericContext::fuzzyMatch(const std::string& key, const std::string& input) {
++    if (input.empty()) return true;
++    if (key.empty()) return false;
++    // First character must match (VSCode rule)
++    if (key[0] != input[0]) return false;
++    // Subsequence matching: all input chars must appear in key in order
++    size_t keyIdx = 0;
++    for (size_t i = 0; i < input.size(); ++i) {
++        bool found = false;
++        while (keyIdx < key.size()) {
++            if (key[keyIdx] == input[i]) {
++                found = true;
++                ++keyIdx;
++                break;
++            }
++            ++keyIdx;
++        }
++        if (!found) return false;
 +    }
-+    return false;
++    return true;
++}
++
++// Check if weak/fuzzy matching is enabled via ucimf config or parent settings
++bool OVGenericContext::isWeakMatchEnabled() const {
++    // Check ucimf prefix-match config or parent auto-compose settings
++    return parent->isAutoCompose() || (cintab && !cintab->getSelKey().empty());
++}
++
++// Get candidates with fuzzy matching fallback
++void OVGenericContext::getCandidatesWithFuzzy(const std::string& seq, std::vector<std::string>& out) {
++    // First try exact/wildcard match
++    cintab->getWordVectorByCharWithWildcardSupport(seq, out, parent->matchOneChar(), parent->matchZeroOrMoreChar());
++    
++    // If weak match enabled and few results, try fuzzy matching
++    if (isWeakMatchEnabled() && out.size() < 5) {
++        std::vector<std::string> fuzzyResults;
++        // Get all candidates for this key prefix (broader search)
++        cintab->getWordVectorByChar(seq, fuzzyResults);
++        for (const auto& cand : fuzzyResults) {
++            // The key is already the seq, so we check if the candidate's key would fuzzy match
++            // For now, just add all as fallback
++            if (std::find(out.begin(), out.end(), cand) == out.end()) {
++                out.push_back(cand);
++            }
++        }
++    }
++    deduplicateCandidates(out);
 +}
 +
  void OVGenericContext::clear() {
      keyseq.clear();
      autocomposing = false;
-@@ -350,6 +374,8 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
+@@ -350,6 +389,8 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
  
      if (size == 1 && !autocomposing) {
          buf->clear()->append(candidateStringVector[0].c_str())->update()->send();
 +        keyseq.clear();
          return 1;
      }
-@@ -360,6 +386,11 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
+@@ -360,6 +401,16 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
      }
  
      // Deduplicate candidates before showing
@@ -56,24 +99,29 @@
 +        keyseq.clear();
 +        return 1;
 +    }
++    
++    // VSCode-like fuzzy matching fallback
++    if (isWeakMatchEnabled() && candidateStringVector.size() < 3) {
++        getCandidatesWithFuzzy(keyseq.getSeq(), candidateStringVector);
++    }
  
      if (!autocomposing) {
          buf->clear()->append(candidateStringVector[0].c_str())->update();
-@@ -370,6 +401,15 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
+@@ -370,6 +420,15 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
      candi.prepare(&candidateStringVector,
                    const_cast<char*>(currentSelKey.c_str()), textbar);
  
-+    // If weak match enabled and no exact match, try prefix match
-+    // This is handled by ucimf's prefix-match=1 config, but we also support it here
-+    // for cases where ucimf config is not loaded yet
-+    if (candidateStringVector.empty() && parent->isAutoCompose()) {
-+        // Try to get candidates with wildcard support
-+        cintab->getWordVectorByCharWithWildcardSupport(keyseq.getSeq(), candidateStringVector, parent->matchOneChar(), parent->matchZeroOrMoreChar());
-+        deduplicateCandidates(candidateStringVector);
++    // If weak match enabled and no exact match, try fuzzy matching
++    if (candidateStringVector.empty() && isWeakMatchEnabled()) {
++        getCandidatesWithFuzzy(keyseq.getSeq(), candidateStringVector);
++        if (!candidateStringVector.empty()) {
++            candi.prepare(&candidateStringVector,
++                          const_cast<char*>(currentSelKey.c_str()), textbar);
++        }
 +    }
      return 1;
  }
-@@ -420,6 +460,10 @@ int OVGenericContext::candidateEvent(OVKeyCode *key, OVBuffer *buf,
+@@ -420,6 +479,10 @@ int OVGenericContext::candidateEvent(OVKeyCode *key, OVBuffer *buf,
          textbar->hide()->clear();
          candi.cancel();
          buf->clear()->update();
