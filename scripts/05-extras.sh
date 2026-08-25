@@ -24,6 +24,7 @@ declare -A urls=(
   ["powershell-$PWSH_VER-linux-x64.tar.gz"]="$POWERSHELL_URL/v$PWSH_VER/powershell-$PWSH_VER-linux-x64.tar.gz"
   ["nvim-$NVIM_VER.tar.gz"]="$NEOVIM_URL/v$NVIM_VER.tar.gz"
   ["cmake-$CMAKE_VER-linux-x86_64.tar.gz"]="https://github.com/Kitware/CMake/releases/download/v$CMAKE_VER/cmake-$CMAKE_VER-linux-x86_64.tar.gz"
+  ["luajit-$LUAJIT_VER.tar.gz"]="https://github.com/LuaJIT/LuaJIT/archive/refs/tags/v$LUAJIT_VER.tar.gz"
   ["icu4c-$ICU_VER-sources.tgz"]="$ICU_URL/icu4c-$ICU_VER-sources.tgz"
   ["nano-$NANO_VER.tar.xz"]="https://www.nano-editor.org/dist/v8/nano-$NANO_VER.tar.xz"
   ["freetype-$FREETYPE_VER.tar.xz"]="https://downloads.sourceforge.net/freetype/freetype-$FREETYPE_VER.tar.xz"
