@@ -146,6 +146,7 @@ if [ ! -e /usr/local/bin/nvim ]; then
     cd "neovim-$NVIM_VER"
     "$CMAKE_BIN" -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo \
                  -DCMAKE_INSTALL_PREFIX=/usr/local
+    cmake --build build --target deps -j"$NPROC"
     cmake --build build -j"$NPROC"
     cmake --install build
     cd "$DL"
