@@ -29,6 +29,7 @@ Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
 | wget | 1.25.0 | 源码编译（`--with-ssl=openssl`） |
 | fd / ripgrep / bat | 10.4.2 / 15.2.0 / 0.26.1 | 官方 musl 静态二进制（零依赖直接运行） |
 | htop | 3.5.3 | Debian 预编译（仅依赖 ncurses/libc） |
+| sudo | 1.9.17p2 | 源码编译（BLFS 风格，shadow 认证 + `/etc/sudoers` + wheel 组，visudo 在 `/usr/sbin`） |
 | which | — | 最小 POSIX sh 脚本实现 |
 | X.Org Server + XFCE4 | xorg-server / xfce4 全家桶 | Arch 二进制仓库依赖闭包导入（构建期解析，LFS 已有库全部跳过） |
 

@@ -1696,7 +1696,7 @@ pkg_register bat "$BAT_VER" "bat - cat clone with syntax highlighting" \
 pkg_register htop "$HTOP_VER" "interactive process viewer" \
     /usr/bin/htop /usr/share/man/man1/htop.1.gz
 pkg_register sudo "$SUDO_VER" "sudo - execute a command as another user" \
-    /usr/bin/sudo /usr/bin/visudo /usr/bin/sudoreplay /etc/sudoers /usr/lib/sudo
+    /usr/bin/sudo /usr/sbin/visudo /usr/bin/sudoreplay /etc/sudoers /usr/lib/sudo
 
 log '==> building local [lfscn] repository'
 if ! repo-add /usr/local/repo/lfscn/lfscn.db.tar.gz \
@@ -1729,7 +1729,7 @@ for f in /usr/bin/fbterm /usr/bin/fbterm_ucimf \
          /usr/bin/curl /usr/lib/libarchive.so \
          /usr/bin/which /usr/bin/wget /usr/bin/fd /usr/bin/rg \
          /usr/bin/bat /usr/bin/htop \
-         /usr/bin/sudo /usr/bin/visudo /etc/sudoers \
+         /usr/bin/sudo /usr/sbin/visudo /etc/sudoers \
          /usr/local/repo/lfscn/lfscn.db.tar.gz; do
     [ -e "$f" ] || die "extras self-check: missing $f"
 done
