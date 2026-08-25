@@ -120,7 +120,7 @@ fi
 # =====================================================================
 # Neovim 0.12.5 (source build, installs to /usr/local)
 # cmake 3.31.6 (standalone binary, used only for nvim build then removed)
-# LuaJIT 2.1 (built from source, neovim cmake needs Lua 5.1 interpreter)
+# Lua 5.1 (built from source, neovim cmake needs Lua 5.1 interpreter)
 # =====================================================================
 if [ ! -e /usr/local/bin/nvim ]; then
     log "==> Neovim $NVIM_VER (source build)"
@@ -130,16 +130,16 @@ if [ ! -e /usr/local/bin/nvim ]; then
     tar xf "cmake-$CMAKE_VER-linux-x86_64.tar.gz" -C /opt
     CMAKE_BIN="/opt/cmake-$CMAKE_VER-linux-x86_64/bin/cmake"
 
-    # Build LuaJIT (neovim needs Lua 5.1 interpreter; Arch closure not yet imported)
-    log "    building LuaJIT $LUAJIT_VER"
-    tar xf "luajit-$LUAJIT_VER.tar.gz"
-    cd "LuaJIT-$LUAJIT_VER"
-    make -j"$NPROC" PREFIX=/usr/local
-    make install PREFIX=/usr/local
+    # Build Lua 5.1 (neovim needs Lua 5.1 interpreter; Arch closure not yet imported)
+    log "    building Lua $LUA_VER"
+    tar xf "lua-$LUA_VER.tar.gz"
+    cd "lua-$LUA_VER"
+    make linux -j"$NPROC"
+    make install INSTALL_TOP=/usr/local
     cd "$DL"
-    rm -rf "LuaJIT-$LUAJIT_VER"
+    rm -rf "lua-$LUA_VER"
     ldconfig
-    luajit -v | head -1
+    lua -v
 
     # Build neovim from source
     tar xf "nvim-$NVIM_VER.tar.gz"

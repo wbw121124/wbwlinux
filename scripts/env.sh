@@ -36,9 +36,9 @@ export NVIM_VER=0.12.5
 # cmake standalone binary (needed to build neovim from source; Arch closure
 # does not include cmake since it is a build-time-only dep)
 export CMAKE_VER=3.31.6
-# LuaJIT (neovim cmake needs Lua 5.1 interpreter; built from source before
+# Lua 5.1 (neovim cmake needs Lua 5.1 interpreter; built from source before
 # neovim because Arch closure is imported later in 06-xorg-xfce.sh)
-export LUAJIT_VER=2.1.1741730166
+export LUA_VER=5.1.5
 # NetworkManager (prebuilt from Arch repo; pacman 7.1 needs it for Wi-Fi)
 export NM_VER=1.58.1
 # VS Code (prebuilt from Microsoft; not installed by default)
