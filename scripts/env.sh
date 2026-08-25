@@ -31,7 +31,15 @@ export LFS_BOOK_URL=https://www.linuxfromscratch.org/lfs/downloads/13.0-systemd
 export NODE_URL=https://nodejs.org/dist/$NODE_VER
 export RUST_URL=https://static.rust-lang.org/dist
 export POWERSHELL_URL=https://github.com/PowerShell/PowerShell/releases/download
-export NEOVIM_URL=https://github.com/neovim/neovim/releases/download
+export NEOVIM_URL=https://github.com/neovim/neovim/archive/refs/tags
+export NVIM_VER=0.12.5
+# cmake standalone binary (needed to build neovim from source; Arch closure
+# does not include cmake since it is a build-time-only dep)
+export CMAKE_VER=3.31.6
+# NetworkManager (prebuilt from Arch repo; pacman 7.1 needs it for Wi-Fi)
+export NM_VER=1.58.1
+# VS Code (prebuilt from Microsoft; not installed by default)
+export VSCODE_VER=1.134.0
 export ICU_URL=https://github.com/unicode-org/icu/releases/download/release-78.2
 
 # Powershell 7.6.4 (linux-x64 tarball)
@@ -77,6 +85,9 @@ export SUDO_VER=1.9.17p2
 
 # git (version control for live system)
 export GIT_VER=2.55.0
+
+# Firefox (prebuilt binary from Mozilla; packaged but not installed by default)
+export FIREFOX_VER=154.0
 
 # Rea-Dark XFCE theme (GTK2 + GTK3 + xfwm4)
 # Pinned to commit 1a422b0ec86e9fc6d349d17a770d933dbf2c00f8 (2026-02-24)

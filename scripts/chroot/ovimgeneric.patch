@@ -11,7 +11,7 @@
  #ifdef __linux__
  #include <stdio.h>
  #endif
-@@ -230,6 +234,85 @@ void OVGenericContext::updateDisplay(OVBuffer *buf)
+@@ -230,6 +234,122 @@ void OVGenericContext::updateDisplay(OVBuffer *buf)
      buf->update();
  }
  
@@ -80,7 +80,7 @@
 +}
 +
 +// VSCode-like fuzzy matching (filterGraceful): subsequence matching
-+// Input "zgs" matches candidate "zgysdl" (中国剩余定理) - characters in order but not necessarily contiguous
++// Input "zgs" matches candidate "zgysdl" - characters in order but not necessarily contiguous
 +bool OVGenericContext::fuzzyMatch(const std::string& candidate, const std::string& input) {
 +    if (input.empty()) return true;
 +    if (candidate.empty()) return false;
@@ -134,14 +134,14 @@
  void OVGenericContext::clear() {
      keyseq.clear();
      autocomposing = false;
-@@ -350,6 +407,8 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
+@@ -350,6 +470,7 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
  
      if (size == 1 && !autocomposing) {
          buf->clear()->append(candidateStringVector[0].c_str())->update()->send();
 +        keyseq.clear();
          return 1;
      }
-@@ -360,6 +419,26 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
+@@ -360,6 +481,21 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
      }
  
      // Deduplicate candidates before showing
@@ -165,7 +165,7 @@
  
      if (!autocomposing) {
          buf->clear()->append(candidateStringVector[0].c_str())->update();
-@@ -370,6 +449,15 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
+@@ -370,6 +506,15 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
      candi.prepare(&candidateStringVector,
                    const_cast<char*>(currentSelKey.c_str()), textbar);
  
@@ -178,10 +178,9 @@
 +                          const_cast<char*>(currentSelKey.c_str()), textbar);
 +        }
 +    }
-+    }
      return 1;
  }
-@@ -420,6 +508,15 @@ int OVGenericContext::candidateEvent(OVKeyCode *key, OVBuffer *buf,
+@@ -420,6 +565,7 @@ int OVGenericContext::candidateEvent(OVKeyCode *key, OVBuffer *buf,
          textbar->hide()->clear();
          candi.cancel();
          buf->clear()->update();
@@ -189,7 +188,7 @@
          return 1;
      }
  
-@@ -430,6 +527,16 @@ int OVGenericContext::candidateEvent(OVKeyCode *key, OVBuffer *buf,
+@@ -430,6 +576,16 @@ int OVGenericContext::candidateEvent(OVKeyCode *key, OVBuffer *buf,
          candi.pageUp()->update(textbar);
          return 1;
      }

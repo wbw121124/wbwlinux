@@ -1,7 +1,7 @@
 # LFS-CN Live ISO 构建计划
 
 ## 目标
-在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**run#88 QEMU 实测三项问题已定位并修复（OVIMGeneric locality bonus 补丁路径漏写、polkit agent 25s 超时、systemctl --user 噪声），新增 Rea-Dark XFCE 主题，准备 from-base 重跑**。根因十三已彻底解决并经 CI run#48 产物 QEMU 实测通过（整个根文件系统可写、引导干净进入自动登录、无 FAILED 单元）。2026-08-22 新增：ucimf 中文输入法栈 + Fira Code 字体。2026-08-23 新增：CLI 工具包 + X.Org/XFCE 预装 + 竞赛码表。2026-08-24 新增：sudo 1.9.17p2。
+在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**OVIMGeneric 补丁 hunk header 行数全错导致 malformed patch + 多余 } 已修复，neovim 改为源码编译（/usr/local），新增 NetworkManager/VS Code/Firefox pacman 包（仓库可安装，默认未安装），git 2.55.0 源码编译**。
 
 ## 根因三十二（run#88 QEMU 实证，已修）：OVIMGeneric locality bonus 补丁路径静默跳过
 **host 侧 05-extras.sh 将 `chroot/ovimgeneric.patch` 拷贝到 `$LFS_ROOT/build/chroot/ovimgeneric.patch`（chroot 内 `/build/chroot/ovimgeneric.patch`）；但 chroot 侧 05-extras.sh 第 502 行检查 `$SCRIPTS_DIR/ovimgeneric.patch`（`/build/ovimgeneric.patch`）——少了 `chroot/` 子目录 → `[ -f ]` 永远 false → patch 静默跳过，locality bonus / dedup / fuzzy matching / weak match fallback 全部未编译进 OVIMGeneric.so。**
@@ -350,3 +350,11 @@
 - `D:\wbw121124\log14tc.txt`：根因证据（09:14:36-37 configure-target-libgcc Error 1/2）。
 - `D:\wbw121124\log14base.txt`：base 失败证据（ld cannot find crtbeginS.o / -lgcc / -lgcc_s，约 320 行）。
 - LFS-CN 参考：https://lfs.xry111.site/zh_CN/systemd/chapter06/gcc-pass2.html
+
+## 根因三十六（OVIMGeneric 补丁 malformed patch）
+`ovimgeneric.patch` 的 hunk header 行数几乎全部错误，导致 `patch` 工具在第二个 hunk 处解析失败：`malformed patch at line 100: +        }`。另外第181行有一个多余的 `}` 会导致 compose 函数提前关闭（编译错误）。
+
+- 证据：`Hunk #1 succeeded at 33 (offset 23 lines). patch: **** malformed patch at line 100: +        }`
+- 根因：手工维护的 unified diff，hunk header 中的 `+行数` 与实际 `+` 行数不匹配（例如声称85行实际122行），patch 工具读取超出 hunk 范围后遇到无法解析的行。
+- 修复：重写整个补丁文件，逐 hunk 校正行数 + 删除多余 `}`。
+- 附带变更：neovim 从预编译二进制（/opt/nvim-linux-x86_64）改为源码编译（cmake → /usr/local）；新增 NetworkManager 1.58.1 / VS Code 1.134.0 / Firefox 154.0 pacman 包；.bashrc PATH 移除 /opt/nvim-linux-x86_64/bin。

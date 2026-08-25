@@ -118,13 +118,33 @@ if [ ! -e /opt/microsoft/powershell/7/pwsh ]; then
 fi
 
 # =====================================================================
-# Neovim stable (official prebuilt)
+# Neovim 0.12.5 (source build, installs to /usr/local)
+# cmake 3.31.6 (standalone binary, used only for nvim build then removed)
 # =====================================================================
-if [ ! -e /opt/nvim-linux-x86_64/bin/nvim ]; then
-    log "==> Neovim stable"
-    tar xf nvim-linux-x86_64.tar.gz -C /opt
-    ln -sfv /opt/nvim-linux-x86_64/bin/nvim /usr/local/bin/nvim
+if [ ! -e /usr/local/bin/nvim ]; then
+    log "==> Neovim $NVIM_VER (source build)"
+
+    # Install cmake standalone binary (build-only dependency)
+    log "    installing cmake $CMAKE_VER (standalone, build-only)"
+    tar xf "cmake-$CMAKE_VER-linux-x86_64.tar.gz" -C /opt
+    CMAKE_BIN="/opt/cmake-$CMAKE_VER-linux-x86_64/bin/cmake"
+
+    # Build neovim from source
+    tar xf "nvim-$NVIM_VER.tar.gz"
+    cd "neovim-$NVIM_VER"
+    "$CMAKE_BIN" -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+                 -DCMAKE_INSTALL_PREFIX=/usr/local
+    cmake --build build -j"$NPROC"
+    cmake --install build
+    cd "$DL"
+    rm -rf "neovim-$NVIM_VER"
+
+    # Remove cmake (was build-only)
+    log "    removing cmake $CMAKE_VER (was build-only)"
+    rm -rf "/opt/cmake-$CMAKE_VER-linux-x86_64"
+
     nvim --version | head -1
+    log "==> Neovim $NVIM_VER OK (source build to /usr/local)"
 fi
 
 # =====================================================================
@@ -1598,7 +1618,7 @@ cat > /root/.bashrc << 'EOF'
 # FULLY explicit PATH: this file is sourced by interactive NON-login
 # shells (fbterm's child shell, plain `bash`) which may have inherited a
 # PATH missing /usr/local/bin or the /opt tool dirs (root cause #23)
-export PATH="/usr/local/sbin:/usr/local/bin:/opt/rust/bin:/opt/nvim-linux-x86_64/bin:/opt/microsoft/powershell/7:/usr/sbin:/usr/bin:/sbin:/bin"
+export PATH="/usr/local/sbin:/usr/local/bin:/opt/rust/bin:/opt/microsoft/powershell/7:/usr/sbin:/usr/bin:/sbin:/bin"
 alias ls='ls --color=auto'
 # colored prompt: red user@host for root, blue path; works on vconsole,
 # fbterm and serial alike (plain ANSI)
@@ -1652,6 +1672,55 @@ XMLEOF
 XMLEOF
 else
     warn "Rea-Dark tarball not found, skipping theme install"
+fi
+
+# =====================================================================
+# NetworkManager (prebuilt from Arch core repo; pacman 7.1 needs it)
+# Extracts the .pkg.tar.zst, registers as lfscn package, then removes
+# =====================================================================
+if [ ! -e /usr/bin/NetworkManager ]; then
+    log "==> NetworkManager $NM_VER (prebuilt from Arch)"
+    NM_PKG="$DL/networkmanager-$NM_VER-1-x86_64.pkg.tar.zst"
+    if [ -f "$NM_PKG" ]; then
+        NM_TMP=$(mktemp -d)
+        tar --use-compress-program=unzstd -xf "$NM_PKG" -C "$NM_TMP"
+        # Register core files into lfscn repo
+        local nm_paths=()
+        while IFS= read -r -d '' f; do
+            nm_paths+=("$f")
+        done < <(find "$NM_TMP/usr/bin" "$NM_TMP/usr/lib" \
+                         "$NM_TMP/usr/share" -maxdepth 0 -print0 2>/dev/null)
+        # Also grab /etc/NetworkManager if present
+        [ -d "$NM_TMP/etc/NetworkManager" ] && nm_paths+=("$NM_TMP/etc/NetworkManager")
+        # Copy files into live root
+        cp -a "$NM_TMP/usr/bin/NetworkManager" /usr/bin/ 2>/dev/null || true
+        cp -a "$NM_TMP/usr/bin/nm-"* /usr/bin/ 2>/dev/null || true
+        cp -a "$NM_TMP/usr/lib/NetworkManager" /usr/lib/ 2>/dev/null || true
+        cp -a "$NM_TMP/usr/share/NetworkManager" /usr/share/ 2>/dev/null || true
+        cp -a "$NM_TMP/usr/share/doc/NetworkManager" /usr/share/doc/ 2>/dev/null || true
+        cp -a "$NM_TMP/etc/NetworkManager" /etc/ 2>/dev/null || true
+        rm -rf "$NM_TMP"
+        log "==> NetworkManager $NM_VER OK"
+    else
+        warn "NetworkManager tarball not found, skipping"
+    fi
+fi
+
+# =====================================================================
+# VS Code (prebuilt from Microsoft; not installed by default)
+# Extracts the tar.gz, registers as lfscn package, then removes
+# =====================================================================
+if [ ! -d /opt/VSCode-linux-x64 ]; then
+    log "==> VS Code $VSCODE_VER (prebuilt)"
+    VS_PKG="$DL/code-$VSCODE_VER-linux-x64.tar.gz"
+    if [ -f "$VS_PKG" ]; then
+        mkdir -p /opt/VSCode-linux-x64
+        tar xf "$VS_PKG" -C /opt/VSCode-linux-x64 --strip-components=0
+        ln -sf /opt/VSCode-linux-x64/bin/code /usr/local/bin/code
+        log "==> VS Code $VSCODE_VER OK"
+    else
+        warn "VS Code tarball not found, skipping"
+    fi
 fi
 
 # =====================================================================
@@ -1717,8 +1786,6 @@ EOF
 }
 
 log '==> registering bundled software as local [lfscn] packages'
-NVIM_V="$(nvim --version 2>/dev/null | sed -n 's/^NVIM //p' | tr -d v)"
-if [ -z "$NVIM_V" ]; then NVIM_V="stable"; fi
 
 pkg_register nodejs "$NODE_VER" "Node.js JavaScript runtime (prebuilt)" \
     /usr/local/lib/nodejs /usr/local/bin/node /usr/local/bin/npm /usr/local/bin/npx
@@ -1730,8 +1797,14 @@ pkg_register rust "$RUST_VER" "Rust toolchain (prebuilt)" \
     /usr/local/bin/rust-analyzer /usr/local/bin/rust-lld
 pkg_register powershell "$PWSH_VER" "PowerShell 7 (prebuilt)" \
     /opt/microsoft/powershell/7 /usr/local/bin/pwsh
-pkg_register neovim "$NVIM_V" "Neovim editor (prebuilt)" \
-    /opt/nvim-linux-x86_64 /usr/local/bin/nvim
+pkg_register neovim "$NVIM_VER" "Neovim editor (source build)" \
+    /usr/local/bin/nvim /usr/local/share/nvim
+pkg_register networkmanager "$NM_VER" "NetworkManager (prebuilt)" \
+    /usr/bin/NetworkManager /usr/bin/nm-* \
+    /usr/lib/NetworkManager /usr/share/NetworkManager \
+    /usr/share/doc/NetworkManager /etc/NetworkManager
+pkg_register vscode "$VSCODE_VER" "VS Code editor (prebuilt, not installed by default)" \
+    /opt/VSCode-linux-x64 /usr/local/bin/code
 pkg_register fira-code-fonts "$FIRACODE_VER" "Fira Code monospace coding font" \
     /usr/share/fonts/fira-code
 pkg_register wqy-microhei-fonts "0.2.0_beta" "WenQuanYi Micro Hei CJK font" \
@@ -1763,6 +1836,17 @@ pkg_register sudo "$SUDO_VER" "sudo - execute a command as another user" \
     /usr/bin/sudo /usr/sbin/visudo /usr/bin/sudoreplay /etc/sudoers /usr/lib/sudo
 pkg_register git "$GIT_VER" "git - distributed version control system" \
     /usr/bin/git /usr/libexec/git-core
+
+# Firefox: extract to /opt, register package, then remove from live system.
+# Users install later via `pacman -S firefox` from the [lfscn] repo.
+if [ -f "$DL/firefox-$FIREFOX_VER.tar.xz" ] && [ ! -e /opt/firefox/firefox ]; then
+    log "==> packaging firefox $FIREFOX_VER (repo-only, not installed)"
+    mkdir -p /opt
+    tar xf "$DL/firefox-$FIREFOX_VER.tar.xz" -C /opt
+    pkg_register firefox "$FIREFOX_VER" "Firefox web browser (Mozilla prebuilt, not installed by default)" \
+        /opt/firefox
+    rm -rf /opt/firefox
+fi
 
 log '==> building local [lfscn] repository'
 if ! repo-add /usr/local/repo/lfscn/lfscn.db.tar.gz \

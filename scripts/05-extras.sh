@@ -22,7 +22,8 @@ declare -A urls=(
   ["node-$NODE_VER-linux-x64.tar.xz"]="$NODE_URL/node-$NODE_VER-linux-x64.tar.xz"
   ["rust-$RUST_VER-x86_64-unknown-linux-gnu.tar.xz"]="$RUST_URL/rust-$RUST_VER-x86_64-unknown-linux-gnu.tar.xz"
   ["powershell-$PWSH_VER-linux-x64.tar.gz"]="$POWERSHELL_URL/v$PWSH_VER/powershell-$PWSH_VER-linux-x64.tar.gz"
-  ["nvim-linux-x86_64.tar.gz"]="$NEOVIM_URL/stable/nvim-linux-x86_64.tar.gz"
+  ["nvim-$NVIM_VER.tar.gz"]="$NEOVIM_URL/v$NVIM_VER.tar.gz"
+  ["cmake-$CMAKE_VER-linux-x86_64.tar.gz"]="https://github.com/Kitware/CMake/releases/download/v$CMAKE_VER/cmake-$CMAKE_VER-linux-x86_64.tar.gz"
   ["icu4c-$ICU_VER-sources.tgz"]="$ICU_URL/icu4c-$ICU_VER-sources.tgz"
   ["nano-$NANO_VER.tar.xz"]="https://www.nano-editor.org/dist/v8/nano-$NANO_VER.tar.xz"
   ["freetype-$FREETYPE_VER.tar.xz"]="https://downloads.sourceforge.net/freetype/freetype-$FREETYPE_VER.tar.xz"
@@ -55,6 +56,12 @@ declare -A urls=(
   ["wget-$WGET_VER.tar.gz"]="https://ftp.gnu.org/gnu/wget/wget-$WGET_VER.tar.gz"
   ["sudo-$SUDO_VER.tar.gz"]="https://www.sudo.ws/dist/sudo-$SUDO_VER.tar.gz"
   ["git-$GIT_VER.tar.xz"]="https://mirrors.edge.kernel.org/pub/software/scm/git/git-$GIT_VER.tar.xz"
+  # Firefox (prebuilt binary; packaged but not installed by default)
+  ["firefox-$FIREFOX_VER.tar.xz"]="https://download-installer.cdn.mozilla.net/pub/firefox/releases/$FIREFOX_VER/linux-x86_64/en-US/firefox-$FIREFOX_VER.tar.xz"
+  # NetworkManager (prebuilt from Arch core repo; pacman 7.1 needs it for Wi-Fi)
+  ["networkmanager-$NM_VER-1-x86_64.pkg.tar.zst"]="https://geo.mirror.pkgbuild.com/core/os/x86_64/networkmanager-$NM_VER-1-x86_64.pkg.tar.zst"
+  # VS Code (prebuilt from Microsoft; not installed by default)
+  ["code-$VSCODE_VER-linux-x64.tar.gz"]="https://update.code.visualstudio.com/$VSCODE_VER/linux-x64/stable"
   # Rea-Dark XFCE theme (orchyn/XFCE, pinned to commit)
   ["orchyn-XFCE-main.tar.gz"]="https://codeload.github.com/orchyn/XFCE/tar.gz/$REA_COMMIT"
 )

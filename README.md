@@ -15,7 +15,7 @@ Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
 | Node.js | 24.19.0 | 官方预编译二进制 |
 | Rust | 1.93.1 | 官方预编译二进制 |
 | PowerShell | 7.6.4 | 官方 tarball |
-| Neovim | stable | 官方预编译 |
+| Neovim | 0.12.5 | 源码编译（cmake 构建，安装到 /usr/local） |
 | Nano | 8.7.1 | BLFS 源码编译（UTF-8） |
 | ICU | 78.2 | BLFS 源码编译 |
 | fbterm + 文泉驿微米黑 | 1.7 / 0.2.0-beta | 源码/字体 |
@@ -27,10 +27,14 @@ Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
 | pacman | 7.1.0 | 源码编译（含 ninja/meson/curl/libarchive 依赖链，`[lfscn]` 本地仓库） |
 | curl | 8.21.0 | LFS 源码编译（pacman 依赖链，同时作为独立工具注册） |
 | wget | 1.25.0 | 源码编译（`--with-ssl=openssl`） |
+| git | 2.55.0 | 源码编译（NO_TCLTK/NO_PERL/NO_PYTHON，仅核心功能） |
 | fd / ripgrep / bat | 10.4.2 / 15.2.0 / 0.26.1 | 官方 musl 静态二进制（零依赖直接运行） |
 | htop | 3.5.3 | Debian 预编译（仅依赖 ncurses/libc） |
 | sudo | 1.9.17p2 | 源码编译（BLFS 风格，shadow 认证 + `/etc/sudoers` + wheel 组，visudo 在 `/usr/sbin`） |
 | which | — | 最小 POSIX sh 脚本实现 |
+| NetworkManager | 1.58.1 | Arch 预编译包解包（pacman 7.1 需要，`[lfscn]` 仓库可安装） |
+| VS Code | 1.134.0 | 微软官方 tarball 解包（`[lfscn]` 仓库可安装，默认未安装） |
+| Firefox | 154.0 | Mozilla 官方 tarball 解包（`[lfscn]` 仓库可安装，默认未安装） |
 | X.Org Server + XFCE4 | xorg-server / xfce4 全家桶 | Arch 二进制仓库依赖闭包导入（构建期解析，LFS 已有库全部跳过） |
 | Rea-Dark 主题 | 1a422b0 (2026-02-24) | GitHub orchyn/XFCE（GTK2/GTK3/xfwm4，默认暗色主题，compositing 关闭） |
 
