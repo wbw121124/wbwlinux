@@ -147,6 +147,7 @@ if [ ! -e /usr/local/bin/nvim ]; then
     # do not exist yet (root cause #37).
     tar xf "nvim-$NVIM_VER.tar.gz"
     cd "neovim-$NVIM_VER"
+    export PATH="/opt/cmake-$CMAKE_VER-linux-x86_64/bin:$PATH"
     CMAKE_TLS_VERIFY=0 make -j"$NPROC" CMAKE_BUILD_TYPE=RelWithDebInfo \
          CMAKE_INSTALL_PREFIX=/usr/local
     make CMAKE_INSTALL_PREFIX=/usr/local install
