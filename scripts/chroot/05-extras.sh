@@ -1702,14 +1702,6 @@ if [ ! -e /usr/bin/NetworkManager ]; then
     if [ -f "$NM_PKG" ]; then
         NM_TMP=$(mktemp -d)
         tar --use-compress-program=unzstd -xf "$NM_PKG" -C "$NM_TMP"
-        # Register core files into lfscn repo
-        local nm_paths=()
-        while IFS= read -r -d '' f; do
-            nm_paths+=("$f")
-        done < <(find "$NM_TMP/usr/bin" "$NM_TMP/usr/lib" \
-                         "$NM_TMP/usr/share" -maxdepth 0 -print0 2>/dev/null)
-        # Also grab /etc/NetworkManager if present
-        [ -d "$NM_TMP/etc/NetworkManager" ] && nm_paths+=("$NM_TMP/etc/NetworkManager")
         # Copy files into live root
         cp -a "$NM_TMP/usr/bin/NetworkManager" /usr/bin/ 2>/dev/null || true
         cp -a "$NM_TMP/usr/bin/nm-"* /usr/bin/ 2>/dev/null || true

@@ -459,3 +459,9 @@ config-extras (完成)
 
 - 证据：本地 MSYS2 GNU tar 1.35 复现——pattern 在 `-C` 前 → 文件落在 cwd；`-C` 放最前 → 正常落入目标目录；无成员参数的经典用法 `tar xf a.tgz -C dir` 不受影响（这也是 Arch 导入 `06-xorg-xfce.sh` 一直正常的原因）。
 - 修复：`tar -C /usr/share/themes/ -xf "$THEME_DL" --wildcards '*/Rea/Rea-Dark/*' --strip-components=2`（`-C` 提到最前），并预先 `mkdir -p /usr/share/themes/Rea-Dark`。
+
+## 根因四十三（NetworkManager 段函数外使用 local）
+`chroot/05-extras.sh` NetworkManager 段在顶层作用域写了 `local nm_paths=()`（bash 的 `local` 只能在函数内使用），且该数组构建后从未被消费（纯死代码）。Rea-Dark 主题修复后流程首次推进到此处即中止。
+
+- 证据：`/build/chroot/05-extras.sh: 第 1706 行:local: 只能在函数中使用`
+- 修复：删除死代码块（`local nm_paths=()` + while/find 循环 + `/etc` append，共8行）。
