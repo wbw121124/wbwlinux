@@ -1,7 +1,26 @@
 # LFS-CN Live ISO 构建计划
 
 ## 目标
-在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**run#87（from-base）失败已定位并修复（根因三十一：sudo 自检断言 visudo 路径错，实装 /usr/sbin），准备再次 from-base 重跑**。根因十三已彻底解决并经 CI run#48 产物 QEMU 实测通过（整个根文件系统可写、引导干净进入自动登录、无 FAILED 单元）。2026-08-22 新增：ucimf 中文输入法栈 + Fira Code 字体。2026-08-23 新增：CLI 工具包 + X.Org/XFCE 预装 + 竞赛码表。2026-08-24 新增：sudo 1.9.17p2。
+在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**run#88 QEMU 实测三项问题已定位并修复（OVIMGeneric locality bonus 补丁路径漏写、polkit agent 25s 超时、systemctl --user 噪声），新增 Rea-Dark XFCE 主题，准备 from-base 重跑**。根因十三已彻底解决并经 CI run#48 产物 QEMU 实测通过（整个根文件系统可写、引导干净进入自动登录、无 FAILED 单元）。2026-08-22 新增：ucimf 中文输入法栈 + Fira Code 字体。2026-08-23 新增：CLI 工具包 + X.Org/XFCE 预装 + 竞赛码表。2026-08-24 新增：sudo 1.9.17p2。
+
+## 根因三十二（run#88 QEMU 实证，已修）：OVIMGeneric locality bonus 补丁路径静默跳过
+**host 侧 05-extras.sh 将 `chroot/ovimgeneric.patch` 拷贝到 `$LFS_ROOT/build/chroot/ovimgeneric.patch`（chroot 内 `/build/chroot/ovimgeneric.patch`）；但 chroot 侧 05-extras.sh 第 502 行检查 `$SCRIPTS_DIR/ovimgeneric.patch`（`/build/ovimgeneric.patch`）——少了 `chroot/` 子目录 → `[ -f ]` 永远 false → patch 静默跳过，locality bonus / dedup / fuzzy matching / weak match fallback 全部未编译进 OVIMGeneric.so。**
+- 对比：zhuyin.cin 在 host 第 96 行额外拷贝了一份到 `$LFS_ROOT/build/zhuyin.cin`（`/build/zhuyin.cin`），故 chroot 第 1391 行 `cp $SCRIPTS_DIR/zhuyin.cin` 能找到——ovimgeneric.patch 缺少同款额外拷贝。
+- 修复：chroot/05-extras.sh 第 502 行改为 `$SCRIPTS_DIR/chroot/ovimgeneric.patch`（与 host 实际拷贝路径一致）；同时将 silent skip 改为 die（防止补丁文件再次消失时静默回归）。
+
+## 根因三十三（run#88 QEMU 实证，已修）：polkit-gnome agent 25s 超时
+**startx 进入 XFCE 后，polkit-gnome-authentication-agent-1 通过 `/etc/xdg/autostart/polkit-gnome-authentication-agent-1.desktop` 自动启动，但 Arch 二进制闭包未包含 polkitd 守护进程（`org.freedesktop.PolicyKit1` 服务不存在）→ agent 向 DBus activation 发起 StartServiceByName → 25s 超时后报错退出。整个会话启动额外卡顿 25s。**
+- 修复：06-xorg-xfce.sh 包导入后，删除 polkit-gnome autostart desktop 文件（无 polkitd → agent 无用）。并加注释说明原因。
+
+## 根因三十四（run#88 QEMU 实证，已修）：systemctl --user import-environment 失败噪声
+**xfce4-session 的 xinitrc（`/etc/xdg/xfce4/xinitrc`）在 startxfce4 调用链中尝试 `systemctl --user import-environment`，但 LFS live 环境无 PAM / systemd --user 会话 → 进程退出 status 1 → 控制台输出 `Failed to import environment: Process org.freedesktop.systemd1 exited with status 1`。非致命但噪声大。**
+- 修复：06-xorg-xfce.sh 包导入后，用 sed 注释掉 `/etc/xdg/xfce4/xinitrc` 中含 `systemctl --user` 的行，保留其余逻辑。加自检断言。
+
+## 根因三十五（Rea-Dark 主题，新增）：XFCE 默认主题
+**XFCE 4.20 使用默认 gtk-theme（通常是 Adwaita），无定制暗色主题。新增 Rea-Dark（orchyn/XFCE，含 gtk-2.0 + gtk-3.0 + xfwm4）作为默认主题，通过 xfconf 写入 root 用户配置。**
+- 版本锁定：GitHub commit `1a422b0ec86e9fc6d349d17a770d933dbf2c00f8`（2026-02-24）
+- 路径：`/usr/share/themes/Rea-Dark`；xfconf 默认写入 `Net/ThemeName=Rea-Dark` + `Xfwm4/Theme=Rea-Dark`
+- 注意：xfwm4 compositing 在 QEMU 软件渲染 (llvmpipe) 下有 `Unsupported GL renderer` 警告 → 默认关闭 compositing（`use_compositing=false`）
 
 ## 根因三十一（run#87 实证，已修）：sudo 自检断言 visudo 安装路径错误
 **run#87（from-base）config+extras 其余全部通过（15 包 pacman 注册成功、cs-oi.cin/zhuyin.cin 安装、OVIMGeneric 模块索引、`pacman -Q` 列表正常），唯一失败点为 sudo 尾部自检 die：`ERROR: extras self-check: missing /usr/bin/visudo`。**

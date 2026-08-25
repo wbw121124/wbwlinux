@@ -54,6 +54,9 @@ declare -A urls=(
   ["htop-$HTOP_VER.tar.xz"]="https://github.com/htop-dev/htop/releases/download/$HTOP_VER/htop-$HTOP_VER.tar.xz"
   ["wget-$WGET_VER.tar.gz"]="https://ftp.gnu.org/gnu/wget/wget-$WGET_VER.tar.gz"
   ["sudo-$SUDO_VER.tar.gz"]="https://www.sudo.ws/dist/sudo-$SUDO_VER.tar.gz"
+  ["git-$GIT_VER.tar.xz"]="https://mirrors.edge.kernel.org/pub/software/scm/git/git-$GIT_VER.tar.xz"
+  # Rea-Dark XFCE theme (orchyn/XFCE, pinned to commit)
+  ["orchyn-XFCE-main.tar.gz"]="https://codeload.github.com/orchyn/XFCE/tar.gz/$REA_COMMIT"
 )
 declare -A mirrors=(
   ["node-$NODE_VER-linux-x64.tar.xz"]="https://registry.npmmirror.com/-/binary/node/$NODE_VER/node-$NODE_VER-linux-x64.tar.xz"

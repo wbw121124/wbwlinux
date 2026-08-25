@@ -113,6 +113,23 @@ EOF
 chmod 755 /root/.xinitrc
 
 # ---------------------------------------------------------------------
+# session cleanup: remove polkit agent (no polkitd installed,
+# agent hangs 25s on DBus activation; root live system needs no GUI auth)
+# root cause #33
+# ---------------------------------------------------------------------
+rm -f /etc/xdg/autostart/polkit-gnome-authentication-agent-1.desktop
+
+# ---------------------------------------------------------------------
+# session cleanup: comment out systemctl --user calls in xinitrc
+# (no PAM / systemd --user session; "Failed to import environment"
+# noise on every startx; root cause #34)
+# ---------------------------------------------------------------------
+XINITRC=/etc/xdg/xfce4/xinitrc
+if [ -f "$XINITRC" ]; then
+    sed -i 's|^\([^#].*systemctl --user\)|# \1|' "$XINITRC"
+fi
+
+# ---------------------------------------------------------------------
 # hard self-check: a half-imported GUI stack must fail the build
 # ---------------------------------------------------------------------
 for f in /usr/bin/Xorg /usr/bin/startx /usr/bin/xinit \

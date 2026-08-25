@@ -445,12 +445,36 @@ EOF
     chmod 440 /etc/sudoers
 fi
 
+# =====================================================================
+# git (version control system)
+# =====================================================================
+if [ ! -e /usr/bin/git ]; then
+    log "==> git $GIT_VER"
+    tar xf "git-$GIT_VER.tar.xz"
+    cd "git-$GIT_VER"
+    make prefix=/usr \
+         NO_TCLTK=1 \
+         NO_PERL=1 \
+         NO_PYTHON=1 \
+         NO_CURL=1 \
+         NO_EXPAT=1 \
+         NO_LIBPCRE2=1 \
+         NO_NLS=1 \
+         NO_GETTEXT=1 \
+         NO_GPGME=1 \
+         -j"$NPROC" all
+    make prefix=/usr install
+    cd "$DL"
+    rm -rf "git-$GIT_VER"
+fi
+
 fd --version
 rg --version | head -1
 bat --version
 htop --version
 wget --version | head -1
 sudo --version | head -1
+git --version
 
 # =====================================================================
 # ucimf console input method stack (Chinese input inside fbterm)
@@ -499,9 +523,12 @@ if [ ! -e /usr/lib/openvanilla/OVIMGeneric.so ]; then
     tar xf "$OV_MODULES_TARBALL" -C openvanilla-modules-src --strip-components=1
     cd openvanilla-modules-src
     # Apply OVIMGeneric patch for deduplication + weak matching
-    if [ -f "$SCRIPTS_DIR/ovimgeneric.patch" ]; then
+    # (root cause #32: host copies to /build/chroot/ovimgeneric.patch, not /build/)
+    if [ -f "$SCRIPTS_DIR/chroot/ovimgeneric.patch" ]; then
         log "    applying OVIMGeneric patch"
-        patch -p1 < "$SCRIPTS_DIR/ovimgeneric.patch" || die "failed to apply OVIMGeneric patch"
+        patch -p1 < "$SCRIPTS_DIR/chroot/ovimgeneric.patch" || die "failed to apply OVIMGeneric patch"
+    else
+        die "OVIMGeneric patch missing at $SCRIPTS_DIR/chroot/ovimgeneric.patch"
     fi
     ./configure --prefix=/usr --disable-asia --enable-zh_CN \
                 CXXFLAGS="-O2 -Wno-narrowing"
@@ -1591,6 +1618,43 @@ cat > /root/.bash_profile << 'EOF'
 EOF
 
 # =====================================================================
+# Rea-Dark XFCE theme (orchyn/XFCE, pinned to commit)
+# GTK2 + GTK3 + xfwm4 dark theme, set as default for root user
+# =====================================================================
+log '==> installing Rea-Dark XFCE theme'
+THEME_DL="$DL/orchyn-XFCE-main.tar.gz"
+if [ -f "$THEME_DL" ]; then
+    mkdir -p /usr/share/themes
+    tar xf "$THEME_DL" --wildcards '*/Rea/Rea-Dark/*' \
+        --strip-components=3 -C /usr/share/themes/
+    [ -d /usr/share/themes/Rea-Dark/gtk-3.0 ] \
+        || die "Rea-Dark theme missing gtk-3.0"
+    [ -d /usr/share/themes/Rea-Dark/xfwm4 ] \
+        || die "Rea-Dark theme missing xfwm4"
+    # set as default theme for root via xfconf
+    mkdir -p /root/.config/xfce4/xfconf/xfce-perchannel-xml
+    cat > /root/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml << 'XMLEOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xsettings" version="1.0">
+  <property name="Net" type="empty">
+    <property name="ThemeName" type="string" value="Rea-Dark"/>
+  </property>
+</channel>
+XMLEOF
+    cat > /root/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml << 'XMLEOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xfwm4" version="1.0">
+  <property name="general" type="empty">
+    <property name="theme" type="string" value="Rea-Dark"/>
+    <property name="use_compositing" type="bool" value="false"/>
+  </property>
+</channel>
+XMLEOF
+else
+    warn "Rea-Dark tarball not found, skipping theme install"
+fi
+
+# =====================================================================
 # Phase 2: register the bundled software as local [lfscn] repo packages
 # so pacman -Q/-Qi/-R/-S manage them like any distro package.
 # Staging uses hardlinks (cp -al) so copying is nearly free; archives
@@ -1697,6 +1761,8 @@ pkg_register htop "$HTOP_VER" "interactive process viewer" \
     /usr/bin/htop /usr/share/man/man1/htop.1.gz
 pkg_register sudo "$SUDO_VER" "sudo - execute a command as another user" \
     /usr/bin/sudo /usr/sbin/visudo /usr/bin/sudoreplay /etc/sudoers /usr/lib/sudo
+pkg_register git "$GIT_VER" "git - distributed version control system" \
+    /usr/bin/git /usr/libexec/git-core
 
 log '==> building local [lfscn] repository'
 if ! repo-add /usr/local/repo/lfscn/lfscn.db.tar.gz \
@@ -1730,6 +1796,10 @@ for f in /usr/bin/fbterm /usr/bin/fbterm_ucimf \
          /usr/bin/which /usr/bin/wget /usr/bin/fd /usr/bin/rg \
          /usr/bin/bat /usr/bin/htop \
          /usr/bin/sudo /usr/sbin/visudo /etc/sudoers \
+         /usr/bin/git \
+         /usr/share/themes/Rea-Dark/index.theme \
+         /root/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml \
+         /root/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml \
          /usr/local/repo/lfscn/lfscn.db.tar.gz; do
     [ -e "$f" ] || die "extras self-check: missing $f"
 done

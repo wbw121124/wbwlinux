@@ -75,6 +75,13 @@ export WGET_VER=1.25.0
 # Version verified against https://www.sudo.ws/releases/stable/ on 2026-08-24
 export SUDO_VER=1.9.17p2
 
+# git (version control for live system)
+export GIT_VER=2.55.0
+
+# Rea-Dark XFCE theme (GTK2 + GTK3 + xfwm4)
+# Pinned to commit 1a422b0ec86e9fc6d349d17a770d933dbf2c00f8 (2026-02-24)
+export REA_COMMIT=1a422b0ec86e9fc6d349d17a770d933dbf2c00f8
+
 # Arch binary stack (X.Org + XFCE) imported from repo databases at build
 # time by chroot/06-xorg-xfce.sh; rolling release, pinned per run only.
 export ARCH_MIRRORS="https://geo.mirror.pkgbuild.com https://mirror.rackspace.com/archlinux https://mirrors.kernel.org/archlinux"

@@ -32,6 +32,7 @@ Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
 | sudo | 1.9.17p2 | 源码编译（BLFS 风格，shadow 认证 + `/etc/sudoers` + wheel 组，visudo 在 `/usr/sbin`） |
 | which | — | 最小 POSIX sh 脚本实现 |
 | X.Org Server + XFCE4 | xorg-server / xfce4 全家桶 | Arch 二进制仓库依赖闭包导入（构建期解析，LFS 已有库全部跳过） |
+| Rea-Dark 主题 | 1a422b0 (2026-02-24) | GitHub orchyn/XFCE（GTK2/GTK3/xfwm4，默认暗色主题，compositing 关闭） |
 
 以及 LFS 书中全部基础包（glibc、systemd、perl、openssl、util-linux 等）。
 
