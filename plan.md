@@ -447,3 +447,15 @@ config-extras (完成)
 
 - 证据：workflow line 371 `run: bash scripts/07-packages.sh`，而 `scripts/07-packages.sh`（chroot 版）首行 `set -euo pipefail` + `source /build/env.sh`，在宿主机上执行会失败。
 - 修复：创建 `scripts/07-packages.sh`（宿主端包装器），复制 `chroot/07-packages.sh` + `arch-resolve-fcitx5.py` 到 chroot，mount kernfs，执行 `chroot ... /build/chroot/07-packages.sh`。命名与现有模式一致（`scripts/05-extras.sh` 宿主端 vs `scripts/chroot/05-extras.sh` chroot 端）。
+
+## 根因四十一（Rea-Dark 主题 tar --strip-components 多了1层）
+`chroot/05-extras.sh` 中 `tar xf ... --strip-components=3` 多剥了1层目录。GitHub tarball 路径为 `XFCE-.../Rea/Rea-Dark/gtk-3.0/...`（3个前缀组件），`--strip-components=3` 将 `Rea-Dark/` 也剥掉，导致解压到 `/usr/share/themes/gtk-3.0/` 而非 `/usr/share/themes/Rea-Dark/gtk-3.0/`。
+
+- 证据：`ERROR: Rea-Dark theme missing gtk-3.0`
+- 修复：`--strip-components=3` → `--strip-components=2`。
+
+## 根因四十二（GNU tar -C 位置敏感：pattern 在前时失效）
+`tar xf ARCHIVE --wildcards 'PAT' --strip-components=2 -C DIR` 中，成员 pattern 出现在 `-C` 之前，导致 GNU tar 1.35 将文件解到**当前目录**而非 `-C DIR`（exit 0 静默成功）。因此即使修正了 strip-components（根因四十一），主题仍被解到 chroot 的 `/root/Rea-Dark`，自检 `[ -d /usr/share/themes/Rea-Dark/gtk-3.0 ]` 继续失败。
+
+- 证据：本地 MSYS2 GNU tar 1.35 复现——pattern 在 `-C` 前 → 文件落在 cwd；`-C` 放最前 → 正常落入目标目录；无成员参数的经典用法 `tar xf a.tgz -C dir` 不受影响（这也是 Arch 导入 `06-xorg-xfce.sh` 一直正常的原因）。
+- 修复：`tar -C /usr/share/themes/ -xf "$THEME_DL" --wildcards '*/Rea/Rea-Dark/*' --strip-components=2`（`-C` 提到最前），并预先 `mkdir -p /usr/share/themes/Rea-Dark`。

@@ -1659,9 +1659,12 @@ EOF
 log '==> installing Rea-Dark XFCE theme'
 THEME_DL="$DL/orchyn-XFCE-main.tar.gz"
 if [ -f "$THEME_DL" ]; then
-    mkdir -p /usr/share/themes
-    tar xf "$THEME_DL" --wildcards '*/Rea/Rea-Dark/*' \
-        --strip-components=2 -C /usr/share/themes/
+    # NOTE: -C must come BEFORE the archive/patterns: GNU tar treats -C as
+    # position-sensitive, and member patterns preceding it make extraction
+    # land in the current directory instead (root cause #42)
+    mkdir -p /usr/share/themes/Rea-Dark
+    tar -C /usr/share/themes/ -xf "$THEME_DL" \
+        --wildcards '*/Rea/Rea-Dark/*' --strip-components=2
     [ -d /usr/share/themes/Rea-Dark/gtk-3.0 ] \
         || die "Rea-Dark theme missing gtk-3.0"
     [ -d /usr/share/themes/Rea-Dark/xfwm4 ] \
