@@ -24,6 +24,8 @@ SEEDS = [
     "xfce4-session", "xfce4-panel", "xfwm4", "xfdesktop",
     "xfce4-settings", "xfce4-appfinder", "xfconf", "garcon",
     "thunar", "thunar-volman", "tumbler", "xfce4-terminal", "mousepad",
+    # LuaJIT (neovim cmake build needs Lua 5.1 interpreter; luajit is preferred)
+    "luajit",
 ]
 
 # Everything LFS 13.0 already provides (ch8 + extras builds). NEVER pull
