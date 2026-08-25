@@ -358,3 +358,15 @@
 - 根因：手工维护的 unified diff，hunk header 中的 `+行数` 与实际 `+` 行数不匹配（例如声称85行实际122行），patch 工具读取超出 hunk 范围后遇到无法解析的行。
 - 修复：重写整个补丁文件，逐 hunk 校正行数 + 删除多余 `}`。
 - 附带变更：neovim 从预编译二进制（/opt/nvim-linux-x86_64）改为源码编译（cmake → /usr/local）；新增 NetworkManager 1.58.1 / VS Code 1.134.0 / Firefox 154.0 pacman 包；.bashrc PATH 移除 /opt/nvim-linux-x86_64/bin。
+
+## 根因三十七（neovim FindLuv 失败：构建顺序错误）
+直接用 `cmake -B build` 配置 neovim 时，`find_package(Luv)` 在**配置阶段**即报错（`missing: LUV_LIBRARY LUV_INCLUDE_DIR`），因为 luv 是 bundled 依赖，必须先由 `cmake.deps/` 子项目构建到 `.deps/` 目录下。之前尝试 `cmake --build build --target deps` 无效——deps 目标是构建阶段操作，而 configure 已经失败。
+
+- 证据：`Could NOT find Luv (missing: LUV_LIBRARY LUV_INCLUDE_DIR) (Required is at least version "1.43.0")`，cmake/FindLuv.cmake:4。
+- 修复：改用 neovim 官方 Makefile 流程（`make` → Makefile 内部先构建 `.deps`，再配置/构建主项目）。cmake 放入 `$PATH`（`/opt/cmake-$CMAKE_VER-linux-x86_64/bin`），避免用 `"$CMAKE_BIN"` 变量（Makefile 子进程需要在 PATH 上找到 cmake）。
+
+## 根因三十八（ovimgeneric.patch 内容错误：源码已含 keyseq.clear + hunk 行数不匹配）
+`ovimgeneric.patch` 尝试在 `compose()` 函数中添加 `keyseq.clear()`，但源码已有该行；同时多个 hunk header 中的 old/new 行数与实际上下文/新增行数不匹配，导致 patch 工具报 "malformed patch"。
+
+- 证据：CI 输出 `patch: **** malformed patch at line 144: @@ -360,6 +481,21 @@`；本地 MSYS2 patch 确认。
+- 修复：根据 OpenVanilla Modules 源码 commit 28d0dd6 重写整个 patch 文件，移除已存在的 `keyseq.clear` 相关 hunk，校正全部 hunk header 行数（共 6 个 hunk）。

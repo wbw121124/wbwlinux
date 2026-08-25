@@ -1,6 +1,8 @@
 --- a/Modules/OVIMGeneric/OVIMGeneric.cpp
 +++ b/Modules/OVIMGeneric/OVIMGeneric.cpp
-@@ -10,6 +10,10 @@
+@@ -31,8 +31,12 @@
+ // #define OV_DEBUG
+ 
  #include "OVIMGeneric.h"
  #include "CIN-Defaults.h"
  
@@ -11,7 +13,9 @@
  #ifdef __linux__
  #include <stdio.h>
  #endif
-@@ -230,6 +234,122 @@ void OVGenericContext::updateDisplay(OVBuffer *buf)
+@@ -207,8 +211,106 @@
+     }
+ 
      buf->update();
  }
  
@@ -38,9 +42,7 @@
 +
 +void OVGenericContext::recordSelectedWord(const std::string& word) {
 +    if (word.empty()) return;
-+    // Update frequency
 +    s_wordFrequency[word]++;
-+    // Add to recent words (MRU)
 +    auto it = std::find(s_recentWords.begin(), s_recentWords.end(), word);
 +    if (it != s_recentWords.end()) {
 +        s_recentWords.erase(it);
@@ -51,42 +53,33 @@
 +    }
 +}
 +
-+// Calculate locality bonus score (lower = better priority)
-+// Similar to VSCode's WordDistance: words in recent context get boost
 +int OVGenericContext::localityBonus(const std::string& word) const {
-+    // High frequency bonus
 +    auto freqIt = s_wordFrequency.find(word);
 +    if (freqIt != s_wordFrequency.end()) {
-+        return -std::min(freqIt->second * 10, 100);  // cap at -100
++        return -std::min(freqIt->second * 10, 100);
 +    }
-+    // Recent words bonus (MRU position)
 +    auto recentIt = std::find(s_recentWords.begin(), s_recentWords.end(), word);
 +    if (recentIt != s_recentWords.end()) {
 +        size_t pos = std::distance(s_recentWords.begin(), recentIt);
-+        return -static_cast<int>(50 - pos * 2);  // recent words get -10 to -50
++        return -static_cast<int>(50 - pos * 2);
 +    }
 +    return 0;
 +}
 +
-+// Apply locality bonus: sort candidates by (baseScore + localityBonus)
 +void OVGenericContext::applyLocalityBonus(std::vector<std::string>& candidates) {
 +    std::stable_sort(candidates.begin(), candidates.end(),
 +        [this](const std::string& a, const std::string& b) {
 +            int scoreA = localityBonus(a);
 +            int scoreB = localityBonus(b);
-+            if (scoreA != scoreB) return scoreA < scoreB;  // lower = better
-+            return a < b;  // stable tie-break
++            if (scoreA != scoreB) return scoreA < scoreB;
++            return a < b;
 +        });
 +}
 +
-+// VSCode-like fuzzy matching (filterGraceful): subsequence matching
-+// Input "zgs" matches candidate "zgysdl" - characters in order but not necessarily contiguous
 +bool OVGenericContext::fuzzyMatch(const std::string& candidate, const std::string& input) {
 +    if (input.empty()) return true;
 +    if (candidate.empty()) return false;
-+    // First character must match (VSCode rule)
 +    if (candidate[0] != input[0]) return false;
-+    // Subsequence matching: all input chars must appear in candidate in order
 +    size_t candIdx = 0;
 +    for (size_t i = 0; i < input.size(); ++i) {
 +        bool found = false;
@@ -103,24 +96,17 @@
 +    return true;
 +}
 +
-+// Check if weak/fuzzy matching is enabled via ucimf config or parent settings
 +bool OVGenericContext::isWeakMatchEnabled() const {
-+    // Check ucimf prefix-match config or parent auto-compose settings
 +    return parent->isAutoCompose() || (cintab && !cintab->getSelKey().empty());
 +}
 +
-+// Get candidates with fuzzy matching fallback
 +void OVGenericContext::getCandidatesWithFuzzy(const std::string& seq, std::vector<std::string>& out) {
-+    // First try exact/wildcard match
 +    cintab->getWordVectorByCharWithWildcardSupport(seq, out, parent->matchOneChar(), parent->matchZeroOrMoreChar());
 +    
-+    // If weak match enabled and few results, try fuzzy matching
 +    if (isWeakMatchEnabled() && out.size() < 5) {
 +        std::vector<std::string> fuzzyResults;
-+        // Get all candidates for this key prefix (broader search)
 +        cintab->getWordVectorByChar(seq, fuzzyResults);
 +        for (const auto& cand : fuzzyResults) {
-+            // Use fuzzy matching to filter: match input seq against candidate text
 +            if (fuzzyMatch(cand, seq)) {
 +                if (std::find(out.begin(), out.end(), cand) == out.end()) {
 +                    out.push_back(cand);
@@ -134,42 +120,26 @@
  void OVGenericContext::clear() {
      keyseq.clear();
      autocomposing = false;
-@@ -350,6 +470,7 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
- 
-     if (size == 1 && !autocomposing) {
-         buf->clear()->append(candidateStringVector[0].c_str())->update()->send();
-+        keyseq.clear();
-         return 1;
-     }
-@@ -360,6 +481,21 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
+@@ -408,6 +528,15 @@
+         keyseq.clear();
      }
  
-     // Deduplicate candidates before showing
 +    deduplicateCandidates(candidateStringVector);
-+    
-+    // Apply locality bonus (VSCode-like): recently used / high frequency words first
 +    applyLocalityBonus(candidateStringVector);
 +    
-+    // Weak matching: if only one candidate after dedup and not autocomposing, use it
 +    if (candidateStringVector.size() == 1 && !autocomposing) {
 +        buf->clear()->append(candidateStringVector[0].c_str())->update()->send();
 +        keyseq.clear();
 +        return 1;
 +    }
-+    
-+    // VSCode-like fuzzy matching fallback
-+    if (isWeakMatchEnabled() && candidateStringVector.size() < 3) {
-+        getCandidatesWithFuzzy(keyseq.getSeq(), candidateStringVector);
-+        applyLocalityBonus(candidateStringVector);
-+    }
- 
-     if (!autocomposing) {
-         buf->clear()->append(candidateStringVector[0].c_str())->update();
-@@ -370,6 +506,15 @@ int OVGenericContext::compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv
++
+ 	string currentSelKey = cintab->getSelKey();
+ 	if(parent->isShiftSelKey())
+ 		currentSelKey = " " + currentSelKey;
+@@ -415,6 +544,14 @@
      candi.prepare(&candidateStringVector,
-                   const_cast<char*>(currentSelKey.c_str()), textbar);
+ 				  const_cast<char*>(currentSelKey.c_str()), textbar);
  
-+    // If weak match enabled and no exact match, try fuzzy matching
 +    if (candidateStringVector.empty() && isWeakMatchEnabled()) {
 +        getCandidatesWithFuzzy(keyseq.getSeq(), candidateStringVector);
 +        if (!candidateStringVector.empty()) {
@@ -180,7 +150,8 @@
 +    }
      return 1;
  }
-@@ -420,6 +565,7 @@ int OVGenericContext::candidateEvent(OVKeyCode *key, OVBuffer *buf,
+ 
+@@ -425,6 +563,7 @@
          textbar->hide()->clear();
          candi.cancel();
          buf->clear()->update();
@@ -188,12 +159,11 @@
          return 1;
      }
  
-@@ -430,6 +576,16 @@ int OVGenericContext::candidateEvent(OVKeyCode *key, OVBuffer *buf,
+@@ -438,7 +577,16 @@
          candi.pageUp()->update(textbar);
          return 1;
      }
  
-+    // Record selected word for locality bonus
 +    if (key->code() == ovkReturn ||
 +        (candi.onePage() && key->code()==ovkSpace)) {
 +        char c = candi.getSelKey()[0];
