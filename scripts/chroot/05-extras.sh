@@ -128,7 +128,6 @@ if [ ! -e /usr/local/bin/nvim ]; then
     # Install cmake standalone binary (build-only dependency)
     log "    installing cmake $CMAKE_VER (standalone, build-only)"
     tar xf "cmake-$CMAKE_VER-linux-x86_64.tar.gz" -C /opt
-    CMAKE_BIN="/opt/cmake-$CMAKE_VER-linux-x86_64/bin/cmake"
 
     # Build Lua 5.1 (neovim needs Lua 5.1 interpreter; Arch closure not yet imported)
     log "    building Lua $LUA_VER"
@@ -141,14 +140,17 @@ if [ ! -e /usr/local/bin/nvim ]; then
     ldconfig
     lua -v
 
-    # Build neovim from source
+    # Build neovim via its Makefile: it orchestrates the bundled-deps
+    # project (cmake.deps -> .deps: libuv/luv/luajit/lpeg/treesitter/…)
+    # FIRST, then configures+builds the main tree against them. Raw
+    # "cmake -B build" fails at configure time with FindLuv because deps
+    # do not exist yet (root cause #37).
     tar xf "nvim-$NVIM_VER.tar.gz"
     cd "neovim-$NVIM_VER"
-    "$CMAKE_BIN" -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-                 -DCMAKE_INSTALL_PREFIX=/usr/local
-    cmake --build build --target deps -j"$NPROC"
-    cmake --build build -j"$NPROC"
-    cmake --install build
+    export PATH="/opt/cmake-$CMAKE_VER-linux-x86_64/bin:$PATH"
+    make -j"$NPROC" CMAKE_BUILD_TYPE=RelWithDebInfo \
+         CMAKE_INSTALL_PREFIX=/usr/local
+    make CMAKE_INSTALL_PREFIX=/usr/local install
     cd "$DL"
     rm -rf "neovim-$NVIM_VER"
 
