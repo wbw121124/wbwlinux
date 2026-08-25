@@ -96,6 +96,11 @@ export FIREFOX_VER=154.0
 # Pinned to commit 1a422b0ec86e9fc6d349d17a770d933dbf2c00f8 (2026-02-24)
 export REA_COMMIT=1a422b0ec86e9fc6d349d17a770d933dbf2c00f8
 
+# Yaru theme (Ubuntu 26.04 LTS) - full GTK2/GTK3/GTK4/icons/cursor/shell
+export YARU_VER=26.04.5.1ubuntu
+export YARU_COMMIT=f01c3e9a257296242806f8e0c5d4a660516f2181
+export YARU_TARBALL="yaru-${YARU_VER}.tar.gz"
+
 # Arch binary stack (X.Org + XFCE) imported from repo databases at build
 # time by chroot/06-xorg-xfce.sh; rolling release, pinned per run only.
 export ARCH_MIRRORS="https://geo.mirror.pkgbuild.com https://mirror.rackspace.com/archlinux https://mirrors.kernel.org/archlinux"

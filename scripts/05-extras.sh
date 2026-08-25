@@ -65,6 +65,8 @@ declare -A urls=(
   ["code-$VSCODE_VER-linux-x64.tar.gz"]="https://update.code.visualstudio.com/$VSCODE_VER/linux-x64/stable"
   # Rea-Dark XFCE theme (orchyn/XFCE, pinned to commit)
   ["orchyn-XFCE-main.tar.gz"]="https://codeload.github.com/orchyn/XFCE/tar.gz/$REA_COMMIT"
+  # Yaru theme (Ubuntu 26.04 LTS, pinned to tag)
+  ["yaru-${YARU_VER}.tar.gz"]="https://codeload.github.com/ubuntu/yaru/tar.gz/${YARU_COMMIT}"
 )
 declare -A mirrors=(
   ["node-$NODE_VER-linux-x64.tar.xz"]="https://registry.npmmirror.com/-/binary/node/$NODE_VER/node-$NODE_VER-linux-x64.tar.xz"
@@ -101,7 +103,8 @@ mount_kernfs
 
 mkdir -p "$LFS_ROOT/build/chroot"
 cp -v env.sh common.sh "$LFS_ROOT/build/"
-cp -v chroot/05-extras.sh chroot/06-xorg-xfce.sh chroot/arch-resolve.py \
+cp -v chroot/05-extras.sh chroot/06-xorg-xfce.sh chroot/07-packages.sh \
+      chroot/arch-resolve.py chroot/arch-resolve-fcitx5.py \
       chroot/ovimgeneric.patch chroot/zhuyin.cin \
       "$LFS_ROOT/build/chroot/"
 cp -v chroot/zhuyin.cin "$LFS_ROOT/build/zhuyin.cin"

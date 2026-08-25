@@ -176,3 +176,23 @@
      // enter == first candidate
      // space (when candidate list has only one page) == first candidate
      char c = key->code();
+--- a/Modules/OVIMGeneric/OVIMGeneric.h
++++ b/Modules/OVIMGeneric/OVIMGeneric.h
+@@ -86,10 +86,18 @@
+     virtual void updateDisplay(OVBuffer *buf);
+     virtual int compose(OVBuffer *buf, OVCandidate *textbar, OVService *srv);
+     virtual int candidateEvent(OVKeyCode*, OVBuffer*, OVCandidate*, OVService*);
+     virtual void cancelAutoCompose(OVCandidate *textbar);
+     
++    void deduplicateCandidates(std::vector<std::string>& candidates);
++    void recordSelectedWord(const std::string& word);
++    int localityBonus(const std::string& word) const;
++    void applyLocalityBonus(std::vector<std::string>& candidates);
++    bool fuzzyMatch(const std::string& candidate, const std::string& input);
++    bool isWeakMatchEnabled() const;
++    void getCandidatesWithFuzzy(const std::string& seq, std::vector<std::string>& out);
++
+     OVIMGeneric* parent;
+     GenericKeySequence keyseq;
+     OVCandidateList candi;
+     OVCIN* cintab;

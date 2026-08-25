@@ -37,6 +37,8 @@ Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
 | Firefox | 154.0 | Mozilla 官方 tarball 解包（`[lfscn]` 仓库可安装，默认未安装） |
 | X.Org Server + XFCE4 | xorg-server / xfce4 全家桶 | Arch 二进制仓库依赖闭包导入（构建期解析，LFS 已有库全部跳过） |
 | Rea-Dark 主题 | 1a422b0 (2026-02-24) | GitHub orchyn/XFCE（GTK2/GTK3/xfwm4，默认暗色主题，compositing 关闭） |
+| Yaru 主题 | 26.04.5.1ubuntu | Ubuntu 26.04 LTS 源码编译（GTK2/GTK3/GTK4/icons/cursor/shell，pacman 包） |
+| fcitx5 输入法 | Arch extra 预编译 | Arch Linux extra 仓库预编译包（fcitx5 + fcitx5-gtk + fcitx5-chinese-addons + 依赖闭包） |
 
 以及 LFS 书中全部基础包（glibc、systemd、perl、openssl、util-linux 等）。
 
@@ -72,13 +74,15 @@ Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
   - GRUB 第二菜单项「volatile session」加 `persist=off` 强制关闭探测
   - 制作镜像文件示例（在任意 FAT32 U 盘上）：`truncate -s 8G lfs-cn-persistence.img && mkfs.ext4 -F lfs-cn-persistence.img`
 
-## 流水线结构（4 个串行 job）
+## 流水线结构（4 个串行 job + 1 个可选 job）
 
 1. **toolchain** — 宿主依赖 + 下载校验全部源码 + ch5/ch6 交叉工具链
 2. **base** — 进入 chroot 构建 ch7.5–7.13 + ch8 全部基础包
 3. **config+extras** — 系统配置（中文 locale/网络/时区）+ 预编译软件 + ICU/nano/fbterm/字体
    + CLI 工具包（fd/rg/bat/htop/wget/which）+ X.Org+XFCE 二进制闭包导入
 4. **iso** — 内核（defconfig + 定制 fragment）+ initramfs + squashfs + GRUB live ISO
+5. **packages**（可选，与 iso 并行）— 构建 free software pacman 包（Yaru 主题 + fcitx5）
+   + repo-add 数据库生成，发布到 GitHub Pages（手动触发 `workflow_dispatch`）
 
 每 job 结束把 `/mnt/lfs` 打成 `tar.zst` 快照，经 artifact 传给下一 job，
 失败重跑只需从上一个快照继续。
@@ -114,7 +118,9 @@ scripts/
   chroot/                             # chroot 内执行的脚本
     05-extras.sh                      #   extras 安装（含 cs-oi.cin 码表、pacman tmpfiles 修复）
     06-xorg-xfce.sh                   #   Arch 二进制闭包导入 X.Org+XFCE
+    07-packages.sh                    #   free software pacman 包构建（Yaru + fcitx5 + repo-add）
     arch-resolve.py                   #   依赖闭包解析器（SKIP LFS 已有库）
+    arch-resolve-fcitx5.py            #   fcitx5 依赖闭包解析器（SKIP LFS+X.Org+XFCE 已有库）
   stages/                             # 由 LFS 书自动生成的构建块（tools/gen_stage_scripts.py）
 tools/
   gen_stage_scripts.py                # 从 LFS 书 HTML 提取命令生成 stages

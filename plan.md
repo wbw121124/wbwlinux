@@ -370,3 +370,80 @@
 
 - 证据：CI 输出 `patch: **** malformed patch at line 144: @@ -360,6 +481,21 @@`；本地 MSYS2 patch 确认。
 - 修复：根据 OpenVanilla Modules 源码 commit 28d0dd6 重写整个 patch 文件，移除已存在的 `keyseq.clear` 相关 hunk，校正全部 hunk header 行数（共 6 个 hunk）。
+
+---
+
+## 新增 CI Job：构建自由软件包 + 主题 + GitHub Pages 部署
+
+### 概述
+
+在现有 ISO 构建流水线之外，新增两个 CI job：
+
+1. **`packages`** — 在 chroot 中从源码构建自由软件包（Yaru 主题 + fcitx5 输入法栈等），产出 pacman 二进制包 + 源码包 + pacman 数据库。**与 `iso` job 并行运行**（均依赖 `config-extras`），单个包构建失败不阻塞整个 job。
+2. **`deploy-pages`** — **手动触发**，将 `packages` job 产出的 pacman 仓库发布到 GitHub Pages。
+
+### 设计约束
+
+- **不打入 ISO**：`packages` job 的产出仅发布到 GitHub Pages，不参与 ISO 打包。
+- **pacman -Sy 数据库**：产出包含 `lfscn.db.tar.gz` 等数据库文件，用户可通过 `pacman -Sy` 从 Pages 安装。
+- **二进制包 + 源码包**：每个包同时产出 `.pkg.tar.zst`（二进制）和 `.src.tar.gz`（源码）。
+- **单包容错**：每个包的构建在子 shell 中执行，失败只跳过该包，不中断整个脚本。
+- **Yaru 主题版本**：Ubuntu 26.04 LTS 对应版本 `26.04.5.1ubuntu`（commit `f01c3e9a257296242806f8e0c5d4a660516f2181`，2026-04-13），含 GTK2/GTK3/GTK4 主题、图标、光标、GNOME Shell 主题。
+- **fcitx5**：从 Arch `extra` 仓库预构建包解包（`fcitx5` + `fcitx5-gtk` + `fcitx5-chinese-addons`），LFS 已有库跳过。
+
+### 包列表
+
+| 包名 | 来源 | 说明 |
+|---|---|---|
+| `yaru-theme` | Ubuntu 26.04 LTS 源码（`26.04.5.1ubuntu`） | GTK2/GTK3/GTK4 主题 + Yaru 图标 + Yaru 光标 + GNOME Shell 主题 |
+| `fcitx5` | Arch `extra` 预构建 | 输入法框架核心 |
+| `fcitx5-gtk` | Arch `extra` 预构建 | GTK IM Module（IMModule2/3） |
+| `fcitx5-chinese-addons` | Arch `extra` 预构建 | 拼音/双拼/五笔等中文输入法插件 |
+
+### 文件变更
+
+| 文件 | 变更 |
+|---|---|
+| `scripts/env.sh` | 新增 `YARU_VER`、`YARU_COMMIT`、`FCITX5_ARCH_PKG` 等版本变量 |
+| `scripts/07-packages.sh` | 新建。宿主端：下载 Yaru 源码 + Arch fcitx5 包。chroot 内：构建 Yaru 主题包、解包 fcitx5、生成 pacman 数据库。产出目录 `/mnt/lfs/pkgrepo/` |
+| `.github/workflows/build-lfs-iso.yml` | 新增 `packages` job（依赖 `config-extras`，与 `iso` 并行）+ `deploy-pages` job（manual-only，`github-pages` 环境） |
+| `plan.md` | 本段 |
+| `README.md` | 包列表更新 |
+
+### `packages` job 工作流
+
+```
+config-extras (完成)
+    ├── iso job (内核 + ISO)
+    └── packages job (自由软件包 + GitHub Pages)
+          └── deploy-pages job (手动触发 → Pages)
+```
+
+1. 下载 `snapshot-config` 快照，还原 chroot
+2. 宿主端下载 Yaru 源码 tarball + Arch fcitx5 预构建包
+3. chroot 内执行 `scripts/07-packages.sh`：
+   - 构建 Yaru 主题（meson + ninja），打包为 pacman 包
+   - 解包 Arch fcitx5 预构建包，注册到 pacman
+   - 生成 pacman 数据库（`repo-add`）
+   - 产出复制到 `/mnt/lfs/pkgrepo/`
+4. 将 `/mnt/lfs/pkgrepo/` 上传为 artifact `packages-repo`
+5. **单包容错**：每个包构建失败只 log warning，不退出脚本
+
+### `deploy-pages` job 工作流
+
+- **触发方式**：仅 `workflow_dispatch`（手动）
+- 下载 `packages-repo` artifact
+- 部署到 GitHub Pages（`actions/deploy-pages@v4`）
+- Pages URL: `https://wbw121124.github.io/wbwlinux/`
+
+## 根因三十九（ovimgeneric.patch 缺少 .h 文件声明）
+`ovimgeneric.patch` 仅修改 `OVIMGeneric.cpp`（添加 VSCode-like 特性的函数实现），但未修改 `OVIMGeneric.h`（缺少 `deduplicateCandidates`、`recordSelectedWord`、`localityBonus`、`applyLocalityBonus`、`fuzzyMatch`、`isWeakMatchEnabled`、`getCandidatesWithFuzzy` 共 7 个方法声明），导致编译时报 "no declaration matches" 错误。
+
+- 证据：`OVIMGeneric.cpp:263:6: error: no declaration matches 'void OVGenericContext::applyLocalityBonus(...)'`；同理 `fuzzyMatch`、`isWeakMatchEnabled`、`getCandidatesWithFuzzy`、`recordSelectedWord`、`deduplicateCandidates` 均无声明。
+- 修复：在 `ovimgeneric.patch` 末尾追加 `OVIMGeneric.h` hunk（`@@ -86,10 +86,18 @@`），在 `cancelAutoCompose` 声明后插入7个方法声明。验证 MSYS2 patch 和 Linux GNU patch 均通过。
+
+## 根因四十（packages job 调用 chroot 脚本而非宿主端包装器）
+`07-packages.sh` 是 chroot 内脚本（需要 mount/kernfs/chroot 环境），但 workflow 中直接 `bash scripts/07-packages.sh` 调用，缺少宿主端包装器（复制脚本到 chroot + mount + chroot 执行）。
+
+- 证据：workflow line 371 `run: bash scripts/07-packages.sh`，而 `scripts/07-packages.sh`（chroot 版）首行 `set -euo pipefail` + `source /build/env.sh`，在宿主机上执行会失败。
+- 修复：创建 `scripts/07-packages.sh`（宿主端包装器），复制 `chroot/07-packages.sh` + `arch-resolve-fcitx5.py` 到 chroot，mount kernfs，执行 `chroot ... /build/chroot/07-packages.sh`。命名与现有模式一致（`scripts/05-extras.sh` 宿主端 vs `scripts/chroot/05-extras.sh` chroot 端）。
