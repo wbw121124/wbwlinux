@@ -1661,7 +1661,7 @@ THEME_DL="$DL/orchyn-XFCE-main.tar.gz"
 if [ -f "$THEME_DL" ]; then
     mkdir -p /usr/share/themes
     tar xf "$THEME_DL" --wildcards '*/Rea/Rea-Dark/*' \
-        --strip-components=3 -C /usr/share/themes/
+        --strip-components=2 -C /usr/share/themes/
     [ -d /usr/share/themes/Rea-Dark/gtk-3.0 ] \
         || die "Rea-Dark theme missing gtk-3.0"
     [ -d /usr/share/themes/Rea-Dark/xfwm4 ] \
