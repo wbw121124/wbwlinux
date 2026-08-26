@@ -68,11 +68,10 @@ declare -A urls=(
   # sassc + libsass (Yaru meson hard-requires the sassc program)
   ["libsass-$LIBSASS_VER.tar.gz"]="https://github.com/sass/libsass/archive/refs/tags/$LIBSASS_VER.tar.gz"
   ["sassc-$SASSC_VER.tar.gz"]="https://github.com/sass/sassc/archive/refs/tags/$SASSC_VER.tar.gz"
-  # kmscon + libtsm (Phase 1: KMS/DRM console on tty2-6)
+  # kmscon + libtsm (Phase 1: KMS/DRM console on tty2-6; built in
+  # 06-xorg-xfce after the Arch import provides pango/xkbcommon)
   ["libtsm-$LIBTSM_VER.tar.gz"]="https://github.com/kmscon/libtsm/archive/refs/tags/$LIBTSM_VER.tar.gz"
   ["kmscon-$KMSCON_VER.tar.gz"]="https://github.com/kmscon/kmscon/archive/refs/tags/$KMSCON_VER.tar.gz"
-  # libxkbcommon (kmscon build-time dep; minimal source build in extras)
-  ["libxkbcommon-$LIBXKBCOMMON_VER.tar.gz"]="https://github.com/xkbcommon/libxkbcommon/archive/refs/tags/$LIBXKBCOMMON_VER.tar.gz"
   # CA bundle (Mozilla-derived; pacman/git need real TLS verification)
   ["cacert.pem"]="$CACERT_URL"
   # astroterm (prebuilt static binary from release asset)

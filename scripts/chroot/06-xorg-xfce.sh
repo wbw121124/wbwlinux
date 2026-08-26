@@ -144,3 +144,83 @@ done
 
 rm -rf "$WORK"
 log '==> X.Org + XFCE imported (startx starts an XFCE session)'
+
+# =====================================================================
+# kmscon (KMSCON Phase 1: KMS/DRM graphical consoles on tty2-6).
+# tty1 keeps the fbterm+ucimf autologin until Phase 3 cut-over.
+# Lives HERE, after the Arch import: kmscon needs pangoft2/xkbcommon/
+# freetype2 at BUILD time and those come from the imported stack
+# (root cause #66 - fourth variant of the ordering trap).
+#   libtsm  terminal state machine (meson, system install)
+#   kmscon  pango-rendered CJK-capable console; kmsconvt@.service
+#           Conflicts/OnFailure getty@%i so fallback is automatic
+# =====================================================================
+[ -e /usr/lib/pkgconfig/xkbcommon.pc ] \
+    || die "kmscon: xkbcommon.pc missing (libxkbcommon not imported?)"
+
+if [ ! -e /usr/bin/kmscon ]; then
+    log "==> building libtsm $LIBTSM_VER"
+    rm -rf /tmp/libtsm-src
+    mkdir -p /tmp/libtsm-src
+    tar xf "$DL/$LIBTSM_TARBALL" -C /tmp/libtsm-src --strip-components=1
+    meson setup /tmp/libtsm-src/build /tmp/libtsm-src --prefix=/usr \
+        -Dtests=false \
+        || die "kmscon: libtsm meson setup failed"
+    ninja -C /tmp/libtsm-src/build || die "kmscon: libtsm build failed"
+    ninja -C /tmp/libtsm-src/build install || die "kmscon: libtsm install failed"
+    ldconfig
+
+    log "==> building kmscon $KMSCON_VER"
+    rm -rf /tmp/kmscon-src
+    mkdir -p /tmp/kmscon-src
+    tar xf "$DL/$KMSCON_TARBALL" -C /tmp/kmscon-src --strip-components=1
+    # nofallback: link the system libtsm we just installed instead of
+    # downloading the subproject wrap (chroot has no GitHub access).
+    # v10 option types: feature options take enabled/disabled/auto, NOT
+    # true/false (root cause #64); multi_seat no longer exists - libseat
+    # replaced it. gltex/drm3d off: no mesa; libseat stays disabled.
+    meson setup /tmp/kmscon-src/build /tmp/kmscon-src --prefix=/usr \
+        --wrap-mode=nofallback \
+        -Drenderer_gltex=disabled \
+        -Dvideo_drm3d=disabled \
+        -Dlibseat=disabled \
+        -Dfont_pango=enabled \
+        -Dfont_freetype=enabled \
+        -Ddocs=disabled \
+        -Dtests=false \
+        || die "kmscon: meson setup failed"
+    ninja -C /tmp/kmscon-src/build || die "kmscon: build failed"
+    ninja -C /tmp/kmscon-src/build install || die "kmscon: install failed"
+    ldconfig
+fi
+[ -e /usr/bin/kmscon ] || die "kmscon: binary missing"
+[ -e /usr/lib/systemd/system/kmsconvt@.service ] \
+    || die "kmscon: kmsconvt@.service not installed"
+
+# Enable on tty2-6 here, right after install (the unit file only exists
+# from this point on). kmsconvt@.service carries Conflicts/OnFailure
+# getty@%i -> automatic takeover + plain-getty fallback;
+# Alias=autovt@.service makes logind prefer it.
+systemctl enable kmsconvt@tty2.service kmsconvt@tty3.service \
+                kmsconvt@tty4.service kmsconvt@tty5.service \
+                kmsconvt@tty6.service
+
+# console-autoshell: kmscon login program. /etc/shadow's root hash is "x"
+# (no password can match), so a getty-style login prompt is unusable on
+# this live ISO - every console must autologin (same as tty1/serial).
+cat > /usr/local/bin/console-autoshell << 'EOF'
+#!/bin/sh
+exec /bin/bash --login
+EOF
+chmod +x /usr/local/bin/console-autoshell
+
+mkdir -p /etc/kmscon
+cat > /etc/kmscon/kmscon.conf << 'EOF'
+# LFS-CN live console (Phase 1: tty2-6; tty1 remains fbterm-zh)
+# pango per-glyph fallback renders CJK via WenQuanYi after Fira Code.
+font-name=Fira Code, WenQuanYi Micro Hei
+font-size=16
+term=xterm-256color
+login=/usr/local/bin/console-autoshell
+EOF
+log '==> kmscon ready (tty2-6 graphical consoles)'
