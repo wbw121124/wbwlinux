@@ -151,8 +151,21 @@ if [ ! -e /usr/local/bin/nvim ]; then
     CMAKE_TLS_VERIFY=0 make -j"$NPROC" CMAKE_BUILD_TYPE=RelWithDebInfo \
          CMAKE_INSTALL_PREFIX=/usr/local
     make CMAKE_INSTALL_PREFIX=/usr/local install
+
+    # Chinese UI messages (root cause #55): gettext .mo is only installed
+    # when the build's po processing ran; do it explicitly from the source
+    # tree so `:messages`/prompts localize under LANG=zh_CN.
+    if [ -f src/nvim/po/zh_CN.UTF-8.po ]; then
+        mkdir -p /usr/local/share/locale/zh_CN/LC_MESSAGES
+        msgfmt --check -o /usr/local/share/locale/zh_CN/LC_MESSAGES/nvim.mo \
+            src/nvim/po/zh_CN.UTF-8.po \
+            || warn "msgfmt failed - nvim UI stays English"
+    fi
     cd "$DL"
     rm -rf "neovim-$NVIM_VER"
+
+    [ -e /usr/local/share/locale/zh_CN/LC_MESSAGES/nvim.mo ] \
+        || die "extras: nvim zh_CN messages missing"
 
     # Remove cmake (was build-only)
     log "    removing cmake $CMAKE_VER (was build-only)"
@@ -1541,6 +1554,7 @@ set encoding=utf-8
 set termencoding=utf-8
 set fileencodings=utf-8,gb18030,gbk,gb2312,latin1
 set ambiwidth=double
+set helplang=cn
 set nu
 set t_Co=256
 syntax on
@@ -1571,6 +1585,7 @@ cat > /etc/xdg/nvim/sysinit.lua << 'EOF'
 vim.opt.encoding     = "utf-8"
 vim.opt.fileencodings = "utf-8,gb18030,gbk,gb2312,latin1"
 vim.opt.ambiwidth    = "double"
+vim.opt.helplang     = "cn"
 vim.opt.number       = true
 vim.cmd("syntax enable")
 -- editor QoL from the old (never-loaded) init.lua
@@ -1579,6 +1594,41 @@ vim.opt.tabstop      = 4
 vim.opt.shiftwidth   = 4
 EOF
 rm -f /etc/xdg/nvim/init.lua
+
+# =====================================================================
+# Chinese :help docs for BOTH editors (root cause #55). vimcdoc ships
+# translated help in the standard "*.cnx" scheme (help-translated);
+# dropping them next to the English docs + regenerating tags makes
+# ':help' resolve Chinese via 'helplang=cn', falling back to English
+# per-tag when a translation is missing.
+# =====================================================================
+log '==> installing vimcdoc (Chinese help) for vim + nvim'
+VIMCDOC_DL="$DL/vimcdoc-$VIMCDOC_COMMIT.tar.gz"
+if [ -f "$VIMCDOC_DL" ]; then
+    rm -rf /tmp/vimcdoc-src
+    mkdir -p /tmp/vimcdoc-src
+    tar xf "$VIMCDOC_DL" -C /tmp/vimcdoc-src --strip-components=1
+
+    NVIM_DOC=/usr/local/share/nvim/runtime/doc
+    if [ -d "$NVIM_DOC" ] && ls /tmp/vimcdoc-src/doc/*.cnx >/dev/null 2>&1; then
+        cp /tmp/vimcdoc-src/doc/*.cnx "$NVIM_DOC/"
+        nvim --headless -c "helptags $NVIM_DOC" -c quit \
+            >/dev/null 2>&1 || warn "nvim helptags failed"
+        [ -s "$NVIM_DOC/tags-cn" ] || die "extras: nvim tags-cn missing"
+    fi
+
+    VIM_DOC=$(ls -d /usr/share/vim/vim*/doc 2>/dev/null | head -1)
+    if [ -n "$VIM_DOC" ] && ls /tmp/vimcdoc-src/doc/*.cnx >/dev/null 2>&1; then
+        cp /tmp/vimcdoc-src/doc/*.cnx "$VIM_DOC/"
+        vim -es -u NONE -c "set nocompatible" -c "helptags $VIM_DOC" -c quit \
+            </dev/null >/dev/null 2>&1 || warn "vim helptags failed"
+        [ -s "$VIM_DOC/tags-cn" ] || die "extras: vim tags-cn missing"
+    fi
+
+    rm -rf /tmp/vimcdoc-src
+else
+    die "extras: vimcdoc tarball missing ($VIMCDOC_DL)"
+fi
 
 # fbterm: Chinese-capable terminal + launcher script
 mkdir -p /etc/fbterm
@@ -1810,8 +1860,9 @@ pkg_register rust "$RUST_VER" "Rust toolchain (prebuilt)" \
     /usr/local/bin/rust-analyzer /usr/local/bin/rust-lld
 pkg_register powershell "$PWSH_VER" "PowerShell 7 (prebuilt)" \
     /opt/microsoft/powershell/7 /usr/local/bin/pwsh
-pkg_register neovim "$NVIM_VER" "Neovim editor (source build)" \
-    /usr/local/bin/nvim /usr/local/share/nvim /etc/xdg/nvim
+pkg_register neovim "$NVIM_VER" "Neovim editor (source build, zh_CN UI + help)" \
+    /usr/local/bin/nvim /usr/local/share/nvim /etc/xdg/nvim \
+    /usr/local/share/locale/zh_CN
 pkg_register networkmanager "$NM_VER" "NetworkManager (prebuilt)" \
     /usr/bin/NetworkManager /usr/bin/nm-* \
     /usr/lib/NetworkManager /usr/share/NetworkManager \

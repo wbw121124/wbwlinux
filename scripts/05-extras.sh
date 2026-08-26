@@ -63,6 +63,8 @@ declare -A urls=(
   ["networkmanager-$NM_VER-1-x86_64.pkg.tar.zst"]="https://geo.mirror.pkgbuild.com/extra/os/x86_64/networkmanager-$NM_VER-1-x86_64.pkg.tar.zst"
   # Rea-Dark XFCE theme (orchyn/XFCE, pinned to commit)
   ["orchyn-XFCE-main.tar.gz"]="https://codeload.github.com/orchyn/XFCE/tar.gz/$REA_COMMIT"
+  # vimcdoc: Chinese help docs (*.cnx) for vim + nvim (pinned commit)
+  ["vimcdoc-$VIMCDOC_COMMIT.tar.gz"]="https://codeload.github.com/yianwillis/vimcdoc/tar.gz/$VIMCDOC_COMMIT"
   # Yaru theme (Ubuntu 26.04 LTS, pinned to tag)
   ["yaru-${YARU_VER}.tar.gz"]="https://codeload.github.com/ubuntu/yaru/tar.gz/${YARU_COMMIT}"
 )

@@ -33,6 +33,10 @@ export RUST_URL=https://static.rust-lang.org/dist
 export POWERSHELL_URL=https://github.com/PowerShell/PowerShell/releases/download
 export NEOVIM_URL=https://github.com/neovim/neovim/archive/refs/tags
 export NVIM_VER=0.12.5
+# vimcdoc (yianwillis/vimcdoc, pinned): Chinese translations of the Vim help
+# (*.cnx + tags-cn). Installed into BOTH nvim and vim runtime doc dirs;
+# selected via 'helplang=cn' (root cause #55).
+export VIMCDOC_COMMIT=bc2469b2752c9e2d89beca07d0c7faab4e1f1869
 # cmake standalone binary (needed to build neovim from source; Arch closure
 # does not include cmake since it is a build-time-only dep)
 export CMAKE_VER=3.31.6
@@ -54,8 +58,7 @@ export OV_BRIDGE_VER=2.10.11
 export FBTERM_UCIMF_VER=0.2.9
 # openvanilla-modules (OVIMGeneric + .cin tables) has no release tarballs;
 # pinned to a verified commit of the pkg-ime GitHub snapshot
-export OV_MODULES_COMMIT=28d0dd62b710f563d04ee926b548da9cb41a409a
-export OV_MODULES_TARBALL="openvanilla-modules-git${OV_MODULES_COMMIT:0:7}.tar.gz"
+export OV_MODULES_COMMIT=28d0dd62b710f563d04ee926b548da9cb41a409aexport OV_MODULES_TARBALL="openvanilla-modules-git${OV_MODULES_COMMIT:0:7}.tar.gz"
 export FIRACODE_VER=6.2
 # man-pages-zh: Debian prebuilt data-only package (upstream 1.6.x builds need
 # cmake+opencc which the chroot lacks; the deb ships converted simplified pages)

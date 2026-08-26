@@ -8,6 +8,15 @@
 - 修复：恢复 `inline`（v3 补丁对该行零改动）；本地验证升级为三件套：git apply --check ✓ + g++ -fsyntax-only ✓ + **双 TU -O2 实编 nm 检查无强符号泄漏** ✓。
 - 教训：**手改头文件类内声明时，inline/static/constexpr 修饰符与默认实参是高危资产；对声明行的 diff 必须为零或逐字符核对。**
 
+## 根因五十五（2026-08-26 用户澄清，已修）：nvim 文档/help/提示没有中文
+**用户澄清"没有中文"指 nvim 的界面消息、:help 帮助文档未中文化（非文件编码）。两个独立缺口：① nvim 源码构建的 po→mo 翻译安装依赖构建期 gettext 处理，ISO 里从未装过 `/usr/local/share/locale/zh_CN/LC_MESSAGES/nvim.mo` → 提示全英文；② :help 中文档从未集成——vim 侧同样缺（LFS ch8 vim 不含 vimcdoc），此前只有消息是中文的。**
+- 修复（已实施）：
+  1. **提示中文化**：chroot nvim 构建块在 `make install` 后用源码树 `src/nvim/po/zh_CN.UTF-8.po` 显式 `msgfmt --check` 生成并安装 nvim.mo，硬性断言存在；运行时 fbterm 内 LANG=zh_CN.UTF-8 → gettext 自动生效；
+  2. **帮助中文化（双编辑器统一）**：新增 vimcdoc（yianwillis/vimcdoc，pin `bc2469b2…`，157 个 `*.cnx`）下载与安装段——解包 doc/*.cnx 分别放入 `/usr/local/share/nvim/runtime/doc/` 与 `/usr/share/vim/vim*/doc/`，各自 `helptags` 重生成（nvim --headless / vim -es），断言 tags-cn 非空；
+  3. `/etc/vimrc` 加 `set helplang=cn`、`/etc/xdg/nvim/sysinit.lua` 加 `vim.opt.helplang = "cn"`——`:help xxx` 中文优先、缺失标签自动回落英文（help-translated 机制）；
+  4. pkg_register neovim 增加 `/usr/local/share/locale/zh_CN`。
+- 机制依据：neovim v0.12.5 源码含 zh_CN.UTF-8.po（GitHub API 实证）；help-translated 规定翻译文件为 `*.??x` + `tags-??`，`'helplang'` 选择语言。
+
 ## 根因五十四（用户实测报告，已修）：nvim 无中文且配置与 vim 不一致
 **Neovim 的系统级初始化只认 `$XDG_CONFIG_DIRS/nvim/sysinit.vim|sysinit.lua`；脚本写的 `/etc/xdg/nvim/init.lua` 是无效文件名，nvim 从未读取过 → 一直裸默认运行：'fileencodings' 默认值不含 gb18030/gbk → GBK 文件中文乱码（"没有中文"），而 vim 正常读 /etc/vimrc → "配置不一样"。**
 - 修复（05-extras.sh）：改写 `/etc/xdg/nvim/sysinit.lua` 与 /etc/vimrc 完全对齐（encoding/fileencodings 五编码链/ambiwidth/number/syntax enable + 原有 expandtab/tabstop/shiftwidth）；删除死文件 init.lua；pkg_register neovim 增加 /etc/xdg/nvim 纳入包管理。
