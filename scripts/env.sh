@@ -106,7 +106,10 @@ export YARU_VER=26.04.5
 # unconditionally (root cause #57). Built from source via their plain
 # Makefiles + SASS_LIBSASS_PATH (no autotools needed).
 export LIBSASS_VER=3.6.6
-export SASSC_VER=3.6.3.1ubuntu
+# sassc upstream tags stop at 3.6.2 (no 3.6.3!); 3.6.2+libsass-3.6.6 is
+# the standard Debian/Arch pairing. "3.6.3.1ubuntu" was a corrupted
+# version string that 404'd the whole extras download phase.
+export SASSC_VER=3.6.2
 export YARU_COMMIT=f01c3e9a257296242806f8e0c5d4a660516f2181
 export YARU_TARBALL="yaru-${YARU_VER}.tar.gz"
 

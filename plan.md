@@ -72,6 +72,7 @@
 ## 根因五十七（run#111 packages 日志实证，已修）：Yaru meson 硬性要求 sassc
 **Yaru 26.04 的 meson.build 第 12 行无条件 `find_program('sassc')`，chroot 无此程序 → meson setup ERROR → 主题静默跳过（WARN）。**
 - 修复：env.sh 增加 LIBSASS_VER=3.6.6 / SASSC_VER=3.6.3；宿主下载表 + 宿主 07-packages.sh 预下载双保险；chroot build_sassc() 用官方纯 Makefile 路线（SASS_LIBSASS_PATH 变量，无需 autotools——LFS 最终系统没有 autoconf/automake）；build_yaru 入口加 `command -v sassc || die`。
+- 追修（run#115 实证）：SASSC_VER 曾被误改为 `3.6.3.1ubuntu`——上游 sass/sassc **根本没有该 tag**（tag 止于 3.6.2），归档 URL 404 → 宿主下载阶段三次重试后 die。修正为 **SASSC_VER=3.6.2**（sassc 3.6.2 + libsass 3.6.6 是 Debian/Arch 标准配对）。教训：**版本串必须对上游 tag 列表实证（API /tags），不能凭包管理器版本号臆造**。
 
 ## 根因五十八（run#111 packages 日志实证，已修）：resolver soname 匹配失配 + libxscrnsaver 包名不存在
 **两个独立缺陷：① Arch 数据库把共享库依赖写成 `libcrypto.so=3-64` 形态，dep_base() 产出 `libcrypto.so`，而 SKIP 集合存的是裸名 `libcrypto` → 12 个假 MISSING 警告（libcom_err/libcrypto/libdbus/libfreetype/libharfbuzz/libncursesw/libreadline/librsvg/libss/libsystemd/libudev）；② VS Code 种子里的 `libxscrnsaver` 在 Arch 根本不是包名——X11 屏保库的包叫 **libxss**（provides libXss.so）→ 真 MISSING。**
