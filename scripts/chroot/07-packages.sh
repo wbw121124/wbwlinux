@@ -237,7 +237,7 @@ import_fcitx5() {
     # "libxss" (provides libXss.so) - "libxscrnsaver" does not exist as a
     # pkgname (root cause #58).
     log "  resolving fcitx5+vscode dependency closure"
-    local vscode_seeds="nss,nspr,libxss,libxkbfile,libcups,libsecret"
+    local vscode_seeds="nss,nspr,libxss,libxkbfile,libcups,libsecret,openssh"
     python3 "$SCRIPTS_DIR/chroot/arch-resolve-fcitx5.py" "$work/db" "$work" "$vscode_seeds" \
         > "$work/resolve.log" 2>&1 || {
         cat "$work/resolve.log" >&2
@@ -333,6 +333,345 @@ PKGEOF
     log "  package: vscode-${VSCODE_VER}-1-x86_64.pkg.tar.zst"
 }
 build_vscode || warn "VS Code build failed (continuing)"
+
+# =====================================================================
+# Package: expat (runtime dep of the full-featured git package below;
+# the ISO base system has no expat, so it ships as its own package)
+# =====================================================================
+log '==> building expat package'
+build_expat() {
+    local tarball="$DL/expat-$EXPAT_VER.tar.gz"
+    if [ ! -f "$tarball" ]; then
+        warn "expat tarball not found - skipping"
+        return 0
+    fi
+    local src="$STAGING/expat-src"
+    rm -rf "$src" && mkdir -p "$src"
+    tar xf "$tarball" -C "$src" --strip-components=1
+
+    local prefix="$STAGING/expat/prefix"
+    rm -rf "$prefix" && mkdir -p "$prefix"
+    (
+        cd "$src"
+        ./configure --prefix=/usr --disable-static \
+            && make -j"$NPROC" \
+            && make DESTDIR="$prefix" install
+    ) > /tmp/expat-build.log 2>&1 || { warn "expat build failed"; return 0; }
+
+    # runtime files only (drop docs/dev headers into the same package for
+    # simplicity; they are tiny and enable building other software later)
+    local stage="$STAGING/expat-pkg"
+    rm -rf "$stage" && mkdir -p "$stage"
+    cp -a "$prefix"/. "$stage/"
+    cat > "$stage/.PKGINFO" << PKGEOF
+pkgname = expat
+pkgver = ${EXPAT_VER}-1
+pkgdesc = XML parsing library (dep of git-full)
+arch = x86_64
+builddate = $(date +%s)
+packager = LFS-CN Build System <lfs-cn@build>
+license = MIT
+PKGEOF
+    local archive="$REPO_DIR/expat-${EXPAT_VER}-1-x86_64.pkg.tar.zst"
+    (
+        cd "$stage"
+        : > "/tmp/pkgfiles.$$"
+        printf '%s\0' .PKGINFO >> "/tmp/pkgfiles.$$"
+        find . -mindepth 1 ! -path './.PKGINFO' -printf '%P\0' >> "/tmp/pkgfiles.$$"
+        tar --zstd --null --no-recursion -T "/tmp/pkgfiles.$$" -cf "$archive"
+        rm -f "/tmp/pkgfiles.$$"
+    )
+    rm -rf "$stage" "$src"
+    log "  package: expat-${EXPAT_VER}-1-x86_64.pkg.tar.zst"
+}
+build_expat || warn "expat build failed (continuing)"
+
+# =====================================================================
+# Package: git (FULL-featured). The ISO's bundled git was built with
+# NO_CURL/NO_EXPAT (no https transport); this package provides https
+# clone/push. pkgver carries -1 so it upgrades over the local 2.55.0.
+# =====================================================================
+log '==> building full-featured git package'
+build_git_full() {
+    local tarball="$DL/git-$GIT_VER.tar.xz"
+    if [ ! -f "$tarball" ]; then
+        warn "git tarball not found - skipping"
+        return 0
+    fi
+    local src="$STAGING/git-src"
+    rm -rf "$src" && mkdir -p "$src"
+    tar xf "$tarball" -C "$src" --strip-components=1
+
+    local prefix="$STAGING/git/prefix"
+    rm -rf "$prefix" && mkdir -p "$prefix"
+    (
+        cd "$src"
+        make prefix=/usr \
+             NO_TCLTK=1 \
+             NO_PYTHON=1 \
+             NO_LIBPCRE2=1 \
+             NO_NLS=1 \
+             NO_GETTEXT=1 \
+             NO_GPGME=1 \
+             -j"$NPROC" all \
+        && make prefix=/usr DESTDIR="$prefix" install
+    ) > /tmp/git-build.log 2>&1 || { warn "full git build failed"; return 0; }
+
+    local stage="$STAGING/git-pkg"
+    rm -rf "$stage" && mkdir -p "$stage"
+    cp -a "$prefix"/. "$stage/"
+    cat > "$stage/.PKGINFO" << PKGEOF
+pkgname = git
+pkgver = ${GIT_VER}-1
+pkgdesc = git - distributed version control system (https/ssh transport enabled)
+arch = x86_64
+builddate = $(date +%s)
+packager = LFS-CN Build System <lfs-cn@build>
+license = GPL-2.0-only
+depends = curl
+depends = expat
+depends = openssh
+PKGEOF
+    local archive="$REPO_DIR/git-${GIT_VER}-1-x86_64.pkg.tar.zst"
+    ( cd "$stage" && tar --zstd -cf "$archive" .PKGINFO . )
+    rm -rf "$stage" "$src"
+    log "  package: git-${GIT_VER}-1-x86_64.pkg.tar.zst"
+}
+build_git_full || warn "full git build failed (continuing)"
+
+# =====================================================================
+# Package: astroterm (terminal planetarium; prebuilt STATIC binary from
+# the upstream release asset - same pattern as fd/rg/bat. Static means
+# NO depends entries: nothing in this repo would satisfy them anyway.)
+# =====================================================================
+log '==> building astroterm package'
+build_astroterm() {
+    local bin="$DL/astroterm-linux-x86_64"
+    if [ ! -f "$bin" ]; then
+        warn "astroterm binary not found - skipping"
+        return 0
+    fi
+    local stage="$STAGING/astroterm-pkg"
+    rm -rf "$stage" && mkdir -p "$stage/usr/bin"
+    install -m 755 "$bin" "$stage/usr/bin/astroterm"
+    cat > "$stage/.PKGINFO" << PKGEOF
+pkgname = astroterm
+pkgver = ${ASTROTERM_VER#v}-1
+pkgdesc = A planetarium for your terminal (prebuilt static)
+arch = x86_64
+builddate = $(date +%s)
+packager = LFS-CN Build System <lfs-cn@build>
+license = MIT
+PKGEOF
+    local archive="$REPO_DIR/astroterm-${ASTROTERM_VER#v}-1-x86_64.pkg.tar.zst"
+    ( cd "$stage" && tar --zstd -cf "$archive" .PKGINFO . )
+    rm -rf "$stage"
+    log "  package: astroterm-${ASTROTERM_VER#v}-1-x86_64.pkg.tar.zst"
+}
+build_astroterm || warn "astroterm build failed (continuing)"
+
+# =====================================================================
+# Package: typst (typesetting system; prebuilt STATIC musl binary -
+# same pattern as fd/rg/bat/astroterm, empty depends)
+# =====================================================================
+log '==> building typst package'
+build_typst() {
+    local tarball="$DL/typst-x86_64-unknown-linux-musl.tar.xz"
+    if [ ! -f "$tarball" ]; then
+        warn "typst tarball not found - skipping"
+        return 0
+    fi
+    local stage="$STAGING/typst-pkg"
+    rm -rf "$stage" && mkdir -p "$stage/usr/bin"
+    tar xf "$tarball" -C "$stage/usr/bin" --strip-components=1 \
+        typst-x86_64-unknown-linux-musl/typst \
+        || { warn "typst extract failed"; return 0; }
+    chmod 755 "$stage/usr/bin/typst"
+    cat > "$stage/.PKGINFO" << PKGEOF
+pkgname = typst
+pkgver = ${TYPST_VER#v}-1
+pkgdesc = Typst - composable typesetting system (prebuilt static musl)
+arch = x86_64
+builddate = $(date +%s)
+packager = LFS-CN Build System <lfs-cn@build>
+license = Apache-2.0
+PKGEOF
+    local archive="$REPO_DIR/typst-${TYPST_VER#v}-1-x86_64.pkg.tar.zst"
+    (
+        cd "$stage"
+        : > "/tmp/pkgfiles.$$"
+        printf '%s\0' .PKGINFO >> "/tmp/pkgfiles.$$"
+        find . -mindepth 1 ! -path './.PKGINFO' -printf '%P\0' >> "/tmp/pkgfiles.$$"
+        tar --zstd --null --no-recursion -T "/tmp/pkgfiles.$$" -cf "$archive"
+        rm -f "/tmp/pkgfiles.$$"
+    )
+    rm -rf "$stage"
+    log "  package: typst-${TYPST_VER#v}-1-x86_64.pkg.tar.zst"
+}
+build_typst || warn "typst build failed (continuing)"
+
+# =====================================================================
+# Package: tdf (TUI PDF viewer; Rust source build. mupdf-rs vendors the
+# C library, so only /opt/rust + gcc are needed. Git-based cargo deps
+# require the CA env - /etc/environment is NOT read in this env -i
+# shell, so export SSL_CERT_FILE explicitly.)
+# =====================================================================
+log '==> building tdf package (cargo, this takes a while)'
+build_tdf() {
+    local tarball="$DL/tdf-$TDF_VER.tar.gz"
+    if [ ! -f "$tarball" ]; then
+        warn "tdf tarball not found - skipping"
+        return 0
+    fi
+    if [ ! -x /opt/rust/bin/cargo ]; then
+        warn "/opt/rust/bin/cargo missing - skipping tdf"
+        return 0
+    fi
+    local src="$STAGING/tdf-src"
+    rm -rf "$src" && mkdir -p "$src"
+    tar xf "$tarball" -C "$src" --strip-components=1
+
+    export PATH="/opt/rust/bin:$PATH"
+    export SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
+    (
+        cd "$src"
+        cargo build --release
+    ) > /tmp/tdf-build.log 2>&1 || {
+        warn "tdf cargo build failed (see /tmp/tdf-build.log in chroot)"
+        return 0
+    }
+
+    local stage="$STAGING/tdf-pkg"
+    rm -rf "$stage" && mkdir -p "$stage/usr/bin"
+    install -m 755 "$src/target/release/tdf" "$stage/usr/bin/tdf" \
+        || { warn "tdf binary missing"; return 0; }
+    cat > "$stage/.PKGINFO" << PKGEOF
+pkgname = tdf
+pkgver = ${TDF_VER#v}-1
+pkgdesc = Terminal PDF viewer (TUI, mupdf rendering)
+arch = x86_64
+builddate = $(date +%s)
+packager = LFS-CN Build System <lfs-cn@build>
+license = AGPL-3.0-only
+PKGEOF
+    local archive="$REPO_DIR/tdf-${TDF_VER#v}-1-x86_64.pkg.tar.zst"
+    (
+        cd "$stage"
+        : > "/tmp/pkgfiles.$$"
+        printf '%s\0' .PKGINFO >> "/tmp/pkgfiles.$$"
+        find . -mindepth 1 ! -path './.PKGINFO' -printf '%P\0' >> "/tmp/pkgfiles.$$"
+        tar --zstd --null --no-recursion -T "/tmp/pkgfiles.$$" -cf "$archive"
+        rm -f "/tmp/pkgfiles.$$"
+    )
+    rm -rf "$stage" "$src"
+    log "  package: tdf-${TDF_VER#v}-1-x86_64.pkg.tar.zst"
+}
+build_tdf || warn "tdf build failed (continuing)"
+
+# =====================================================================
+# Packages: libevent + tmux. tmux's only external dep; ncurses comes
+# from LFS but is NOT registered in pacman, so tmux declares only
+# libevent (which IS a repo package).
+# =====================================================================
+log '==> building libevent + tmux packages'
+build_libevent() {
+    local tarball="$DL/libevent-$LIBEVENT_VER.tar.gz"
+    if [ ! -f "$tarball" ]; then
+        warn "libevent tarball not found - skipping"
+        return 0
+    fi
+    local src="$STAGING/libevent-src"
+    rm -rf "$src" && mkdir -p "$src"
+    tar xf "$tarball" -C "$src" --strip-components=1
+
+    local prefix="$STAGING/libevent/prefix"
+    rm -rf "$prefix" && mkdir -p "$prefix"
+    (
+        cd "$src"
+        ./configure --prefix=/usr --disable-static \
+            && make -j"$NPROC" \
+            && make DESTDIR="$prefix" install
+    ) > /tmp/libevent-build.log 2>&1 || { warn "libevent build failed"; return 0; }
+
+    local stage="$STAGING/libevent-pkg"
+    rm -rf "$stage" && mkdir -p "$stage"
+    cp -a "$prefix"/. "$stage/"
+    cat > "$stage/.PKGINFO" << PKGEOF
+pkgname = libevent
+pkgver = ${LIBEVENT_VER#release-}-1
+pkgdesc = Event notification library (dep of tmux)
+arch = x86_64
+builddate = $(date +%s)
+packager = LFS-CN Build System <lfs-cn@build>
+license = BSD-3-Clause
+PKGEOF
+    local archive="$REPO_DIR/libevent-${LIBEVENT_VER#release-}-1-x86_64.pkg.tar.zst"
+    (
+        cd "$stage"
+        : > "/tmp/pkgfiles.$$"
+        printf '%s\0' .PKGINFO >> "/tmp/pkgfiles.$$"
+        find . -mindepth 1 ! -path './.PKGINFO' -printf '%P\0' >> "/tmp/pkgfiles.$$"
+        tar --zstd --null --no-recursion -T "/tmp/pkgfiles.$$" -cf "$archive"
+        rm -f "/tmp/pkgfiles.$$"
+    )
+    rm -rf "$stage" "$src"
+    log "  package: libevent-${LIBEVENT_VER#release-}-1-x86_64.pkg.tar.zst"
+}
+build_libevent || warn "libevent build failed (continuing)"
+
+build_tmux() {
+    local tarball="$DL/tmux-$TMUX_VER.tar.gz"
+    if [ ! -f "$tarball" ]; then
+        warn "tmux tarball not found - skipping"
+        return 0
+    fi
+    local src="$STAGING/tmux-src"
+    rm -rf "$src" && mkdir -p "$src"
+    tar xf "$tarball" -C "$src" --strip-components=1
+
+    local evp="$STAGING/libevent/prefix"
+    if [ ! -d "$evp" ]; then
+        warn "libevent staging missing - skipping tmux"
+        return 0
+    fi
+    local prefix="$STAGING/tmux/prefix"
+    rm -rf "$prefix" && mkdir -p "$prefix"
+    (
+        cd "$src"
+        PKG_CONFIG_PATH="$evp/usr/lib/pkgconfig" \
+        CPPFLAGS="-I$evp/usr/include" \
+        LDFLAGS="-L$evp/usr/lib" \
+        ./configure --prefix=/usr \
+            && make -j"$NPROC" \
+            && make DESTDIR="$prefix" install
+    ) > /tmp/tmux-build.log 2>&1 || { warn "tmux build failed"; return 0; }
+
+    local stage="$STAGING/tmux-pkg"
+    rm -rf "$stage" && mkdir -p "$stage"
+    cp -a "$prefix"/. "$stage/"
+    cat > "$stage/.PKGINFO" << PKGEOF
+pkgname = tmux
+pkgver = ${TMUX_VER}-1
+pkgdesc = Terminal multiplexer
+arch = x86_64
+builddate = $(date +%s)
+packager = LFS-CN Build System <lfs-cn@build>
+license = ISC
+depends = libevent
+PKGEOF
+    local archive="$REPO_DIR/tmux-${TMUX_VER}-1-x86_64.pkg.tar.zst"
+    (
+        cd "$stage"
+        : > "/tmp/pkgfiles.$$"
+        printf '%s\0' .PKGINFO >> "/tmp/pkgfiles.$$"
+        find . -mindepth 1 ! -path './.PKGINFO' -printf '%P\0' >> "/tmp/pkgfiles.$$"
+        tar --zstd --null --no-recursion -T "/tmp/pkgfiles.$$" -cf "$archive"
+        rm -f "/tmp/pkgfiles.$$"
+    )
+    rm -rf "$stage" "$src" "$STAGING/libevent"
+    log "  package: tmux-${TMUX_VER}-1-x86_64.pkg.tar.zst"
+}
+build_tmux || warn "tmux build failed (continuing)"
 
 # =====================================================================
 # Sanitize Arch epoch filenames: upload-artifact rejects ':' (NTFS-

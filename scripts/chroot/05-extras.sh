@@ -1715,6 +1715,15 @@ fi
 [ -e /usr/lib/systemd/system/kmsconvt@.service ] \
     || die "extras: kmsconvt@.service not installed"
 
+# Enable on tty2-6 HERE, not in 04-sysconfig: that phase runs BEFORE
+# extras, so the freshly installed unit file did not exist yet
+# (same ordering lesson as root cause #37). kmsconvt@.service carries
+# Conflicts/OnFailure getty@%i -> automatic takeover + plain-getty
+# fallback; Alias=autovt@.service makes logind prefer it.
+systemctl enable kmsconvt@tty2.service kmsconvt@tty3.service \
+                kmsconvt@tty4.service kmsconvt@tty5.service \
+                kmsconvt@tty6.service
+
 # console-autoshell: kmscon login program. /etc/shadow's root hash is "x"
 # (no password can match), so a getty-style login prompt is unusable on
 # this live ISO - every console must autologin (same as tty1/serial).

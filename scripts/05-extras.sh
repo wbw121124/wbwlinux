@@ -73,6 +73,17 @@ declare -A urls=(
   ["kmscon-$KMSCON_VER.tar.gz"]="https://github.com/kmscon/kmscon/archive/refs/tags/$KMSCON_VER.tar.gz"
   # CA bundle (Mozilla-derived; pacman/git need real TLS verification)
   ["cacert.pem"]="$CACERT_URL"
+  # astroterm (prebuilt static binary from release asset)
+  ["astroterm-linux-x86_64"]="https://github.com/da-luce/astroterm/releases/download/$ASTROTERM_VER/astroterm-linux-x86_64"
+  # expat (full-featured git package needs libexpat)
+  ["expat-$EXPAT_VER.tar.gz"]="https://github.com/libexpat/libexpat/releases/download/R_${EXPAT_VER//./_}/expat-$EXPAT_VER.tar.gz"
+  # typst (prebuilt static musl tarball)
+  ["typst-x86_64-unknown-linux-musl.tar.xz"]="https://github.com/typst/typst/releases/download/$TYPST_VER/typst-x86_64-unknown-linux-musl.tar.xz"
+  # tdf (Rust TUI PDF viewer; source build via /opt/rust)
+  ["tdf-$TDF_VER.tar.gz"]="https://codeload.github.com/itsjunetime/tdf/tar.gz/$TDF_VER"
+  # tmux + libevent
+  ["tmux-$TMUX_VER.tar.gz"]="https://github.com/tmux/tmux/releases/download/$TMUX_VER/tmux-$TMUX_VER.tar.gz"
+  ["libevent-$LIBEVENT_VER.tar.gz"]="https://github.com/libevent/libevent/releases/download/release-$LIBEVENT_VER/libevent-$LIBEVENT_VER.tar.gz"
   # Yaru theme (Ubuntu 26.04 LTS, pinned to tag)
   ["yaru-${YARU_VER}.tar.gz"]="https://codeload.github.com/ubuntu/yaru/tar.gz/${YARU_COMMIT}"
 )

@@ -22,6 +22,18 @@
 - 修复（05-extras.sh）：改写 `/etc/xdg/nvim/sysinit.lua` 与 /etc/vimrc 完全对齐（encoding/fileencodings 五编码链/ambiwidth/number/syntax enable + 原有 expandtab/tabstop/shiftwidth）；删除死文件 init.lua；pkg_register neovim 增加 /etc/xdg/nvim 纳入包管理。
 - 说明：nvim 已移除 'termencoding'/'t_Co' 选项，属有意跳过而非遗漏。
 
+## 根因六十 + 包仓库扩充（2026-08-26 用户反馈，已实施）：yaru/astroterm/typst/tdf/tmux 缺失 + git 完整功能版
+**用户逐项实测 packages-repo 缺包。归因：yaru=sassc 缺失链（根因五十七已修，待 from-base 验证）；astroterm/typst/tdf/tmux=从未纳入打包清单（本轮新增）；git=ISO 自带版是 NO_CURL/NO_EXPAT 残废（无法 https clone）。**
+- 新增自建包（chroot/07-packages.sh，全部走既有 null 清单打包模式）：
+  1. **typst v0.15.1**：预编译静态 musl（fd/rg 模式），空 depends；
+  2. **tdf v0.5.0**：Rust TUI PDF 阅读器，无预编译资产 → cargo 源码构建（/opt/rust 1.93.1 ≥ 1.86 ✓；mupdf-rs 内嵌 C 库只需 gcc；**builder 内显式 export SSL_CERT_FILE**——env -i shell 不读 /etc/environment，cargo 的 git 依赖需要它）；
+  3. **libevent 2.1.13-stable + tmux 3.7c**：libevent 先装 staging，tmux 以 PKG_CONFIG_PATH/ CPPFLAGS/LDFLAGS 指向 staging 构建；tmux depends 只写 libevent（ncurses 是 LFS 基础件未注册 pacman，声明了反而解析失败——同 perl 教训）；
+  4. **expat 2.7.1**（独立包）+ **git 2.55.0-1 完整版**：保留 curl/expat（去掉 NO_CURL/NO_EXPAT），pkgver -1 高于本地注册的 2.55.0 → pacman -S git 直接升级；depends=curl,expat,openssh（perl 已从 depends 剔除——未注册包不能进 depends）；
+  5. **openssh 加入 resolver 种子**（vscode_seeds）→ 仓库提供 ssh 远程支持。
+- 宿主 07-packages.sh 预下载循环扩至 7 项（astroterm/expat/typst/tdf/tmux/libevent，防快照滞后）；宿主下载表同步。
+- **kmsconvt@tty2..6 启用搬迁收尾**：从 04-sysconfig（跑在 extras 之前、单元不存在）移至 chroot/05-extras.sh 安装断言之后（run#114 失败实证的顺序错误，同根因三十七教训）。
+- 依赖声明纪律：**depends 里只能出现"本地已注册或仓库可满足"的包名**；LFS 基础件（glibc/ncurses/perl）一律不声明。
+
 ## 根因五十九（用户 QEMU 实测 + 截图实证，已修）：pacman 走 Pages 源报 SSL 证书错误
 **`pacman -Sy` 拉取 `https://wbw121124.github.io/wbwlinux/lfscn.db` 失败：`unable to get local issuer certificate (20)`。根因：ISO 基础系统**没有安装任何 CA 证书**——此前所有 HTTPS 下载（Arch 导入、GitHub tarball）全靠 `curl -k` 跳过验证掩盖；pacman 的 SigLevel=Never 只豁免 PGP 签名，不豁免 TLS。**
 - 修复（chroot/05-extras.sh，紧随 pacman.conf 段）：

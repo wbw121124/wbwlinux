@@ -122,6 +122,21 @@ export LIBTSM_TARBALL="libtsm-${LIBTSM_VER}.tar.gz"
 # (root cause #59). Mozilla-derived bundle from curl.se.
 export CACERT_URL="https://curl.se/ca/cacert.pem"
 
+# astroterm: terminal planetarium, prebuilt static linux-x86_64 asset
+# (same pattern as fd/rg/bat; zero runtime deps -> empty depends list)
+export ASTROTERM_VER=v1.2.0
+# typst: typesetting system, prebuilt static musl binary (fd/rg pattern)
+export TYPST_VER=v0.15.1
+# tdf: TUI PDF viewer (Rust; no prebuilt assets - cargo build, needs
+# /opt/rust >= 1.86 for edition 2024; mupdf-rs vendors the C library)
+export TDF_VER=v0.5.0
+# tmux + libevent (tmux's only external dep; ncurses comes from LFS)
+export TMUX_VER=3.7c
+export LIBEVENT_VER=2.1.13-stable
+# expat: the ISO's git was built NO_CURL/NO_EXPAT (no https support);
+# the Pages repo ships a full-featured git which needs libexpat
+export EXPAT_VER=2.7.1
+
 # Arch binary stack (X.Org + XFCE) imported from repo databases at build
 # time by chroot/06-xorg-xfce.sh; rolling release, pinned per run only.
 export ARCH_MIRRORS="https://geo.mirror.pkgbuild.com https://mirror.rackspace.com/archlinux https://mirrors.kernel.org/archlinux"
