@@ -22,6 +22,18 @@
 - 修复（05-extras.sh）：改写 `/etc/xdg/nvim/sysinit.lua` 与 /etc/vimrc 完全对齐（encoding/fileencodings 五编码链/ambiwidth/number/syntax enable + 原有 expandtab/tabstop/shiftwidth）；删除死文件 init.lua；pkg_register neovim 增加 /etc/xdg/nvim 纳入包管理。
 - 说明：nvim 已移除 'termencoding'/'t_Co' 选项，属有意跳过而非遗漏。
 
+## KMSCON 替换 fbterm（2026-08-26 用户决策：方案 C 完全替换+自研IM；autologin=bash --login）
+**三阶段计划：P1 kmscon 落地(tty2-6 并存布局) → P2 IM 桥接(内嵌 libucimf) → P3 全量切换+移除 fbterm。每阶段一次 `[iso:from-base]` 验证。版本 pin：kmscon v10.0.2（github.com/kmscon/kmscon，2026 复活官方仓）/ libtsm v4.7.1。内核 DRM 已就绪（fragment 有 DRM=y + virtio-gpu/bochs/i915(m)），P1 补 CONFIG_DRM_SIMPLEDRM=y。**
+
+### Phase 0 侦察结论（2026-08-26 本地源码实证，GO）
+1. **libucimf 显示后端可注入、零补丁**：`GraphDev`（display/graphdev.h）为纯虚接口（PutPixel/FillRect/RevRect/SaveRect/RstrRect 五个纯虚），单例指针 `static GraphDev *mpGraphDev` 是 **public**——桥接子类直接赋值即可接管全部绘制；不调用 `GraphDev::Open()` 就永远不会碰 /dev/fb0。
+2. 注入时序硬约束：`GraphPort` 构造函数在创建时抓取 `gdev = GraphDev::mpGraphDev`（graphport.cpp:37）→ 必须在 `ucimf_init()` 之前完成注入。
+3. 字体链独立于设备：libucimf font.cpp 走 fontconfig+freetype 自绘位图，OutChar(graphdev.cpp:128) 经 PutPixel 落地 → 现有 /etc/ucimf.conf 的 Fira Code,WQY 配置原样复用。
+4. kmscon v10.0.2 结构映射：键输入 `src/input/input_uxkb.c`（IM 拦截点，xkb keysym 后、喂 pty 前）；渲染 `src/render/text.c` + bbulk.c（IM 窗口叠加钩点）；会话 `src/terminal.c`；DRM/VT 抽象 `src/uterm/`。
+5. kmscon.conf 可用项（man 实证）：login / font-name / font-size / font-engine / term / vt / xkb-keymap|layout|model|variant|options|repeat-delay|repeat-rate / palette / sb-size。
+6. 遗留未知（P2 spike 解决）：渲染完成后回调的确切挂点；K_RAW 扫描码流与 ucimf 键表的编码对齐（ISO 已含 kbd 的 /usr/share/keymaps，正向信号）。
+7. P2 设计定稿：桥接 = GraphDev 子类（像素级 PutPixel/FillRect 直写 kmscon 渲染缓冲）+ input_uxkb 拦截（Ctrl+Space/Ctrl+Shift 热键 + K_RAW 合成流）+ terminal 光标位置回灌 ucimf_cursor_position；复用整套 OVIMGeneric v2（连续匹配/编辑距离/cs-oi 表）。
+
 ## 根因五十六（run#111 实证，已修）：Deploy to Pages 在 from-base 下仍被跳过——needs 门控沿链传递
 **GitHub Actions 文档明确："a failure or skip applies to all jobs in the dependency chain"。不含状态函数的 `if` 会被自动前置隐式 `success()`，而 `success()` 对依赖链上任意祖先的 skip/fail 都返回 false。from-base 模式下 toolchain/base 被 skip → 沿 mode→toolchain→base→config-extras→packages→deploy-pages 链路污染：packages 因 `always()` 豁免正常执行，deploy-pages 的 `if: needs.packages.result == 'success'` 前面的隐式 success() 却因祖先 skip 判假 → 秒跳过（API 实证 started/completed 同秒、零 step）。**
 - 修复：`if: ${{ !cancelled() && needs.packages.result == 'success' }}` —— 显式状态函数豁免隐式门控，语义不变。
