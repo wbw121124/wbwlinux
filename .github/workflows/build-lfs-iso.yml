@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       resume:
-        description: '构建级别: full=全量(工具链+基础+配置+ISO); from-base=跳过工具链+基础(用上次 base 快照, 重跑配置+extras+ISO); from-config=跳过配置+extras(用上次 config 快照, 只做内核+ISO); only-packages=用上次 config 快照, 只构建 pacman 包仓库并部署 Pages(不产 ISO)。push 时可用 commit message 标记 [iso:full]/[iso:from-base]/[iso:from-config]/[iso:only-packages] 覆盖，无标记默认 full'
+        description: '构建级别: full=全量(工具链+基础+配置+ISO); from-base=跳过工具链+基础(用上次 base 快照, 重跑配置+extras+ISO); from-config=跳过配置+extras(用上次 config 快照, 只做内核+ISO); only-packages=用上次 config 快照, 只构建 pacman 包仓库并部署 Pages(不产 ISO)。push 时可用 commit message 标记 [iso:full]/[iso:from-base]/[iso:from-config]/[iso:only-packages] 覆盖；无标记或标记无效时默认 only-packages（绝不意外触发全量）'
         type: choice
-        default: full
+        default: only-packages
         options:
           - full
           - from-base
@@ -40,13 +40,20 @@ jobs:
     steps:
       - id: set
         run: |
-          mode="full"
+          # SAFE DEFAULT: anything unrecognized (no marker, or a typo like
+          # [iso:config]/[iso:packages]) must NEVER fall back to a full
+          # multi-hour build. only-packages is cheap and harmless.
+          mode="only-packages"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             mode="${{ inputs.resume }}"
+            case "$mode" in
+              full|from-base|from-config|only-packages) ;;
+              *) mode="only-packages" ;;
+            esac
           else
             mode=$(printf '%s\n' "$COMMIT_MSG" | grep -oE '\[iso:(full|from-base|from-config|only-packages)\]' | tail -1 | cut -d: -f2 | tr -d ']')
+            mode="${mode:-only-packages}"
           fi
-          mode="${mode:-full}"
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
   # ---------------------------------------------------------------
   # Job 1: host prep + cross toolchain (LFS ch5 + ch6)

@@ -3,6 +3,14 @@
 ## 目标
 在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**run#90（only-packages 首跑）实证：根因四十四的 /pkgrepo 路径修复生效（169 文件被找到），但暴露根因四十五（epoch 冒号文件名致 upload-artifact 拒绝）与根因四十六（Yaru meson 选项失效）；另按用户需求将 VS Code 从 extras 迁移到 packages job（不再打入 ISO）**。
 
+## 根因五十一（2026-08-26 实证，已修）：无效 iso 标记静默触发全量构建
+**commit message 标记解析只认 `[iso:full]/[iso:from-base]/[iso:from-config]/[iso:only-packages]` 四个字面值；误写 `[iso:packages]`（abe585b）与 `[iso:config]`（dc08c92）均不匹配正则 → 走 `mode=${mode:-full}` 兜底 → 两次意外全量构建（已被手动取消）。workflow_dispatch 的 default 也是 full——同一个陷阱的两个入口。**
+- 修复（已实施，YAML 解析 + 五组标记实测通过）：**安全默认原则——任何无法识别的输入绝不升级为多小时全量构建**：
+  1. push 分支：无标记/标记无效 → 默认 only-packages；
+  2. workflow_dispatch：default 改 only-packages，且对 inputs 值做 case 白名单校验（非法值回落 only-packages）；
+  3. 描述文案同步标注"无标记或标记无效时默认 only-packages（绝不意外触发全量）"。
+- 教训：**兜底分支绝不能指向最昂贵的路径**；枚举类输入必须白名单校验而非静默默认。
+
 ## 根因四十五（run#90 packages job 实证）：Arch epoch 文件名含冒号 → upload-artifact 拒绝上传
 **fcitx5 导入下载的 Arch 预编译包带 epoch 前缀（如 `avahi-1:0.9rc5-1-x86_64.pkg.tar.zst`、`ffmpeg-2:9.0.1-1`），upload-artifact 因 NTFS 兼容性拒绝含 `:` 的路径 → `##[error]The path for one of the files in artifact is not valid: /avahi-1:0.9rc5-1-x86_64.pkg.tar.zst. Contains the following character: Colon :`，169 个文件的 packages-repo artifact 上传失败。**
 - 证据：C:\Users\yl\Downloads\logs_89170482573「8_Upload pacman repository」：`there will be 169 files uploaded` 后紧跟 Colon 错误。
