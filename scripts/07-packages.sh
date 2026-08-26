@@ -24,6 +24,19 @@ if [ ! -f "$VS_DL" ]; then
         || warn "VS Code download failed — build_vscode will skip"
 fi
 
+# Pre-download sassc/libsass for the Yaru build (root cause #57): the
+# config snapshot may predate these entries in the extras download map.
+for pair in "libsass-$LIBSASS_VER|https://github.com/sass/libsass/archive/refs/tags/$LIBSASS_VER.tar.gz" \
+            "sassc-$SASSC_VER|https://github.com/sass/sassc/archive/refs/tags/$SASSC_VER.tar.gz"; do
+    name="${pair%%|*}"; url="${pair#*|}"
+    tgt="$LFS_ROOT/root/downloads/$name.tar.gz"
+    if [ ! -f "$tgt" ]; then
+        log "==> downloading $name"
+        curl -fSL --retry 3 --max-time 180 -o "$tgt" "$url" \
+            || warn "$name download failed — Yaru build will fail to configure"
+    fi
+done
+
 umount_kernfs || true
 mount_kernfs
 

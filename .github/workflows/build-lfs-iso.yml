@@ -395,7 +395,13 @@ jobs:
     # Deploy whenever the packages repo built successfully — push and
     # workflow_dispatch alike. The old dispatch-only condition made this
     # job skip on every push ("This job was skipped" forever).
-    if: ${{ needs.packages.result == 'success' }}
+    # ROOT CAUSE #56: needs-success gating propagates TRANSITIVELY through
+    # the chain (toolchain/base are SKIPPED in from-base/from-config modes,
+    # which poisons descendants); without a status function the implicit
+    # success() sees those ancestor skips and forces this job to skip even
+    # though packages itself succeeded. !cancelled() opts out of the
+    # implicit gate; the explicit result check keeps the intent.
+    if: ${{ !cancelled() && needs.packages.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       pages: write

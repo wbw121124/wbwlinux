@@ -107,6 +107,18 @@ def dep_base(dep):
     return out
 
 
+def skip_hit(base):
+    """True when base (or its soname stem) is provided by LFS itself.
+
+    Arch lists shared-library deps as 'libcrypto.so=3-64'; dep_base()
+    yields 'libcrypto.so' while SKIP stores the plain name 'libcrypto'
+    (root cause #58: 12 bogus MISSING warnings per run).
+    """
+    if base in SKIP:
+        return True
+    return base.endswith(".so") and base[:-3] in SKIP
+
+
 def main():
     dbdir, outdir = sys.argv[1], sys.argv[2]
     # Optional third arg: comma-separated extra seeds (e.g. "nss,nspr" for VS Code deps)
@@ -127,14 +139,14 @@ def main():
         dep = queue.pop(0)
         target = None
         for base in dep_base(dep):
-            if base in SKIP:
+            if skip_hit(base):
                 target = None
                 break
             if base in all_pkgs:
                 target = base
                 break
             for prov in sorted(provides.get(base, ())):
-                if prov in SKIP:
+                if skip_hit(prov):
                     target = None
                     break
                 if prov in all_pkgs:

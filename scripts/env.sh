@@ -101,7 +101,12 @@ export FIREFOX_VER=154.0
 export REA_COMMIT=1a422b0ec86e9fc6d349d17a770d933dbf2c00f8
 
 # Yaru theme (Ubuntu 26.04 LTS) - full GTK2/GTK3/GTK4/icons/cursor/shell
-export YARU_VER=26.04.5.1ubuntu
+export YARU_VER=26.04.5
+# sassc (libsass compiler): Yaru 26.04 meson requires the sassc program
+# unconditionally (root cause #57). Built from source via their plain
+# Makefiles + SASS_LIBSASS_PATH (no autotools needed).
+export LIBSASS_VER=3.6.6
+export SASSC_VER=3.6.3.1ubuntu
 export YARU_COMMIT=f01c3e9a257296242806f8e0c5d4a660516f2181
 export YARU_TARBALL="yaru-${YARU_VER}.tar.gz"
 

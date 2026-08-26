@@ -22,6 +22,20 @@
 - 修复（05-extras.sh）：改写 `/etc/xdg/nvim/sysinit.lua` 与 /etc/vimrc 完全对齐（encoding/fileencodings 五编码链/ambiwidth/number/syntax enable + 原有 expandtab/tabstop/shiftwidth）；删除死文件 init.lua；pkg_register neovim 增加 /etc/xdg/nvim 纳入包管理。
 - 说明：nvim 已移除 'termencoding'/'t_Co' 选项，属有意跳过而非遗漏。
 
+## 根因五十六（run#111 实证，已修）：Deploy to Pages 在 from-base 下仍被跳过——needs 门控沿链传递
+**GitHub Actions 文档明确："a failure or skip applies to all jobs in the dependency chain"。不含状态函数的 `if` 会被自动前置隐式 `success()`，而 `success()` 对依赖链上任意祖先的 skip/fail 都返回 false。from-base 模式下 toolchain/base 被 skip → 沿 mode→toolchain→base→config-extras→packages→deploy-pages 链路污染：packages 因 `always()` 豁免正常执行，deploy-pages 的 `if: needs.packages.result == 'success'` 前面的隐式 success() 却因祖先 skip 判假 → 秒跳过（API 实证 started/completed 同秒、零 step）。**
+- 修复：`if: ${{ !cancelled() && needs.packages.result == 'success' }}` —— 显式状态函数豁免隐式门控，语义不变。
+- 教训：**凡 needs 链上存在可跳过祖先的 job，其 if 必须带状态函数**；`needs.X.result == 'success'` 单独使用不可靠。
+
+## 根因五十七（run#111 packages 日志实证，已修）：Yaru meson 硬性要求 sassc
+**Yaru 26.04 的 meson.build 第 12 行无条件 `find_program('sassc')`，chroot 无此程序 → meson setup ERROR → 主题静默跳过（WARN）。**
+- 修复：env.sh 增加 LIBSASS_VER=3.6.6 / SASSC_VER=3.6.3；宿主下载表 + 宿主 07-packages.sh 预下载双保险；chroot build_sassc() 用官方纯 Makefile 路线（SASS_LIBSASS_PATH 变量，无需 autotools——LFS 最终系统没有 autoconf/automake）；build_yaru 入口加 `command -v sassc || die`。
+
+## 根因五十八（run#111 packages 日志实证，已修）：resolver soname 匹配失配 + libxscrnsaver 包名不存在
+**两个独立缺陷：① Arch 数据库把共享库依赖写成 `libcrypto.so=3-64` 形态，dep_base() 产出 `libcrypto.so`，而 SKIP 集合存的是裸名 `libcrypto` → 12 个假 MISSING 警告（libcom_err/libcrypto/libdbus/libfreetype/libharfbuzz/libncursesw/libreadline/librsvg/libss/libsystemd/libudev）；② VS Code 种子里的 `libxscrnsaver` 在 Arch 根本不是包名——X11 屏保库的包叫 **libxss**（provides libXss.so）→ 真 MISSING。**
+- 修复：resolver 新增 `skip_hit(base)`——裸名命中或 `.so` 后缀剥离后命中均算 SKIP（两处调用点替换）；种子与 .PKGINFO depends 改为 `libxss`。
+- 教训：**Arch 依赖串有三种形态（pkgname / provides 名 / soname=版本），匹配逻辑必须按形态归一化。**
+
 ## 根因五十二（2026-08-26 用户反馈，已修）：Deploy to Pages 永远 skipped
 **deploy-pages job 条件为 `github.event_name == 'workflow_dispatch' && needs.packages.result == 'success'`——push 触发的运行（包括 [iso:only-packages]）一律跳过 Pages 部署，与用户预期（包仓库构建成功即自动发布 Pages）相悖。**
 - 修复：条件改为 `needs.packages.result == 'success'`，push 与手动触发一视同仁；full/from-base 模式下 config-extras 成功后 packages 也会跑，随后同样自动部署。

@@ -65,6 +65,9 @@ declare -A urls=(
   ["orchyn-XFCE-main.tar.gz"]="https://codeload.github.com/orchyn/XFCE/tar.gz/$REA_COMMIT"
   # vimcdoc: Chinese help docs (*.cnx) for vim + nvim (pinned commit)
   ["vimcdoc-$VIMCDOC_COMMIT.tar.gz"]="https://codeload.github.com/yianwillis/vimcdoc/tar.gz/$VIMCDOC_COMMIT"
+  # sassc + libsass (Yaru meson hard-requires the sassc program)
+  ["libsass-$LIBSASS_VER.tar.gz"]="https://github.com/sass/libsass/archive/refs/tags/$LIBSASS_VER.tar.gz"
+  ["sassc-$SASSC_VER.tar.gz"]="https://github.com/sass/sassc/archive/refs/tags/$SASSC_VER.tar.gz"
   # Yaru theme (Ubuntu 26.04 LTS, pinned to tag)
   ["yaru-${YARU_VER}.tar.gz"]="https://codeload.github.com/ubuntu/yaru/tar.gz/${YARU_COMMIT}"
 )

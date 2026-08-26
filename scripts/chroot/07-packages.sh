@@ -100,12 +100,37 @@ src_tarball() {
 # Package 1: Yaru theme (built from source)
 # =====================================================================
 log '==> building Yaru theme'
+
+# sassc: Yaru's meson.build hard-requires the program (root cause #57).
+# Official plain-Makefile build, no autotools needed.
+build_sassc() {
+    command -v sassc >/dev/null 2>&1 && return 0
+    local ls="$DL/libsass-$LIBSASS_VER.tar.gz" sc="$DL/sassc-$SASSC_VER.tar.gz"
+    if [ ! -f "$ls" ] || [ ! -f "$sc" ]; then
+        warn "sassc/libsass tarballs missing - Yaru will fail to configure"
+        return 0
+    fi
+    rm -rf /tmp/libsass /tmp/sassc-src
+    mkdir -p /tmp/libsass /tmp/sassc-src
+    tar xf "$ls" -C /tmp/libsass --strip-components=1
+    tar xf "$sc" -C /tmp/sassc-src --strip-components=1
+    export SASS_LIBSASS_PATH=/tmp/libsass
+    make -C /tmp/libsass -j"$NPROC" || warn "libsass build failed"
+    make -C /tmp/sassc-src -j"$NPROC" || warn "sassc build failed"
+    make -C /tmp/libsass install PREFIX=/usr >/dev/null || warn "libsass install failed"
+    make -C /tmp/sassc-src install PREFIX=/usr >/dev/null || warn "sassc install failed"
+    ldconfig
+}
+build_sassc
+
 build_yaru() {
     local tarball="$DL/$YARU_TARBALL"
     if [ ! -f "$tarball" ]; then
         warn "Yaru tarball not found: $tarball — skipping"
         return 0
     fi
+    command -v sassc >/dev/null 2>&1 \
+        || die "packages: sassc unavailable but Yaru requires it"
 
     local yaru_src="$STAGING/yaru-src"
     rm -rf "$yaru_src"
@@ -207,10 +232,12 @@ import_fcitx5() {
     done
 
     # Resolve dependency closure
-    # Pass VS Code deps (nss, nspr, libxscrnsaver, libxkbfile, libcups,
-    # libsecret) as extra seeds so they are pulled from Arch alongside fcitx5.
+    # Pass VS Code deps as extra seeds so they are pulled from Arch
+    # alongside fcitx5. NOTE: Arch's X11 screensaver lib package is named
+    # "libxss" (provides libXss.so) - "libxscrnsaver" does not exist as a
+    # pkgname (root cause #58).
     log "  resolving fcitx5+vscode dependency closure"
-    local vscode_seeds="nss,nspr,libxscrnsaver,libxkbfile,libcups,libsecret"
+    local vscode_seeds="nss,nspr,libxss,libxkbfile,libcups,libsecret"
     python3 "$SCRIPTS_DIR/chroot/arch-resolve-fcitx5.py" "$work/db" "$work" "$vscode_seeds" \
         > "$work/resolve.log" 2>&1 || {
         cat "$work/resolve.log" >&2
@@ -288,7 +315,7 @@ depends = nspr
 depends = gtk3
 depends = alsa-lib
 depends = libsecret
-depends = libxscrnsaver
+depends = libxss
 depends = libxkbfile
 depends = libcups
 PKGEOF
