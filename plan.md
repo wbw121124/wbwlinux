@@ -39,6 +39,11 @@
 - 修复：libtsm 与 kmscon 的 meson setup 均加 `-Dtests=false`（两者都有该 option 门控）；arch-resolve.py SEEDS 增加 `libxkbcommon`（连带 xkeyboard-config 数据包，kmscon 运行时也需要）。
 - 教训：**meson 项目的 tests/docs 子目录默认常开，交叉构建环境必须显式 -Dtests=false -Ddocs=false**；SKIP 集合声称"已提供"的项要与实际导入清单对账。
 
+## 根因六十四（run#119 实证，已修）：kmscon v10 feature 型选项不接受 true/false
+**kmscon v10 的 meson.options 里 docs/libseat/video_drm3d/renderer_gltex/font_* 均为 **feature 类型**（合法值 enabled/disabled/auto），传 `=false/=true` 直接 ERROR；且 **multi_seat 选项已不存在**（被 libseat 取代）——不删还会撞 unknown option。libtsm 的 tests 是 boolean 型所以上轮 `-Dtests=false` 有效。**
+- 修复：`renderer_gltex=disabled / video_drm3d=disabled / libseat=disabled / font_pango=enabled / font_freetype=enabled / docs=disabled`，删除 `-Dmulti_seat=true`；`tests=false` 保留（boolean 型）。
+- 教训：**meson 选项必须逐个核对 meson.options 的 type**——boolean 与 feature 是两套值域；fork 时代文档（README 的 multi_seat）对 v10 已失效。
+
 ## 根因六十一（run#117 实证，已修）：pacman-conf 断言语法错误误杀 extras
 **`pacman-conf repo lfscn Server` 把 "repo" 当节名查询——该节不存在，输出恒空 → grep 失败 → die "Pages server missing"。该断言自写入以来从未真正跑通过（此前 run 都死在更早阶段）。**
 - 修复：改为直接 `grep /etc/pacman.conf`（确定性、不依赖 CLI 语义），注释说明 pacman-conf 第一参数是节名。

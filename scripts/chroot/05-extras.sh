@@ -1766,16 +1766,17 @@ if [ ! -e /usr/bin/kmscon ]; then
     tar xf "$DL/$KMSCON_TARBALL" -C /tmp/kmscon-src --strip-components=1
     # nofallback: link the system libtsm we just installed instead of
     # downloading the subproject wrap (chroot has no GitHub access).
-    # gltex/drm3d/libseat disabled: no mesa, no libseat in this system.
+    # v10 option types: feature options take enabled/disabled/auto, NOT
+    # true/false (root cause #64); multi_seat no longer exists - libseat
+    # replaced it. gltex/drm3d off: no mesa; libseat stays disabled.
     meson setup /tmp/kmscon-src/build /tmp/kmscon-src --prefix=/usr \
         --wrap-mode=nofallback \
-        -Drenderer_gltex=false \
-        -Dvideo_drm3d=false \
+        -Drenderer_gltex=disabled \
+        -Dvideo_drm3d=disabled \
         -Dlibseat=disabled \
-        -Dfont_pango=true \
-        -Dfont_freetype=true \
-        -Dmulti_seat=true \
-        -Ddocs=false \
+        -Dfont_pango=enabled \
+        -Dfont_freetype=enabled \
+        -Ddocs=disabled \
         -Dtests=false \
         || die "extras: kmscon meson setup failed"
     ninja -C /tmp/kmscon-src/build || die "extras: kmscon build failed"
