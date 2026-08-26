@@ -237,7 +237,7 @@ import_fcitx5() {
     # "libxss" (provides libXss.so) - "libxscrnsaver" does not exist as a
     # pkgname (root cause #58).
     log "  resolving fcitx5+vscode dependency closure"
-    local vscode_seeds="nss,nspr,libxss,libxkbfile,libcups,libsecret,openssh"
+    local vscode_seeds="nss,nspr,libxss,libxkbfile,libcups,libsecret,openssh,poppler,fpc,gdb,mc,gcc"
     python3 "$SCRIPTS_DIR/chroot/arch-resolve-fcitx5.py" "$work/db" "$work" "$vscode_seeds" \
         > "$work/resolve.log" 2>&1 || {
         cat "$work/resolve.log" >&2
@@ -672,6 +672,86 @@ PKGEOF
     log "  package: tmux-${TMUX_VER}-1-x86_64.pkg.tar.zst"
 }
 build_tmux || warn "tmux build failed (continuing)"
+
+# =====================================================================
+# Package: ddd (GNU Data Display Debugger). Removed from Arch repos and
+# needs Motif - pull the Debian amd64 debs (ddd + libmotif) at build
+# time, merging the binary + libXm into ONE self-contained package so
+# no unresolvable depends are declared. X11 libs come from the ISO's
+# Xorg import; if a runtime lib is missing (e.g. libXp) extend here.
+# =====================================================================
+log '==> building ddd package (Debian deb extraction)'
+build_ddd() {
+    fetch_latest_deb() {
+        local dir="$1" prefix="$2" out="$3" idx f
+        idx=$(curl -kfSL --max-time 60 "https://deb.debian.org/debian/pool/main/$dir/" 2>/dev/null) || return 1
+        f=$(printf '%s' "$idx" | grep -o "href=\"[^\"]*${prefix}[^\"]*_amd64.deb\"" | tail -1 | cut -d'"' -f2)
+        [ -n "$f" ] || return 1
+        curl -kfSL --retry 2 --max-time 300 -o "$out" "https://deb.debian.org/debian/pool/main/$dir/$f" || return 1
+        printf '%s' "$f"
+    }
+    local ddd_deb="/tmp/ddd.deb" motif_deb="/tmp/libmotif.deb" ddd_fname
+    ddd_fname=$(fetch_latest_deb "d/ddd" "ddd_" "$ddd_deb") \
+        || { warn "ddd deb not found in Debian pool - skipping"; return 0; }
+    fetch_latest_deb "m/motif" "libmotif" "$motif_deb" \
+        || { warn "libmotif deb not found - skipping ddd"; return 0; }
+    local ddd_ver="${ddd_fname#ddd_}"; ddd_ver="${ddd_ver%%_amd64.deb}"
+
+    local stage="$STAGING/ddd-pkg"
+    rm -rf "$stage" && mkdir -p "$stage"
+    local tmpx="/tmp/ddd-extract"
+    rm -rf "$tmpx" && mkdir -p "$tmpx"
+    ar p "$ddd_deb" data.tar.xz | tar xJ -C "$tmpx" 2>/dev/null \
+        || ar p "$ddd_deb" data.tar.zst | tar --zstd -xf - -C "$tmpx" \
+        || { warn "ddd deb extract failed"; return 0; }
+    cp -a "$tmpx/usr" "$stage/" 2>/dev/null
+    rm -rf "$tmpx" && mkdir -p "$tmpx"
+    ar p "$motif_deb" data.tar.xz | tar xJ -C "$tmpx" 2>/dev/null \
+        || ar p "$motif_deb" data.tar.zst | tar --zstd -xf - -C "$tmpx" \
+        || { warn "libmotif deb extract failed"; return 0; }
+    mkdir -p "$stage/usr/lib"
+    if [ -d "$tmpx/usr/lib/x86_64-linux-gnu" ]; then
+        cp -a "$tmpx/usr/lib/x86_64-linux-gnu"/. "$stage/usr/lib/"
+    fi
+    [ -d "$tmpx/usr/lib" ] && cp -a "$tmpx/usr/lib"/. "$stage/usr/lib/" 2>/dev/null
+    rm -rf "$tmpx"
+    [ -e "$stage/usr/bin/ddd" ] || { warn "ddd binary missing after extract"; return 0; }
+
+    cat > "$stage/.PKGINFO" << PKGEOF
+pkgname = ddd
+pkgver = ${ddd_ver%-*}-1
+pkgdesc = GNU Data Display Debugger (Motif GUI; libXm bundled)
+arch = x86_64
+builddate = $(date +%s)
+packager = LFS-CN Build System <lfs-cn@build>
+license = GPL-3.0-only
+PKGEOF
+    local archive="$REPO_DIR/ddd-${ddd_ver%-*}-1-x86_64.pkg.tar.zst"
+    (
+        cd "$stage"
+        : > "/tmp/pkgfiles.$$"
+        printf '%s\0' .PKGINFO >> "/tmp/pkgfiles.$$"
+        find . -mindepth 1 ! -path './.PKGINFO' -printf '%P\0' >> "/tmp/pkgfiles.$$"
+        tar --zstd --null --no-recursion -T "/tmp/pkgfiles.$$" -cf "$archive"
+        rm -f "/tmp/pkgfiles.$$"
+    )
+    rm -rf "$stage"
+    log "  package: ddd-${ddd_ver%-*}-1-x86_64.pkg.tar.zst"
+}
+build_ddd || warn "ddd build failed (continuing)"
+
+# =====================================================================
+# lfs-base shim into the repo (built & registered locally by 05-extras;
+# the tarball rides in $DL). Imported Arch packages depend on glibc etc.
+# - without this shim in the repo, fresh dependency resolution against
+# the Pages repo alone could never succeed.
+# =====================================================================
+shim_tarball="$DL/lfs-base-13.0-1-x86_64.pkg.tar.zst"
+if [ -f "$shim_tarball" ]; then
+    cp -v "$shim_tarball" "$REPO_DIR/"
+else
+    warn "lfs-base shim tarball missing - imported packages may not be installable"
+fi
 
 # =====================================================================
 # Sanitize Arch epoch filenames: upload-artifact rejects ':' (NTFS-

@@ -407,7 +407,11 @@ Server = file:///usr/local/repo/lfscn
 #Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch
 EOF
 pacman-conf DBPath > /dev/null || die "extras: pacman.conf parse failed"
-pacman-conf repo lfscn Server 2>/dev/null | grep -q 'wbw121124.github.io' \
+# NOTE: pacman-conf's first argument is the SECTION name ('lfscn'), not
+# the word 'repo' - 'pacman-conf repo lfscn Server' queries a nonexistent
+# section and always came back empty (root cause #61). Grep the file
+# directly: deterministic and independent of CLI semantics.
+grep -q 'Server = https://wbw121124.github.io/wbwlinux/' /etc/pacman.conf \
     || die "extras: [lfscn] Pages server missing from pacman.conf"
 
 # ---------------------------------------------------------------------
@@ -461,6 +465,71 @@ d /var/log              0755 root root -
 EOF
 systemd-tmpfiles --create /usr/lib/tmpfiles.d/lfscn-pacman.conf
 test -d /var/cache/pacman/pkg || die "extras: tmpfiles failed to create /var/cache/pacman/pkg"
+
+# ---------------------------------------------------------------------
+# lfs-base shim package (root cause #62): Arch-imported packages carry
+# depends like glibc/ncurses/perl and soname deps 'libcrypto.so=3-64',
+# but LFS base libraries are NOT registered in pacman - every imported
+# package would fail dependency resolution. This shim PROVIDES the base
+# names + auto-generated soname entries from /usr/lib, is registered
+# locally (baked into the ISO) and shipped in the Pages repo.
+# ---------------------------------------------------------------------
+log '==> building lfs-base shim package'
+SHIM_STAGE="/tmp/lfs-base-shim"
+rm -rf "$SHIM_STAGE" && mkdir -p "$SHIM_STAGE"
+{
+    echo 'pkgname = lfs-base'
+    echo 'pkgver = 13.0-1'
+    echo 'pkgdesc = LFS base system capability shim (provides only, no files)'
+    echo 'arch = x86_64'
+    echo "builddate = $(date +%s)"
+    echo 'packager = LFS-CN Build System <lfs-cn@build>'
+    # plain names the resolver SKIP set says LFS provides
+    for n in glibc gcc-libs filesystem bash coreutils util-linux util-linux-libs \
+             systemd-libs systemd dbus ncurses readline zlib bzip2 xz zstd \
+             openssl expat libffi pcre2 sqlite curl wget which perl python \
+             gawk grep sed tar gzip shadow procps-ng e2fsprogs findutils \
+             diffutils gettext gmp mpfr libcap libgcrypt libgpg-error lz4 \
+             acl attr elfutils libelf kbd tzdata file less kmod iproute2 \
+             man-db pacman meson ninja libarchive sh awk binutils make \
+             libcom_err libcrypto libdbus libexpat libmount libncursesw \
+             libreadline libss libsystemd libudev libz \
+             gtk3 gtk4 glib2 pango cairo harfbuzz fribidi gdk-pixbuf atk \
+             at-spi2-core at-spi2-atk hicolor-icon-theme adwaita-icon-theme \
+             shared-mime-info desktop-file-utils fontconfig freetype2 \
+             libjpeg-turbo libpng libtiff libwebp librsvg libxml2 libxslt \
+             icu wayland libinput mtdev libwacom xorg-server xorg-xinit \
+             xfce4-session xfce4-panel xfwm4 xfdesktop xfce4-settings \
+             xfce4-appfinder xfconf garcon thunar thunar-volman tumbler \
+             xfce4-terminal mousepad luajit; do
+        echo "provides = $n"
+    done
+    # versioned soname provides, e.g. libcrypto.so=3-64 (both the full
+    # file version and the SONAME first component, deduped)
+    ( cd /usr/lib && for f in lib*.so.[0-9]*; do
+        [ -e "$f" ] || continue
+        case "$f" in *.so.*) ;; *) continue ;; esac
+        stem="${f%%.so.*}"; ver="${f##*.so.}"
+        echo "provides = ${stem}.so=${ver}-64"
+        echo "provides = ${stem}.so=${ver%%.*}-64"
+      done ) | sort -u
+} > "$SHIM_STAGE/.PKGINFO"
+grep -q 'provides = glibc' "$SHIM_STAGE/.PKGINFO" || die "extras: shim PKGINFO generation failed"
+prov_count=$(grep -c '^provides = ' "$SHIM_STAGE/.PKGINFO")
+local_shim="$DL/lfs-base-13.0-1-x86_64.pkg.tar.zst"
+(
+    cd "$SHIM_STAGE"
+    : > "/tmp/pkgfiles.$$"
+    printf '%s\0' .PKGINFO >> "/tmp/pkgfiles.$$"
+    find . -mindepth 1 ! -path './.PKGINFO' -printf '%P\0' >> "/tmp/pkgfiles.$$"
+    tar --zstd --null --no-recursion -T "/tmp/pkgfiles.$$" -cf "$local_shim"
+    rm -f "/tmp/pkgfiles.$$"
+)
+pacman -U --noconfirm "$local_shim" > /dev/null 2>&1 \
+    || die "extras: failed to register lfs-base shim locally"
+pacman -Q lfs-base > /dev/null || die "extras: lfs-base shim not registered"
+rm -rf "$SHIM_STAGE"
+log "  lfs-base shim registered ($prov_count provides)"
 
 # =====================================================================
 # CLI tool bundle: fd / ripgrep / bat ship official musl STATIC

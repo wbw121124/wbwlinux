@@ -34,6 +34,19 @@
 - **kmsconvt@tty2..6 启用搬迁收尾**：从 04-sysconfig（跑在 extras 之前、单元不存在）移至 chroot/05-extras.sh 安装断言之后（run#114 失败实证的顺序错误，同根因三十七教训）。
 - 依赖声明纪律：**depends 里只能出现"本地已注册或仓库可满足"的包名**；LFS 基础件（glibc/ncurses/perl）一律不声明。
 
+## 根因六十一（run#117 实证，已修）：pacman-conf 断言语法错误误杀 extras
+**`pacman-conf repo lfscn Server` 把 "repo" 当节名查询——该节不存在，输出恒空 → grep 失败 → die "Pages server missing"。该断言自写入以来从未真正跑通过（此前 run 都死在更早阶段）。**
+- 修复：改为直接 `grep /etc/pacman.conf`（确定性、不依赖 CLI 语义），注释说明 pacman-conf 第一参数是节名。
+
+## 根因六十二（设计缺口，已修）：Arch 导入包依赖未注册基础件 → 全部不可安装
+**Arch 包的 depends 写着 glibc/ncurses/perl/soname（libcrypto.so=3-64），而 LFS 基础库从未注册进 pacman 数据库——不仅本轮六个新包，此前导入的 170 个 fcitx5 闭包包在 ISO 上 `pacman -S` 同样会因依赖无法满足而失败。**
+- 修复：新增 **lfs-base 垫片包**（05-extras 构建）：provides = resolver SKIP 全集裸名（glibc/gcc-libs/ncurses/perl/binutils/make/... 约 90 项）+ 从 /usr/lib/lib*.so.N 自动生成的版本化 soname provides（`libX.so=全版本-64` 与 `libX.so=主版本-64` 双形态去重）；`pacman -U` 注册进 ISO（烤入快照）+ tarball 经 $DL 带入 packages job 入库（repo-add 前拷入 $REPO_DIR）。
+
+## 包仓库扩充第二批（2026-08-26 用户需求，已实施）
+- **resolver 种子追加**：poppler（含 pdftotext/pdfinfo 等 CLI）、fpc 3.2.2、gdb 17.2、mc 4.8.33、gcc 16.2.1（core）——依赖闭包自动拉全（boost-libs/guile/source-highlight/slang/glib2/mpfr/gmp/isl...）。
+- **ddd**：Arch 已移除该包 → 改从 Debian pool 动态抓取 ddd+libmotif 的 amd64 deb（目录索引解析最新文件名，版本无关），bin+libXm 合并为单一自洽包，零 depends 声明。
+- 安装方式：`pacman -Sy && pacman -S poppler fpc gdb ddd mc gcc`（lfs-base 垫片使依赖解析通过）。
+
 ## 根因五十九（用户 QEMU 实测 + 截图实证，已修）：pacman 走 Pages 源报 SSL 证书错误
 **`pacman -Sy` 拉取 `https://wbw121124.github.io/wbwlinux/lfscn.db` 失败：`unable to get local issuer certificate (20)`。根因：ISO 基础系统**没有安装任何 CA 证书**——此前所有 HTTPS 下载（Arch 导入、GitHub tarball）全靠 `curl -k` 跳过验证掩盖；pacman 的 SigLevel=Never 只豁免 PGP 签名，不豁免 TLS。**
 - 修复（chroot/05-extras.sh，紧随 pacman.conf 段）：
