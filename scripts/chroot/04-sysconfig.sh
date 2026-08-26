@@ -158,6 +158,28 @@ ExecStart=
 ExecStart=-/sbin/agetty --autologin root --noclear --keep-baud %I 115200,57600,38400,9600
 EOF
 
+# --- root cause #49: rebuild fontconfig cache before gettys ----------
+# fstab mounts an EMPTY tmpfs on /var at boot, so /var/cache/fontconfig
+# from the squashfs is invisible and every boot starts with a cold font
+# scan. The first fbterm_ucimf launch then exceeds fbterm's 2-second IM
+# connect timeout -> Ctrl+Space dead until fbterm restart (the second
+# run finds caches written by the first attempt). Warm up before any
+# getty spawns; fbterm-zh carries a belt-and-suspenders inline guard.
+cat > /etc/systemd/system/fc-cache-warm.service << 'EOF'
+[Unit]
+Description=Rebuild fontconfig cache (live /var tmpfs hides baked caches)
+After=local-fs.target
+Before=getty.target
+
+[Service]
+Type=oneshot
+ExecStart=-/usr/bin/fc-cache -f
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl enable fc-cache-warm.service
+
 # --- full os-release ------------------------------------------------
 cat > /etc/os-release << 'EOF'
 NAME="LFS-CN"

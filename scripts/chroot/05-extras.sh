@@ -1612,6 +1612,14 @@ if [ ! -e /dev/fb0 ]; then
     export FBTTERM=1
     exec bash -i
 fi
+# Live boot mounts an EMPTY tmpfs on /var (fstab), hiding the fontconfig
+# caches baked into the squashfs. If the warm-up service has not finished
+# yet, build them here BEFORE starting fbterm: otherwise fbterm_ucimf's
+# cold font scan exceeds fbterm's 2-second IM connect timeout and Ctrl+
+# Space stays dead until fbterm is restarted (root cause #49).
+if [ -z "$(ls /var/cache/fontconfig 2>/dev/null)" ]; then
+    timeout 60 fc-cache -f >/dev/null 2>&1 || true
+fi
 if command -v fbterm_ucimf >/dev/null 2>&1; then
     # ucimf input method: Ctrl+Space on/off, Ctrl+Shift switch IMs
     if LANG=zh_CN.UTF-8 LC_ALL=zh_CN.UTF-8 fbterm --font-names="$FONT_NAMES" --font-size=16 -i fbterm_ucimf 2>/dev/null; then

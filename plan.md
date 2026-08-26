@@ -30,6 +30,28 @@
 **extras 的解压命令 `tar xf "$VS_PKG" -C /opt/VSCode-linux-x64 --strip-components=0` 把 tarball 内顶层目录 `VSCode-linux-x64/` 原封解进目标目录 `/opt/VSCode-linux-x64/`，产生 `/opt/VSCode-linux-x64/VSCode-linux-x64/bin/code` 双重嵌套；而 `/usr/local/bin/code` symlink 指向 `/opt/VSCode-linux-x64/bin/code`（缺一层）→ symlink 断裂。此外 VS Code 运行时需 `libnspr4.so`/`libnss3.so`，LFS 13.0 无 nss/nspr → `cannot open shared object file`。**
 - 修复（迁移至 packages 后）：build_vscode() 正确解包——`tar xf "$tarball" -C "$stage/opt"` → 移除多余顶层（或用 `--strip-components=1`）→ `/opt/VSCode-linux-x64/bin/code` 单层；.PKGINFO 添加 `depends = nss nspr gtk3 alsa-lib libsecret libxscrnsaver libxkbfile libcups`，pacman -S 时从 lfscn 仓库拉取依赖；arch-resolve-fcitx5.py 去掉 SKIP 中的 `nspr`/`nss`（LFS 无此二者），并新增 VS Code 依赖闭包的二次解析 pass。
 
+## 根因四十九（用户实测报告，已修）：要重启 fbterm 才能用输入法
+**三段证据链拼出完整因果：① `fstab` 把 `/var` 挂成全新空 tmpfs（06-kernel-initramfs.sh:63 "belt-and-suspenders"）→ 构建期烤进 squashfs 的 `/var/cache/fontconfig` 运行时不可见，每次开机都是冷缓存；② fbterm 的 IM 客户端是惰性 fork——`FbShell::toggleIm()` 里 `if (!mImProxy) mImProxy = new ImProxy(this)`（fbshell.cpp:745），即**首次按 Ctrl+Space 才拉起 fbterm_ucimf**，父进程只等 Connect 消息 **2 秒**（improxy.cpp:436 `timeval tv={2,0}`）；③ 冷 fontconfig 扫描（squashfs 解压 + 全字体遍历 + libucimf 双重 FcFontSort）在 QEMU 上远超 2s → 超时后 `toggleActive()` 因 `!mConnected` 静默丢弃激活消息（improxy.cpp:128）。重启 fbterm 时缓存已被首次尝试写好（tmpfs 可写）→ 秒连 → 正常。**
+- 关键源码实证（fbterm-1.7 / fbterm_ucimf-0.2.9 本地解包核对）：imapi.c:50 客户端靠环境变量 `FBTERM_IM_SOCKET`（继承 fd 号）连接 → 必须由 fbterm 亲自 spawn；ucimf_init() 在 connect_fbterm() **之前**做 Options 解析 + Font 双 pass → 全部计入 2s 窗口。
+- 修复（2026-08-26 已实施，bash -n 通过）：
+  1. **04-sysconfig.sh** 新增 `fc-cache-warm.service`（Type=oneshot，`ExecStart=-/usr/bin/fc-cache -f`，After=local-fs.target + Before=getty.target + WantedBy=multi-user.target 并 systemctl enable）→ 开机在任何 getty/autologin 之前完成预热；
+  2. **05-extras.sh fbterm-zh 包装器**加 belt-and-suspenders 内联守卫：若 `/var/cache/fontconfig` 为空则阻塞执行 `timeout 60 fc-cache -f` 再启动 fbterm（防 systemd 单元排序失效的极端情况）。
+- 教训：**构建期"预生成"进 squashfs 的运行时缓存，若 fstab/initramfs 用 tmpfs 遮盖其目录，等于没做**——必须以运行时视角验证（与根因四十四 chroot 内外路径同型："构建时正确 ≠ 运行时可见"）。
+
+## 功能增强五十（2026-08-26 用户需求，已实施）：OVIMGeneric 连续匹配优先 + 编辑距离纠错
+**用户要求 ovimgeneric.patch 支持 VSCode 式连续匹配优先与拼写纠错（编辑距离）。本地解包 openvanilla-modules@28d0dd6 核对后发现更严重的底层问题：现有补丁的弱匹配是死代码——`getCandidatesWithFuzzy` 先 `getWordVectorByChar(seq)`（OVCIN.cpp:188 二分查找 M_CHAR map 的**精确键**，返回的是**词列表**），再 `fuzzyMatch(词, seq)` 判 `candidate[0] != input[0]`——UTF-8 中文首字节（0xE4~0xE9）永远 ≠ ASCII 键首字母 → 弱匹配从未产出过任何候选。**
+- v2 设计（补丁完全重写为 pristine→final 单步精确 diff，git apply --check 通过 + g++ 8.1 -fsyntax-only EXIT=0）：
+  1. **OVCIN.h** 新增三个内联枚举接口（无需改 OVCIN.cpp）：`getCharDefKeyCount()` / `getCharDefKeyAt(i)` / `getWordsForKeyAt(i, out)`——直接暴露 chardef 键表；
+  2. **OVIMGeneric.cpp** 重写匹配核心：
+     - `fuzzyScore(key, seq)` 子序列评分器：逐字符顺序匹配 + **连续段奖励 bestRun*20** + **跳字惩罚 gap*2** + 整键命中 +100（连续越多越靠前，VSCode 式）；
+     - `boundedEditDistance(a, b, maxDist)` 带状 Levenshtein 提前放弃（行最小值 > maxDist 即退出；长度差超阈直接 -1），拼写纠错专用；
+     - `editDistanceThresholdFor(len)`：len≥6 容错 2 次、3~5 容错 1 次、1~2 不纠错；
+     - `getCandidatesWithFuzzy` v2 流程：通配符/精确命中保留在前 → 枚举全部 chardef 键打分子序列分（stable_sort 稳定排序保持词库同分原序）→ **仅当严格匹配为零时**才启用编辑距离兜底（ED_SCORE_BASE=24 保证排在任何子序列之后、按距离升序）→ 去重合并上限 FUZZY_MAX_RESULTS=30。
+  3. 保留既有 locality bonus / recordSelectedWord / keyseq.clear 修复，一并纳入新 diff（旧补丁 git 判 corrupt：hunk 行数漂移，GNU patch 宽容而 git 严格——借此机会重新生成零偏差补丁）。
+- 示例效果（拼音）：`jiem` → "界面"（子序列，连续段 jie+... 高分）；`jainjie` 无精确/子序列命中 → 编辑距离 1 命中 `jianjian/jianjie` 系词条纠错候选。
+- 性能：仅当精确+通配结果 <5 时全键扫描（pinyin 表数百键、wbx 数千键，纯内存比较亚毫秒级）；ED 仅零命中触发且带状剪枝。
+
+
 ## 根因四十四（workflow 警告实证）：packages job 上传 /mnt/lfs/pkgrepo/ 为空
 **chroot/07-packages.sh 第 27 行 `REPO_DIR=/mnt/lfs/pkgrepo` 在 chroot 内执行——chroot 的根就是宿主 $LFS_ROOT=/mnt/lfs，该路径被解释为宿主 /mnt/lfs/mnt/lfs/pkgrepo（mkdir -p 静默创建）→ workflow upload-artifact 按宿主 /mnt/lfs/pkgrepo/ 找文件 → `Warning: No files were found with the provided path: /mnt/lfs/pkgrepo/`。**
 - 与根因三十一（visudo 路径）/二十六（下载 map 键名）同型教训：**chroot 内外视角的路径必须换算一致**——chroot 内写 /X 等于宿主 $LFS_ROOT/X，/mnt/lfs 前缀只在宿主侧合法。
