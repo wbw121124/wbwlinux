@@ -22,6 +22,24 @@
 - 修复（05-extras.sh）：改写 `/etc/xdg/nvim/sysinit.lua` 与 /etc/vimrc 完全对齐（encoding/fileencodings 五编码链/ambiwidth/number/syntax enable + 原有 expandtab/tabstop/shiftwidth）；删除死文件 init.lua；pkg_register neovim 增加 /etc/xdg/nvim 纳入包管理。
 - 说明：nvim 已移除 'termencoding'/'t_Co' 选项，属有意跳过而非遗漏。
 
+## 根因五十九（用户 QEMU 实测 + 截图实证，已修）：pacman 走 Pages 源报 SSL 证书错误
+**`pacman -Sy` 拉取 `https://wbw121124.github.io/wbwlinux/lfscn.db` 失败：`unable to get local issuer certificate (20)`。根因：ISO 基础系统**没有安装任何 CA 证书**——此前所有 HTTPS 下载（Arch 导入、GitHub tarball）全靠 `curl -k` 跳过验证掩盖；pacman 的 SigLevel=Never 只豁免 PGP 签名，不豁免 TLS。**
+- 修复（chroot/05-extras.sh，紧随 pacman.conf 段）：
+  1. 安装 curl.se 的 Mozilla 派生 CA bundle → `/etc/ssl/certs/ca-bundle.crt`（+ cert.pem symlink）；
+  2. `/etc/profile.d/zz-ca-bundle.sh` 导出 `SSL_CERT_FILE/SSL_CERT_DIR/CURL_CA_BUNDLE`——OpenSSL 自身尊重 SSL_CERT_FILE，libcurl 系的 pacman **无需重编译**即生效；`/etc/environment` 覆盖非登录会话（systemd 单元/kmscon）；
+  3. 硬断言 bundle 存在 + 构建期 TLS 冒烟探测（任何 HTTP 码都算通过——lfscn.db 在首次 Pages 部署落地前会 404，pacman 随即回落 file:// 源；只有 TLS 握手失败才 die）。
+- 关联：pacman.conf 的 `[lfscn]` 此前只有 file:// 本地源，已加 Pages Server（Pages 优先、本地兜底）+ 静态断言。
+
+## KMSCON Phase 1 实施（2026-08-26，随根因五十九同批 [iso:from-base] 验证）
+- **env.sh**：KMSCON_VER=v10.0.2 / LIBTSM_VER=v4.7.1 + CACERT_URL。
+- **宿主下载表**：libtsm/kmscon tag tarball + cacert.pem 三条目。
+- **chroot/05-extras.sh**：libtsm（meson，prefix=/usr）→ kmscon（`--wrap-mode=nofallback` 用系统 libtsm，禁 renderer_gltex/video_drm3d/libseat——无 mesa/libseat；开 font_pango/freetype/multi_seat；docs=false）；断言二进制与 `kmsconvt@.service` 落位；`/etc/kmscon/kmscon.conf`（Fira Code,WQY / 16 / xterm-256color / login=console-autoshell）；`/usr/local/bin/console-autoshell`（exec bash --login——shadow 哈希为 x，任何登录提示都不可用，必须 autologin）。
+- **04-sysconfig.sh**：`systemctl enable kmsconvt@tty2..6`——上游单元自带 `Conflicts=getty@%i` + `OnFailure=getty@%i`（接管+回退）与 `Alias=autovt@.service`（logind 优先选用），无需额外 mask。
+- **.bashrc**：TERM=kmscon 会话导出 zh_CN.UTF-8（消息/帮助中文化；tty1 fbterm 路径不受影响）。
+- **kernel-live.fragment**：+`CONFIG_DRM_SIMPLEDRM=y`（裸机 UEFI 兜底；QEMU 走 virtio-gpu 已就绪）。
+- **pkg_register**：新增 kmscon 包（二进制/配置/单元/libtsm）。
+- 待 QEMU 验收清单：tty2-6 出现图形控制台且中文正常；Ctrl+Alt+F1 回 fbterm；XFCE startx 与 kmscon 的 DRM 交接；`pacman -Sy` 无 SSL 错误。
+
 ## KMSCON 替换 fbterm（2026-08-26 用户决策：方案 C 完全替换+自研IM；autologin=bash --login）
 **三阶段计划：P1 kmscon 落地(tty2-6 并存布局) → P2 IM 桥接(内嵌 libucimf) → P3 全量切换+移除 fbterm。每阶段一次 `[iso:from-base]` 验证。版本 pin：kmscon v10.0.2（github.com/kmscon/kmscon，2026 复活官方仓）/ libtsm v4.7.1。内核 DRM 已就绪（fragment 有 DRM=y + virtio-gpu/bochs/i915(m)），P1 补 CONFIG_DRM_SIMPLEDRM=y。**
 

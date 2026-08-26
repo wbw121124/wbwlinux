@@ -398,6 +398,7 @@ LocalFileSigLevel = Never
 ParallelDownloads = 5
 
 [lfscn]
+Server = https://wbw121124.github.io/wbwlinux/
 Server = file:///usr/local/repo/lfscn
 
 #[core]
@@ -406,6 +407,47 @@ Server = file:///usr/local/repo/lfscn
 #Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch
 EOF
 pacman-conf DBPath > /dev/null || die "extras: pacman.conf parse failed"
+pacman-conf repo lfscn Server 2>/dev/null | grep -q 'wbw121124.github.io' \
+    || die "extras: [lfscn] Pages server missing from pacman.conf"
+
+# ---------------------------------------------------------------------
+# CA trust store (root cause #59): the base system has NO certificates,
+# so pacman's TLS to the Pages repo failed with "unable to get local
+# issuer certificate (20)". Everything else had been silently relying
+# on `curl -k`. Install the Mozilla-derived bundle and point every
+# OpenSSL/curl consumer at it via env (SSL_CERT_FILE is honored by
+# OpenSSL itself, so libcurl-based pacman needs no rebuild).
+# ---------------------------------------------------------------------
+log '==> installing CA certificate store'
+CACERT_SRC="$DL/cacert.pem"
+if [ -f "$CACERT_SRC" ] && [ -s "$CACERT_SRC" ]; then
+    mkdir -p /etc/ssl/certs
+    install -m 644 "$CACERT_SRC" /etc/ssl/certs/ca-bundle.crt
+    ln -sfv ca-bundle.crt /etc/ssl/cert.pem > /dev/null
+else
+    warn "cacert.pem missing from downloads - TLS stays broken"
+fi
+cat > /etc/profile.d/zz-ca-bundle.sh << 'EOF'
+export SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
+export SSL_CERT_DIR=/etc/ssl/certs
+export CURL_CA_BUNDLE=/etc/ssl/certs/ca-bundle.crt
+EOF
+# /etc/environment covers non-login sessions (systemd units, kmscon, sshd)
+grep -q '^SSL_CERT_FILE=' /etc/environment 2>/dev/null || cat >> /etc/environment << 'EOF'
+SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
+SSL_CERT_DIR=/etc/ssl/certs
+EOF
+[ -s /etc/ssl/certs/ca-bundle.crt ] || die "extras: CA bundle missing"
+# Smoke test: TLS handshake to the Pages host must SUCCEED; any HTTP code
+# is fine (lfscn.db 404s until the first Pages deployment lands - pacman
+# then falls back to the file:// server).
+code=$(curl -sS --cacert /etc/ssl/certs/ca-bundle.crt \
+           -o /dev/null -w '%{http_code}' --max-time 25 \
+           https://wbw121124.github.io/wbwlinux/lfscn.db || echo 000)
+if [ "$code" = "000" ]; then
+    die "extras: TLS to wbw121124.github.io failed (CA store broken?)"
+fi
+log "    pages probe http_code=$code"
 
 # live boot mounts a FRESH tmpfs over /var (fstab belt-and-suspenders for
 # root cause #13), shadowing the cache/log dirs created inside the image -
@@ -1630,6 +1672,68 @@ else
     die "extras: vimcdoc tarball missing ($VIMCDOC_DL)"
 fi
 
+# =====================================================================
+# kmscon (KMSCON Phase 1: KMS/DRM graphical consoles on tty2-6).
+# tty1 keeps the fbterm+ucimf autologin until Phase 3 cut-over.
+#   libtsm  terminal state machine (meson, system install)
+#   kmscon  pango-rendered CJK-capable console; kmsconvt@.service
+#           Conflicts/OnFailure getty@%i so fallback is automatic
+# =====================================================================
+if [ ! -e /usr/bin/kmscon ]; then
+    log "==> building libtsm $LIBTSM_VER"
+    rm -rf /tmp/libtsm-src
+    mkdir -p /tmp/libtsm-src
+    tar xf "$DL/$LIBTSM_TARBALL" -C /tmp/libtsm-src --strip-components=1
+    meson setup /tmp/libtsm-src/build /tmp/libtsm-src --prefix=/usr \
+        || die "extras: libtsm meson setup failed"
+    ninja -C /tmp/libtsm-src/build || die "extras: libtsm build failed"
+    ninja -C /tmp/libtsm-src/build install || die "extras: libtsm install failed"
+    ldconfig
+
+    log "==> building kmscon $KMSCON_VER"
+    rm -rf /tmp/kmscon-src
+    mkdir -p /tmp/kmscon-src
+    tar xf "$DL/$KMSCON_TARBALL" -C /tmp/kmscon-src --strip-components=1
+    # nofallback: link the system libtsm we just installed instead of
+    # downloading the subproject wrap (chroot has no GitHub access).
+    # gltex/drm3d/libseat disabled: no mesa, no libseat in this system.
+    meson setup /tmp/kmscon-src/build /tmp/kmscon-src --prefix=/usr \
+        --wrap-mode=nofallback \
+        -Drenderer_gltex=false \
+        -Dvideo_drm3d=false \
+        -Dlibseat=disabled \
+        -Dfont_pango=true \
+        -Dfont_freetype=true \
+        -Dmulti_seat=true \
+        -Ddocs=false \
+        || die "extras: kmscon meson setup failed"
+    ninja -C /tmp/kmscon-src/build || die "extras: kmscon build failed"
+    ninja -C /tmp/kmscon-src/build install || die "extras: kmscon install failed"
+    ldconfig
+fi
+[ -e /usr/bin/kmscon ] || die "extras: kmscon binary missing"
+[ -e /usr/lib/systemd/system/kmsconvt@.service ] \
+    || die "extras: kmsconvt@.service not installed"
+
+# console-autoshell: kmscon login program. /etc/shadow's root hash is "x"
+# (no password can match), so a getty-style login prompt is unusable on
+# this live ISO - every console must autologin (same as tty1/serial).
+cat > /usr/local/bin/console-autoshell << 'EOF'
+#!/bin/sh
+exec /bin/bash --login
+EOF
+chmod +x /usr/local/bin/console-autoshell
+
+mkdir -p /etc/kmscon
+cat > /etc/kmscon/kmscon.conf << 'EOF'
+# LFS-CN live console (Phase 1: tty2-6; tty1 remains fbterm-zh)
+# pango per-glyph fallback renders CJK via WenQuanYi after Fira Code.
+font-name=Fira Code, WenQuanYi Micro Hei
+font-size=16
+term=xterm-256color
+login=/usr/local/bin/console-autoshell
+EOF
+
 # fbterm: Chinese-capable terminal + launcher script
 mkdir -p /etc/fbterm
 cat > /etc/fbterm/fbtermrc << 'EOF'
@@ -1705,6 +1809,12 @@ cat > /root/.bashrc << 'EOF'
 # PATH missing /usr/local/bin or the /opt tool dirs (root cause #23)
 export PATH="/usr/local/sbin:/usr/local/bin:/opt/rust/bin:/opt/microsoft/powershell/7:/usr/sbin:/usr/bin:/sbin:/bin"
 alias ls='ls --color=auto'
+# kmscon sessions (tty2-6, Phase 1): graphical UTF-8 console -> enable
+# zh_CN so localized messages/:help work there too (fbterm sets its own
+# env below; the raw vconsole must stay C.UTF-8).
+if [ "$TERM" = "kmscon" ]; then
+    export LANG=zh_CN.UTF-8 LC_ALL=zh_CN.UTF-8
+fi
 # colored prompt: red user@host for root, blue path; works on vconsole,
 # fbterm and serial alike (plain ANSI)
 PS1='\[\e[01;31m\]\u@\h\[\e[0m\]:\[\e[01;34m\]\w\[\e[0m\]\$ '
@@ -1877,6 +1987,11 @@ pkg_register fbterm-ucimf-stack "$UCIMF_VER" \
     /usr/lib/libucimf.so* /usr/lib/ucimf /usr/lib/openvanilla \
     /usr/share/openvanilla /etc/ucimf.conf /etc/fbterm \
     /usr/local/bin/fbterm-zh /usr/share/man/man1/fbterm.1
+pkg_register kmscon "$KMSCON_VER" \
+    "KMS/DRM graphical console (tty2-6, Phase 1)" \
+    /usr/bin/kmscon /etc/kmscon /usr/local/bin/console-autoshell \
+    /usr/lib/systemd/system/kmscon* /usr/lib/libtsm.so* \
+    /usr/include/tsm /usr/lib/pkgconfig/tsm.pc
 # strip the Debian revision: pacman pkgver allows exactly one hyphen
 pkg_register man-pages-zh "${MANPAGES_ZH_VER%-*}" "Chinese man pages (zh_CN)" \
     /usr/share/man/zh_CN

@@ -68,6 +68,11 @@ declare -A urls=(
   # sassc + libsass (Yaru meson hard-requires the sassc program)
   ["libsass-$LIBSASS_VER.tar.gz"]="https://github.com/sass/libsass/archive/refs/tags/$LIBSASS_VER.tar.gz"
   ["sassc-$SASSC_VER.tar.gz"]="https://github.com/sass/sassc/archive/refs/tags/$SASSC_VER.tar.gz"
+  # kmscon + libtsm (Phase 1: KMS/DRM console on tty2-6)
+  ["libtsm-$LIBTSM_VER.tar.gz"]="https://github.com/kmscon/libtsm/archive/refs/tags/$LIBTSM_VER.tar.gz"
+  ["kmscon-$KMSCON_VER.tar.gz"]="https://github.com/kmscon/kmscon/archive/refs/tags/$KMSCON_VER.tar.gz"
+  # CA bundle (Mozilla-derived; pacman/git need real TLS verification)
+  ["cacert.pem"]="$CACERT_URL"
   # Yaru theme (Ubuntu 26.04 LTS, pinned to tag)
   ["yaru-${YARU_VER}.tar.gz"]="https://codeload.github.com/ubuntu/yaru/tar.gz/${YARU_COMMIT}"
 )

@@ -158,6 +158,13 @@ ExecStart=
 ExecStart=-/sbin/agetty --autologin root --noclear --keep-baud %I 115200,57600,38400,9600
 EOF
 
+# --- kmscon on tty2-6 (KMSCON Phase 1; tty1 stays fbterm-zh) ---------
+# kmsconvt@.service Conflicts/OnFailure getty@%i: automatic takeover and
+# plain-getty fallback. Alias=autovt@.service makes logind prefer it.
+systemctl enable kmsconvt@tty2.service kmsconvt@tty3.service \
+                kmsconvt@tty4.service kmsconvt@tty5.service \
+                kmsconvt@tty6.service
+
 # --- root cause #49: rebuild fontconfig cache before gettys ----------
 # fstab mounts an EMPTY tmpfs on /var at boot, so /var/cache/fontconfig
 # from the squashfs is invisible and every boot starts with a cold font

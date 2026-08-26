@@ -110,6 +110,18 @@ export SASSC_VER=3.6.3.1ubuntu
 export YARU_COMMIT=f01c3e9a257296242806f8e0c5d4a660516f2181
 export YARU_TARBALL="yaru-${YARU_VER}.tar.gz"
 
+# kmscon (KMS/DRM userspace console, Phase 1 of the fbterm replacement):
+# tty2-6 graphical consoles; tty1 stays fbterm-zh until Phase 3.
+export KMSCON_VER=v10.0.2
+export LIBTSM_VER=v4.7.1
+export KMSCON_TARBALL="kmscon-${KMSCON_VER}.tar.gz"
+export LIBTSM_TARBALL="libtsm-${LIBTSM_VER}.tar.gz"
+
+# CA trust store: the ISO ships no certificates, so every TLS client
+# silently relied on `curl -k`; pacman cannot skip verification
+# (root cause #59). Mozilla-derived bundle from curl.se.
+export CACERT_URL="https://curl.se/ca/cacert.pem"
+
 # Arch binary stack (X.Org + XFCE) imported from repo databases at build
 # time by chroot/06-xorg-xfce.sh; rolling release, pinned per run only.
 export ARCH_MIRRORS="https://geo.mirror.pkgbuild.com https://mirror.rackspace.com/archlinux https://mirrors.kernel.org/archlinux"
