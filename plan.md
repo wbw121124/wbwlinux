@@ -34,6 +34,11 @@
 - **kmsconvt@tty2..6 启用搬迁收尾**：从 04-sysconfig（跑在 extras 之前、单元不存在）移至 chroot/05-extras.sh 安装断言之后（run#114 失败实证的顺序错误，同根因三十七教训）。
 - 依赖声明纪律：**depends 里只能出现"本地已注册或仓库可满足"的包名**；LFS 基础件（glibc/ncurses/perl）一律不声明。
 
+## 根因六十三（run#118 实证，已修）：libtsm 测试子目录拉入 check 框架 + ISO 缺 libxkbcommon
+**libtsm v4.7.1 的 `option('tests', default=true)` 无条件编译 test/ 子目录，其 meson.build 硬性 `dependency('check')`（check 单测框架）→ setup 即失败。同日志暴露 xkbcommon found: NO——排查确认 **libxkbcommon 从未被导入 ISO**（arch-resolve.py 种子里根本没有，SKIP 集合里的记录是错的）；libtsm 对它是可选（回退内置 keysyms）无碍，但 **kmscon 硬依赖**，不补则下一个失败点。**
+- 修复：libtsm 与 kmscon 的 meson setup 均加 `-Dtests=false`（两者都有该 option 门控）；arch-resolve.py SEEDS 增加 `libxkbcommon`（连带 xkeyboard-config 数据包，kmscon 运行时也需要）。
+- 教训：**meson 项目的 tests/docs 子目录默认常开，交叉构建环境必须显式 -Dtests=false -Ddocs=false**；SKIP 集合声称"已提供"的项要与实际导入清单对账。
+
 ## 根因六十一（run#117 实证，已修）：pacman-conf 断言语法错误误杀 extras
 **`pacman-conf repo lfscn Server` 把 "repo" 当节名查询——该节不存在，输出恒空 → grep 失败 → die "Pages server missing"。该断言自写入以来从未真正跑通过（此前 run 都死在更早阶段）。**
 - 修复：改为直接 `grep /etc/pacman.conf`（确定性、不依赖 CLI 语义），注释说明 pacman-conf 第一参数是节名。

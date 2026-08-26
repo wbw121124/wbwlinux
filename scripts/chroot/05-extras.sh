@@ -1754,6 +1754,7 @@ if [ ! -e /usr/bin/kmscon ]; then
     mkdir -p /tmp/libtsm-src
     tar xf "$DL/$LIBTSM_TARBALL" -C /tmp/libtsm-src --strip-components=1
     meson setup /tmp/libtsm-src/build /tmp/libtsm-src --prefix=/usr \
+        -Dtests=false \
         || die "extras: libtsm meson setup failed"
     ninja -C /tmp/libtsm-src/build || die "extras: libtsm build failed"
     ninja -C /tmp/libtsm-src/build install || die "extras: libtsm install failed"
@@ -1775,6 +1776,7 @@ if [ ! -e /usr/bin/kmscon ]; then
         -Dfont_freetype=true \
         -Dmulti_seat=true \
         -Ddocs=false \
+        -Dtests=false \
         || die "extras: kmscon meson setup failed"
     ninja -C /tmp/kmscon-src/build || die "extras: kmscon build failed"
     ninja -C /tmp/kmscon-src/build install || die "extras: kmscon install failed"

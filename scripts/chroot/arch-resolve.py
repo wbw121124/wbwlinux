@@ -17,6 +17,8 @@ import tarfile
 SEEDS = [
     # X.Org base (the modesetting driver is built into xorg-server)
     "xorg-server", "xorg-xinit",
+    # kmscon (Phase 1) hard-requires libxkbcommon at build+runtime
+    "libxkbcommon",
     # X.Org video drivers for QEMU bochs / basic fallback
     # xf86-video-virtio removed from Arch repos; modesetting covers virtio-gpu
     "xf86-video-fbdev", "xf86-video-vesa",
