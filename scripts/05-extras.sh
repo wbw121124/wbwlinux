@@ -61,8 +61,6 @@ declare -A urls=(
   ["firefox-$FIREFOX_VER.tar.xz"]="https://download-installer.cdn.mozilla.net/pub/firefox/releases/$FIREFOX_VER/linux-x86_64/en-US/firefox-$FIREFOX_VER.tar.xz"
   # NetworkManager (prebuilt from Arch core repo; pacman 7.1 needs it for Wi-Fi)
   ["networkmanager-$NM_VER-1-x86_64.pkg.tar.zst"]="https://geo.mirror.pkgbuild.com/extra/os/x86_64/networkmanager-$NM_VER-1-x86_64.pkg.tar.zst"
-  # VS Code (prebuilt from Microsoft; not installed by default)
-  ["code-$VSCODE_VER-linux-x64.tar.gz"]="https://update.code.visualstudio.com/$VSCODE_VER/linux-x64/stable"
   # Rea-Dark XFCE theme (orchyn/XFCE, pinned to commit)
   ["orchyn-XFCE-main.tar.gz"]="https://codeload.github.com/orchyn/XFCE/tar.gz/$REA_COMMIT"
   # Yaru theme (Ubuntu 26.04 LTS, pinned to tag)

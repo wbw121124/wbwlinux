@@ -12,6 +12,18 @@ source common.sh
 
 [ "$(id -u)" -eq 0 ] || die "must run as root"
 
+# Pre-download VS Code tarball into $LFS_ROOT/root/downloads so the chroot
+# can find it at /root/downloads/code-$VSCODE_VER-linux-x64.tar.gz.
+mkdir -p "$LFS_ROOT/root/downloads"
+VS_DL="$LFS_ROOT/root/downloads/code-$VSCODE_VER-linux-x64.tar.gz"
+if [ ! -f "$VS_DL" ]; then
+    log "==> downloading VS Code $VSCODE_VER"
+    curl -fSL --retry 3 --max-time 300 \
+        -o "$VS_DL" \
+        "https://update.code.visualstudio.com/$VSCODE_VER/linux-x64/stable" \
+        || warn "VS Code download failed — build_vscode will skip"
+fi
+
 umount_kernfs || true
 mount_kernfs
 

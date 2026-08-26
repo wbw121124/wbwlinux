@@ -1,7 +1,34 @@
 # LFS-CN Live ISO 构建计划
 
 ## 目标
-在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**根因四十四（packages job 上传空目录：chroot 内 REPO_DIR 双重 /mnt/lfs 前缀）已修；新增构建级别 only-packages（只跑 packages + deploy-pages，不产 ISO）**。
+在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**run#90（only-packages 首跑）实证：根因四十四的 /pkgrepo 路径修复生效（169 文件被找到），但暴露根因四十五（epoch 冒号文件名致 upload-artifact 拒绝）与根因四十六（Yaru meson 选项失效）；另按用户需求将 VS Code 从 extras 迁移到 packages job（不再打入 ISO）**。
+
+## 根因四十五（run#90 packages job 实证）：Arch epoch 文件名含冒号 → upload-artifact 拒绝上传
+**fcitx5 导入下载的 Arch 预编译包带 epoch 前缀（如 `avahi-1:0.9rc5-1-x86_64.pkg.tar.zst`、`ffmpeg-2:9.0.1-1`），upload-artifact 因 NTFS 兼容性拒绝含 `:` 的路径 → `##[error]The path for one of the files in artifact is not valid: /avahi-1:0.9rc5-1-x86_64.pkg.tar.zst. Contains the following character: Colon :`，169 个文件的 packages-repo artifact 上传失败。**
+- 证据：C:\Users\yl\Downloads\logs_89170482573「8_Upload pacman repository」：`there will be 169 files uploaded` 后紧跟 Colon 错误。
+- 附注：该 run 同时实证根因四十四修复生效（`/mnt/lfs/pkgrepo/` 已能找到 169 个文件，不再空目录）。
+- 计划修复：chroot/07-packages.sh 在 repo-add 生成数据库前，把 `$REPO_DIR` 内文件名中的 `:` 统一替换为 `_`（repo-add 以传入文件的 basename 写 %FILENAME% 字段，需核实 pacman 源码；若成立则 db 与磁盘一致，Pages 端 pacman 按重命名文件拉取正常）。
+
+## 根因四十六（同 run 实证）：Yaru meson setup 失败——上游移除旧 gnome_shell_* 选项
+**`meson.build:1:0: ERROR: Unknown option: "gnome_shell_40"`——pinned commit f01c3e9（26.04.5.1ubuntu）已删除 gnome_shell_40 起的部分旧版本选项，脚本硬编码的全量 false 列表失效。build_yaru 按 design 容错跳过（仅 WARN 不阻断），但 yaru-theme 包自此缺席。**
+- 计划修复：以 pinned commit 实际 meson_options.txt 为准重写 `-Dgnome_shell_*` 参数（只传真实存在的选项），本地无法解包则用 GitHub raw/codeload 拉取核实。
+
+## VS Code 从 extras 迁移到 packages job（2026-08-26 用户需求）
+**现状：extras 下载 code tarball → chroot 解压 /opt/VSCode-linux-x64 + `/usr/local/bin/code` symlink → pkg_register 进 [lfscn] 本地仓并打入 ISO squashfs（数百 MB）。目标：ISO 不再内置 VS Code，改由 packages job 构建 `vscode` pacman 包发布到 GitHub Pages，用户侧 `pacman -S vscode` 安装。**
+- extras 移除三处：宿主 05-extras.sh 下载表 `code-$VSCODE_VER-linux-x64.tar.gz` 条目；chroot/05-extras.sh VS Code 解压块；Phase 2 的 `pkg_register vscode` 两行。
+- packages 新增：宿主 07-packages.sh 包装器在 chroot 前预下载 code tarball 到 `$LFS_ROOT/root/downloads`（= chroot 内 $DL，与既有约定一致）；chroot/07-packages.sh 新增 build_vscode()——tarball 解包到 staging 的 /opt/VSCode-linux-x64 + 造 /usr/local/bin/code 绝对 symlink → 手写 .PKGINFO（pkgver=$VSCODE_VER-1）→ tar --zstd 入 $REPO_DIR（不产 src tarball：微软预编译二进制无源码归档意义）→ repo-add 自动收录（glob *.pkg.tar.zst）。
+- README.md 同步：包表格 VS Code 行来源改为 Pages 仓库；[lfscn] 注册清单去掉 vscode。
+
+## 根因四十七（截图实证，已修）：xinitrc sed 注释破坏 if/fi 配对 → XFCE 会话启动即死
+**06-xorg-xfce.sh 第128行 sed `s|^\([^#].*systemctl --user\)|# \1|` 匹配了 xinitrc 第90行 if 条件 `if command -v systemctl >/dev/null 2>&1 && systemctl --user list-jobs >/dev/null 2>&1; then`——该行含 `systemctl --user`，sed 在其前加 `#` → if 被注释，第92行 `fi` 失去匹配 → `sh -n` 报 `未预期的记号 "fi"` → startx 后 XFCE 会话立即退出 `connection to X server lost`。**
+- 证据：截图 `/etc/xdg/xfce4/xinitrc: 行 113: 未预期的记号 "fi"`（行偏移因文件版本差异，结构同源）。
+- 与根因三十四的教训：**行级 sed 注释若只注条件行不注体/fi，会破坏 shell 语法。必须做整块移除或语法安全替换**。
+- 修复：不注释整行，改为将 `systemctl --user list-jobs >/dev/null 2>&1` 替换为 `false`——if 条件变为 `if ... && false; then` → body 不执行 → `systemd_arg` 保持空 → `dbus-update-activation-environment` 不带 `--systemd` → 无 import-environment 噪声；if/fi 配对完好。
+- 附带：加 `sh -n "$XINITRC" || die "xinitrc shell syntax broken"` 硬性自检，防止同类问题回归。
+
+## 根因四十八（截图实证，迁移后不再影响 ISO，但 packages 包必须正确）：VS Code tarball 双重嵌套 + 缺运行时库
+**extras 的解压命令 `tar xf "$VS_PKG" -C /opt/VSCode-linux-x64 --strip-components=0` 把 tarball 内顶层目录 `VSCode-linux-x64/` 原封解进目标目录 `/opt/VSCode-linux-x64/`，产生 `/opt/VSCode-linux-x64/VSCode-linux-x64/bin/code` 双重嵌套；而 `/usr/local/bin/code` symlink 指向 `/opt/VSCode-linux-x64/bin/code`（缺一层）→ symlink 断裂。此外 VS Code 运行时需 `libnspr4.so`/`libnss3.so`，LFS 13.0 无 nss/nspr → `cannot open shared object file`。**
+- 修复（迁移至 packages 后）：build_vscode() 正确解包——`tar xf "$tarball" -C "$stage/opt"` → 移除多余顶层（或用 `--strip-components=1`）→ `/opt/VSCode-linux-x64/bin/code` 单层；.PKGINFO 添加 `depends = nss nspr gtk3 alsa-lib libsecret libxscrnsaver libxkbfile libcups`，pacman -S 时从 lfscn 仓库拉取依赖；arch-resolve-fcitx5.py 去掉 SKIP 中的 `nspr`/`nss`（LFS 无此二者），并新增 VS Code 依赖闭包的二次解析 pass。
 
 ## 根因四十四（workflow 警告实证）：packages job 上传 /mnt/lfs/pkgrepo/ 为空
 **chroot/07-packages.sh 第 27 行 `REPO_DIR=/mnt/lfs/pkgrepo` 在 chroot 内执行——chroot 的根就是宿主 $LFS_ROOT=/mnt/lfs，该路径被解释为宿主 /mnt/lfs/mnt/lfs/pkgrepo（mkdir -p 静默创建）→ workflow upload-artifact 按宿主 /mnt/lfs/pkgrepo/ 找文件 → `Warning: No files were found with the provided path: /mnt/lfs/pkgrepo/`。**

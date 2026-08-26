@@ -48,7 +48,7 @@ SKIP = {
     "shared-mime-info", "desktop-file-utils",
     "fontconfig", "freetype2", "libjpeg-turbo", "libpng", "libtiff",
     "libwebp", "librsvg", "libxml2", "libxslt",
-    "icu", "nspr", "nss",
+    "icu",
     "wayland", "libinput", "libudev", "mtdev", "libwacom",
     "xorg-server", "xorg-xinit", "xfce4-session", "xfce4-panel",
     "xfwm4", "xfdesktop", "xfce4-settings", "xfce4-appfinder",
@@ -109,6 +109,8 @@ def dep_base(dep):
 
 def main():
     dbdir, outdir = sys.argv[1], sys.argv[2]
+    # Optional third arg: comma-separated extra seeds (e.g. "nss,nspr" for VS Code deps)
+    extra = sys.argv[3].split(",") if len(sys.argv) > 3 and sys.argv[3] else []
     all_pkgs, provides = {}, {}
     for repo in ("core", "extra"):
         db_path = os.path.join(dbdir, f"{repo}.db")
@@ -120,7 +122,7 @@ def main():
             provides.setdefault(k, set()).update(v)
 
     chosen, missing = {}, []
-    queue = list(SEEDS)
+    queue = list(SEEDS) + extra
     while queue:
         dep = queue.pop(0)
         target = None

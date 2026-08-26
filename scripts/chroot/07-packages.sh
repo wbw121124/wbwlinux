@@ -121,25 +121,13 @@ build_yaru() {
     meson setup "$build_dir" \
         --prefix=/usr \
         --libdir=lib \
-        -Dgnome_shell_40=false \
-        -Dgnome_shell_41=false \
-        -Dgnome_shell_42=false \
-        -Dgnome_shell_43=false \
-        -Dgnome_shell_44=false \
-        -Dgnome_shell_45=false \
-        -Dgnome_shell_46=false \
-        -Dgnome_shell_47=false \
-        -Dgnome_shell_48=false \
-        -Dgnome_shell_49=true \
-        -Dgnome_shell_50=true \
+        -Dgnome-shell=false \
         -Dsounds=false \
-        -Dicons=false \
-        -Dcursor=true \
+        -Dicons=true \
         -Dgtk=true \
-        -Dsession=false \
-        -Dwallpapers=false \
-        -Dtests=false \
-        -Ddocs=false \
+        -Dsessions=false \
+        -Dgtksourceview=false \
+        -Dmetacity=false \
         || { warn "Yaru meson setup failed"; return 0; }
 
     ninja -C "$build_dir" || { warn "Yaru ninja failed"; return 0; }
@@ -219,8 +207,11 @@ import_fcitx5() {
     done
 
     # Resolve dependency closure
-    log "  resolving fcitx5 dependency closure"
-    python3 "$SCRIPTS_DIR/chroot/arch-resolve-fcitx5.py" "$work/db" "$work" \
+    # Pass VS Code deps (nss, nspr, libxscrnsaver, libxkbfile, libcups,
+    # libsecret) as extra seeds so they are pulled from Arch alongside fcitx5.
+    log "  resolving fcitx5+vscode dependency closure"
+    local vscode_seeds="nss,nspr,libxscrnsaver,libxkbfile,libcups,libsecret"
+    python3 "$SCRIPTS_DIR/chroot/arch-resolve-fcitx5.py" "$work/db" "$work" "$vscode_seeds" \
         > "$work/resolve.log" 2>&1 || {
         cat "$work/resolve.log" >&2
         warn "fcitx5 resolver failed — skipping"
@@ -255,6 +246,79 @@ import_fcitx5() {
     rm -rf "$work"
 }
 import_fcitx5 || warn "fcitx5 import failed (continuing)"
+
+# =====================================================================
+# Package: VS Code (prebuilt from Microsoft; pacman package for Pages)
+# =====================================================================
+log '==> building VS Code package'
+build_vscode() {
+    local tarball="$DL/code-$VSCODE_VER-linux-x64.tar.gz"
+    if [ ! -f "$tarball" ]; then
+        warn "VS Code tarball not found: $tarball — skipping"
+        return 0
+    fi
+
+    local stage="$STAGING/vscode-pkg"
+    rm -rf "$stage"
+    mkdir -p "$stage/opt" "$stage/usr/local/bin"
+
+    # tarball has top-level dir VSCode-linux-x64/; extract then move
+    tar xf "$tarball" -C "$stage/opt"
+    if [ -d "$stage/opt/VSCode-linux-x64" ]; then
+        : # single level, correct
+    elif [ -d "$stage/opt/VSCode-linux-x64/VSCode-linux-x64" ]; then
+        # double-nested: strip one level
+        mv "$stage/opt/VSCode-linux-x64/VSCode-linux-x64" "$stage/opt/VSCode-linux-x64-tmp"
+        rm -rf "$stage/opt/VSCode-linux-x64"
+        mv "$stage/opt/VSCode-linux-x64-tmp" "$stage/opt/VSCode-linux-x64"
+    fi
+
+    ln -sf /opt/VSCode-linux-x64/bin/code "$stage/usr/local/bin/code"
+
+    cat > "$stage/.PKGINFO" << PKGEOF
+pkgname = vscode
+pkgver = ${VSCODE_VER}-1
+pkgdesc = Visual Studio Code editor (prebuilt, installed from Pages repo)
+arch = x86_64
+builddate = $(date +%s)
+packager = LFS-CN Build System <lfs-cn@build>
+license = MIT
+depends = nss
+depends = nspr
+depends = gtk3
+depends = alsa-lib
+depends = libsecret
+depends = libxscrnsaver
+depends = libxkbfile
+depends = libcups
+PKGEOF
+
+    local archive="$REPO_DIR/vscode-${VSCODE_VER}-1-x86_64.pkg.tar.zst"
+    (
+        cd "$stage"
+        : > "/tmp/pkgfiles.$$"
+        printf '%s\0' .PKGINFO >> "/tmp/pkgfiles.$$"
+        find . -mindepth 1 ! -path './.PKGINFO' -printf '%P\0' >> "/tmp/pkgfiles.$$"
+        tar --zstd --null --no-recursion -T "/tmp/pkgfiles.$$" -cf "$archive"
+        rm -f "/tmp/pkgfiles.$$"
+    )
+    rm -rf "$stage"
+    log "  package: vscode-${VSCODE_VER}-1-x86_64.pkg.tar.zst"
+}
+build_vscode || warn "VS Code build failed (continuing)"
+
+# =====================================================================
+# Sanitize Arch epoch filenames: upload-artifact rejects ':' (NTFS-
+# incompatible); rename before repo-add so %FILENAME% in the db
+# matches the on-disk name.  repo-add uses basename "${1##*/}".
+# =====================================================================
+log '==> sanitizing epoch colons in filenames'
+cd "$REPO_DIR"
+for f in *:*; do
+    [ -e "$f" ] || continue
+    safe="${f//:/_}"
+    mv -v "$f" "$safe"
+done
 
 # =====================================================================
 # Generate pacman repository database

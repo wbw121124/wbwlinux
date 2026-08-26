@@ -1717,23 +1717,6 @@ if [ ! -e /usr/bin/NetworkManager ]; then
 fi
 
 # =====================================================================
-# VS Code (prebuilt from Microsoft; not installed by default)
-# Extracts the tar.gz, registers as lfscn package, then removes
-# =====================================================================
-if [ ! -d /opt/VSCode-linux-x64 ]; then
-    log "==> VS Code $VSCODE_VER (prebuilt)"
-    VS_PKG="$DL/code-$VSCODE_VER-linux-x64.tar.gz"
-    if [ -f "$VS_PKG" ]; then
-        mkdir -p /opt/VSCode-linux-x64
-        tar xf "$VS_PKG" -C /opt/VSCode-linux-x64 --strip-components=0
-        ln -sf /opt/VSCode-linux-x64/bin/code /usr/local/bin/code
-        log "==> VS Code $VSCODE_VER OK"
-    else
-        warn "VS Code tarball not found, skipping"
-    fi
-fi
-
-# =====================================================================
 # Phase 2: register the bundled software as local [lfscn] repo packages
 # so pacman -Q/-Qi/-R/-S manage them like any distro package.
 # Staging uses hardlinks (cp -al) so copying is nearly free; archives
@@ -1813,8 +1796,6 @@ pkg_register networkmanager "$NM_VER" "NetworkManager (prebuilt)" \
     /usr/bin/NetworkManager /usr/bin/nm-* \
     /usr/lib/NetworkManager /usr/share/NetworkManager \
     /usr/share/doc/NetworkManager /etc/NetworkManager
-pkg_register vscode "$VSCODE_VER" "VS Code editor (prebuilt, not installed by default)" \
-    /opt/VSCode-linux-x64 /usr/local/bin/code
 pkg_register fira-code-fonts "$FIRACODE_VER" "Fira Code monospace coding font" \
     /usr/share/fonts/fira-code
 pkg_register wqy-microhei-fonts "0.2.0_beta" "WenQuanYi Micro Hei CJK font" \

@@ -120,13 +120,17 @@ chmod 755 /root/.xinitrc
 rm -f /etc/xdg/autostart/polkit-gnome-authentication-agent-1.desktop
 
 # ---------------------------------------------------------------------
-# session cleanup: comment out systemctl --user calls in xinitrc
+# session cleanup: neutralize systemctl --user block in xinitrc
 # (no PAM / systemd --user session; "Failed to import environment"
-# noise on every startx; root cause #34)
+# noise on every startx; root cause #34, #47)
 # ---------------------------------------------------------------------
 XINITRC=/etc/xdg/xfce4/xinitrc
 if [ -f "$XINITRC" ]; then
-    sed -i 's|^\([^#].*systemctl --user\)|# \1|' "$XINITRC"
+    # Replace the systemctl --user test inside the if-condition with
+    # 'false' so the body (which sets --systemd arg) is never entered.
+    # This keeps if/fi balanced (no orphan fi syntax error).
+    sed -i 's|systemctl --user list-jobs >/dev/null 2>&1|false|' "$XINITRC"
+    sh -n "$XINITRC" || die "xinitrc shell syntax broken after sed patch"
 fi
 
 # ---------------------------------------------------------------------
