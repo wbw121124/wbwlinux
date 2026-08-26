@@ -4,8 +4,9 @@
 #
 # Builds Yaru theme from source and imports fcitx5 from Arch prebuilt,
 # producing pacman packages + source archives + repo-add database in
-# /mnt/lfs/pkgrepo/.  These are NOT installed into the live system root;
-# they are published to GitHub Pages for user-side pacman -S installation.
+# /pkgrepo (host view: $LFS_ROOT/pkgrepo).  These are NOT installed into
+# the live system root; they are published to GitHub Pages for user-side
+# pacman -S installation.
 #
 # Single-package failures are logged as warnings but do NOT abort the script.
 set -euo pipefail
@@ -24,7 +25,10 @@ command -v meson >/dev/null   || die "packages: meson missing (extras must run f
 command -v ninja >/dev/null   || die "packages: ninja missing"
 command -v repo-add >/dev/null || die "packages: repo-add missing (pacman build must run first)"
 
-REPO_DIR=/mnt/lfs/pkgrepo
+# NOTE: this script runs inside the chroot whose root IS $LFS_ROOT on the
+# host, so /pkgrepo here == host /mnt/lfs/pkgrepo. Never write /mnt/lfs/...
+# from inside the chroot (that would nest under /mnt/lfs/mnt/lfs).
+REPO_DIR=/pkgrepo
 STAGING=/tmp/pkgbuild
 rm -rf "$STAGING" "$REPO_DIR"
 mkdir -p "$REPO_DIR" "$STAGING"/{yaru,src}

@@ -25,4 +25,8 @@ chroot "$LFS_ROOT" /usr/bin/env -i \
     PATH=/usr/bin:/usr/sbin:/usr/local/bin \
     /bin/bash --login /build/chroot/07-packages.sh
 
-log "==> packages build complete (host wrapper)"
+# Hard self-check: chroot writes /pkgrepo which is $LFS_ROOT/pkgrepo here.
+[ -d "$LFS_ROOT/pkgrepo" ] || die "packages: $LFS_ROOT/pkgrepo missing after build (chroot wrote to a wrong path?)"
+[ -n "$(ls -A "$LFS_ROOT/pkgrepo")" ] || die "packages: $LFS_ROOT/pkgrepo is empty (no packages produced)"
+log "==> packages build complete (host wrapper); repo contents:"
+ls -lh "$LFS_ROOT/pkgrepo/"

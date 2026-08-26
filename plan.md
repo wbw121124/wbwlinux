@@ -1,7 +1,22 @@
 # LFS-CN Live ISO 构建计划
 
 ## 目标
-在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**OVIMGeneric 补丁 hunk header 行数全错导致 malformed patch + 多余 } 已修复，neovim 改为源码编译（/usr/local），新增 NetworkManager/VS Code/Firefox pacman 包（仓库可安装，默认未安装），git 2.55.0 源码编译**。
+在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**根因四十四（packages job 上传空目录：chroot 内 REPO_DIR 双重 /mnt/lfs 前缀）已修；新增构建级别 only-packages（只跑 packages + deploy-pages，不产 ISO）**。
+
+## 根因四十四（workflow 警告实证）：packages job 上传 /mnt/lfs/pkgrepo/ 为空
+**chroot/07-packages.sh 第 27 行 `REPO_DIR=/mnt/lfs/pkgrepo` 在 chroot 内执行——chroot 的根就是宿主 $LFS_ROOT=/mnt/lfs，该路径被解释为宿主 /mnt/lfs/mnt/lfs/pkgrepo（mkdir -p 静默创建）→ workflow upload-artifact 按宿主 /mnt/lfs/pkgrepo/ 找文件 → `Warning: No files were found with the provided path: /mnt/lfs/pkgrepo/`。**
+- 与根因三十一（visudo 路径）/二十六（下载 map 键名）同型教训：**chroot 内外视角的路径必须换算一致**——chroot 内写 /X 等于宿主 $LFS_ROOT/X，/mnt/lfs 前缀只在宿主侧合法。
+- 修复（2026-08-26 已实施，本地 bash -n 通过）：
+  1. chroot/07-packages.sh：`REPO_DIR=/mnt/lfs/pkgrepo` → `REPO_DIR=/pkgrepo`（= 宿主 /mnt/lfs/pkgrepo），头注释同步 + 防回归注释；
+  2. 宿主包装器 07-packages.sh：chroot 退出后硬性断言 `$LFS_ROOT/pkgrepo` 存在且非空（die + ls），防再次静默落错。
+
+## 新增构建级别 only-packages（2026-08-26，已实施：workflow YAML 解析通过 + `[iso:only-packages]` 标记解析实测输出 only-packages）
+**需求：只构建 Free software packages 并部署 GitHub Pages——不重跑 toolchain/base/config-extras，不产 ISO。**
+- 触发矩阵扩展：dispatch 下拉新增 `only-packages`；commit message 标记 `[iso:only-packages]` 同样生效（mode job 正则同步扩展）。
+- packages job 条件改为 `always() && (mode == 'only-packages' || config-extras.result == 'success')`；find-config 与历史下载步骤把 only-packages 与 from-config 同等对待（从最近成功 run 的 snapshot-config artifact 恢复）；当前 run 下载步骤条件需同时排除两种模式。
+- iso job **无需改条件**：only-packages 时 config-extras 被 skip → `needs.config-extras.result == 'success'` 为假且 mode != 'from-config' → iso 自动 skip。
+- deploy-pages 维持 `workflow_dispatch && packages.success` → dispatch+only-packages 时包构建成功即部署 Pages；push+[iso:only-packages] 仅产 packages-repo artifact 不部署（与既有语义一致）。
+- 改动文件：`.github/workflows/build-lfs-iso.yml`（input 描述/选项、mode 正则、packages job 三处条件）。
 
 ## 根因三十二（run#88 QEMU 实证，已修）：OVIMGeneric locality bonus 补丁路径静默跳过
 **host 侧 05-extras.sh 将 `chroot/ovimgeneric.patch` 拷贝到 `$LFS_ROOT/build/chroot/ovimgeneric.patch`（chroot 内 `/build/chroot/ovimgeneric.patch`）；但 chroot 侧 05-extras.sh 第 502 行检查 `$SCRIPTS_DIR/ovimgeneric.patch`（`/build/ovimgeneric.patch`）——少了 `chroot/` 子目录 → `[ -f ]` 永远 false → patch 静默跳过，locality bonus / dedup / fuzzy matching / weak match fallback 全部未编译进 OVIMGeneric.so。**

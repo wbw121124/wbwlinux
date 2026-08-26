@@ -6,13 +6,14 @@ on:
   workflow_dispatch:
     inputs:
       resume:
-        description: '构建级别: full=全量(工具链+基础+配置+ISO); from-base=跳过工具链+基础(用上次 base 快照, 重跑配置+extras+ISO); from-config=跳过配置+extras(用上次 config 快照, 只做内核+ISO)。push 时可用 commit message 标记 [iso:full]/[iso:from-base]/[iso:from-config] 覆盖，无标记默认 full'
+        description: '构建级别: full=全量(工具链+基础+配置+ISO); from-base=跳过工具链+基础(用上次 base 快照, 重跑配置+extras+ISO); from-config=跳过配置+extras(用上次 config 快照, 只做内核+ISO); only-packages=用上次 config 快照, 只构建 pacman 包仓库并部署 Pages(不产 ISO)。push 时可用 commit message 标记 [iso:full]/[iso:from-base]/[iso:from-config]/[iso:only-packages] 覆盖，无标记默认 full'
         type: choice
         default: full
         options:
           - full
           - from-base
           - from-config
+          - only-packages
 
 permissions:
   contents: read
@@ -43,7 +44,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             mode="${{ inputs.resume }}"
           else
-            mode=$(printf '%s\n' "$COMMIT_MSG" | grep -oE '\[iso:(full|from-base|from-config)\]' | tail -1 | cut -d: -f2 | tr -d ']')
+            mode=$(printf '%s\n' "$COMMIT_MSG" | grep -oE '\[iso:(full|from-base|from-config|only-packages)\]' | tail -1 | cut -d: -f2 | tr -d ']')
           fi
           mode="${mode:-full}"
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
@@ -335,14 +336,14 @@ jobs:
   packages:
     name: Free software packages
     needs: [mode, config-extras]
-    if: ${{ always() && needs.config-extras.result == 'success' }}
+    if: ${{ always() && ( needs.mode.outputs.mode == 'only-packages' || needs.config-extras.result == 'success' ) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Find latest run with snapshot-config artifact
         id: find-config
-        if: ${{ needs.mode.outputs.mode == 'from-config' }}
+        if: ${{ needs.mode.outputs.mode == 'from-config' || needs.mode.outputs.mode == 'only-packages' }}
         run: |
           id=$(curl -s -H "Authorization: Bearer ${{ github.token }}" \
             "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?name=snapshot-config&per_page=1" \
@@ -350,7 +351,7 @@ jobs:
           echo "run_id=$id" >> "$GITHUB_OUTPUT"
 
       - uses: actions/download-artifact@v4
-        if: ${{ needs.mode.outputs.mode == 'from-config' }}
+        if: ${{ needs.mode.outputs.mode == 'from-config' || needs.mode.outputs.mode == 'only-packages' }}
         with:
           name: snapshot-config
           path: .artifacts
@@ -358,7 +359,7 @@ jobs:
           github-token: ${{ github.token }}
 
       - uses: actions/download-artifact@v4
-        if: ${{ needs.mode.outputs.mode != 'from-config' }}
+        if: ${{ needs.mode.outputs.mode != 'from-config' && needs.mode.outputs.mode != 'only-packages' }}
         with:
           name: snapshot-config
           path: .artifacts
