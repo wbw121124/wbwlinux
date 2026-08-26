@@ -3,6 +3,11 @@
 ## 目标
 在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**run#90（only-packages 首跑）实证：根因四十四的 /pkgrepo 路径修复生效（169 文件被找到），但暴露根因四十五（epoch 冒号文件名致 upload-artifact 拒绝）与根因四十六（Yaru meson 选项失效）；另按用户需求将 VS Code 从 extras 迁移到 packages job（不再打入 ISO）**。
 
+## 根因五十二（2026-08-26 用户反馈，已修）：Deploy to Pages 永远 skipped
+**deploy-pages job 条件为 `github.event_name == 'workflow_dispatch' && needs.packages.result == 'success'`——push 触发的运行（包括 [iso:only-packages]）一律跳过 Pages 部署，与用户预期（包仓库构建成功即自动发布 Pages）相悖。**
+- 修复：条件改为 `needs.packages.result == 'success'`，push 与手动触发一视同仁；full/from-base 模式下 config-extras 成功后 packages 也会跑，随后同样自动部署。
+- 同时明确运行级别选择依据：**修改了 chroot 脚本/补丁（如 ovimgeneric.patch、fbterm-zh）必须用 `[iso:from-base]` 重跑 config+extras 才会真正编译进快照**——only-packages 只复用上次 config 快照，脚本改动不会被构建或验证。
+
 ## 根因五十一（2026-08-26 实证，已修）：无效 iso 标记静默触发全量构建
 **commit message 标记解析只认 `[iso:full]/[iso:from-base]/[iso:from-config]/[iso:only-packages]` 四个字面值；误写 `[iso:packages]`（abe585b）与 `[iso:config]`（dc08c92）均不匹配正则 → 走 `mode=${mode:-full}` 兜底 → 两次意外全量构建（已被手动取消）。workflow_dispatch 的 default 也是 full——同一个陷阱的两个入口。**
 - 修复（已实施，YAML 解析 + 五组标记实测通过）：**安全默认原则——任何无法识别的输入绝不升级为多小时全量构建**：

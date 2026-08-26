@@ -387,12 +387,15 @@ jobs:
           retention-days: 30
 
   # ---------------------------------------------------------------
-  # Job 6: deploy pacman repo to GitHub Pages (manual only)
+  # Job 6: deploy pacman repo to GitHub Pages
   # ---------------------------------------------------------------
   deploy-pages:
     name: Deploy to Pages
     needs: packages
-    if: ${{ github.event_name == 'workflow_dispatch' && needs.packages.result == 'success' }}
+    # Deploy whenever the packages repo built successfully — push and
+    # workflow_dispatch alike. The old dispatch-only condition made this
+    # job skip on every push ("This job was skipped" forever).
+    if: ${{ needs.packages.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       pages: write
