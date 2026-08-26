@@ -39,6 +39,11 @@
 - 修复：libtsm 与 kmscon 的 meson setup 均加 `-Dtests=false`（两者都有该 option 门控）；arch-resolve.py SEEDS 增加 `libxkbcommon`（连带 xkeyboard-config 数据包，kmscon 运行时也需要）。
 - 教训：**meson 项目的 tests/docs 子目录默认常开，交叉构建环境必须显式 -Dtests=false -Ddocs=false**；SKIP 集合声称"已提供"的项要与实际导入清单对账。
 
+## 根因六十五（run#120 实证，已修）：kmscon 构建期缺 xkbcommon——Arch 导入在 extras 之后
+**kmscon 硬依赖 xkbcommon；上一轮虽把它加进 arch-resolve.py 种子，但那个导入发生在 **06-xorg-xfce（extras 之后）**，kmscon 在 extras 内构建时 pkg-config 依然找不到 → `Dependency "xkbcommon" not found`。第三次踩中"构建顺序 vs 依赖提供方"陷阱（同根因三十七/kmsconvt 搬迁）。**
+- 修复：extras 内**源码构建最小化 libxkbcommon**（xkbcommon-1.13.2 稳定 tag）：`-Denable-x11/tools/wayland/xkbregistry=false`（零额外依赖）+ `-Denable-parser-auto-generation=false`（用源码树预生成文件——**LFS 没有 bison**）；以 `/usr/lib/pkgconfig/xkbcommon.pc` 存在为门控与断言。06-xorg 的 Arch 导入稍后会以发行版版本覆盖，无害。
+- 教训：**新增"构建期依赖"时必须回答"它在当前阶段存在吗"**；跨阶段依赖一律就近源码最小化构建或调整阶段归属。
+
 ## 根因六十四（run#119 实证，已修）：kmscon v10 feature 型选项不接受 true/false
 **kmscon v10 的 meson.options 里 docs/libseat/video_drm3d/renderer_gltex/font_* 均为 **feature 类型**（合法值 enabled/disabled/auto），传 `=false/=true` 直接 ERROR；且 **multi_seat 选项已不存在**（被 libseat 取代）——不删还会撞 unknown option。libtsm 的 tests 是 boolean 型所以上轮 `-Dtests=false` 有效。**
 - 修复：`renderer_gltex=disabled / video_drm3d=disabled / libseat=disabled / font_pango=enabled / font_freetype=enabled / docs=disabled`，删除 `-Dmulti_seat=true`；`tests=false` 保留（boolean 型）。

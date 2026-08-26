@@ -1749,6 +1749,30 @@ fi
 #           Conflicts/OnFailure getty@%i so fallback is automatic
 # =====================================================================
 if [ ! -e /usr/bin/kmscon ]; then
+    # libxkbcommon FIRST: kmscon hard-requires it at build time, but the
+    # Arch import that provides it runs in 06-xorg-xfce - AFTER extras
+    # (same ordering trap as root cause #37). Minimal source build; the
+    # 06-xorg Arch import later overwrites it with the distro version.
+    # parser-auto-generation=false: pregenerated files are shipped, LFS
+    # has no bison. x11/tools/wayland/xkbregistry off: no deps needed.
+    if [ ! -e /usr/lib/pkgconfig/xkbcommon.pc ]; then
+        log "==> building libxkbcommon ${LIBXKBCOMMON_VER#xkbcommon-}"
+        rm -rf /tmp/xkbcommon-src
+        mkdir -p /tmp/xkbcommon-src
+        tar xf "$DL/libxkbcommon-$LIBXKBCOMMON_VER.tar.gz" -C /tmp/xkbcommon-src --strip-components=1
+        meson setup /tmp/xkbcommon-src/build /tmp/xkbcommon-src --prefix=/usr \
+            -Denable-x11=false \
+            -Denable-tools=false \
+            -Denable-wayland=false \
+            -Denable-xkbregistry=false \
+            -Denable-parser-auto-generation=false \
+            || die "extras: libxkbcommon meson setup failed"
+        ninja -C /tmp/xkbcommon-src/build || die "extras: libxkbcommon build failed"
+        ninja -C /tmp/xkbcommon-src/build install || die "extras: libxkbcommon install failed"
+        ldconfig
+    fi
+    [ -e /usr/lib/pkgconfig/xkbcommon.pc ] || die "extras: xkbcommon.pc missing"
+
     log "==> building libtsm $LIBTSM_VER"
     rm -rf /tmp/libtsm-src
     mkdir -p /tmp/libtsm-src

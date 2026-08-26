@@ -119,6 +119,10 @@ export KMSCON_VER=v10.0.2
 export LIBTSM_VER=v4.7.1
 export KMSCON_TARBALL="kmscon-${KMSCON_VER}.tar.gz"
 export LIBTSM_TARBALL="libtsm-${LIBTSM_VER}.tar.gz"
+# libxkbcommon: kmscon hard-requires it at BUILD time, but the Arch
+# import providing it runs in 06-xorg-xfce (after extras) - source-build
+# a minimal one in extras instead (root cause #65). Latest stable tag.
+export LIBXKBCOMMON_VER=xkbcommon-1.13.2
 
 # CA trust store: the ISO ships no certificates, so every TLS client
 # silently relied on `curl -k`; pacman cannot skip verification

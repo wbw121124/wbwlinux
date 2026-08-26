@@ -71,6 +71,8 @@ declare -A urls=(
   # kmscon + libtsm (Phase 1: KMS/DRM console on tty2-6)
   ["libtsm-$LIBTSM_VER.tar.gz"]="https://github.com/kmscon/libtsm/archive/refs/tags/$LIBTSM_VER.tar.gz"
   ["kmscon-$KMSCON_VER.tar.gz"]="https://github.com/kmscon/kmscon/archive/refs/tags/$KMSCON_VER.tar.gz"
+  # libxkbcommon (kmscon build-time dep; minimal source build in extras)
+  ["libxkbcommon-$LIBXKBCOMMON_VER.tar.gz"]="https://github.com/xkbcommon/libxkbcommon/archive/refs/tags/$LIBXKBCOMMON_VER.tar.gz"
   # CA bundle (Mozilla-derived; pacman/git need real TLS verification)
   ["cacert.pem"]="$CACERT_URL"
   # astroterm (prebuilt static binary from release asset)
