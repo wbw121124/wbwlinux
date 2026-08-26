@@ -1558,15 +1558,27 @@ include /usr/share/nano/*.nanorc
 EOF
 
 # neovim
+# ROOT CAUSE #54: the ONLY system-init filenames neovim recognizes are
+# sysinit.vim / sysinit.lua under $XDG_CONFIG_DIRS/nvim. The previous
+# init.lua was NEVER read, so nvim ran on bare defaults whose
+# 'fileencodings' lacks gb18030/gbk -> GBK files showed mojibake while
+# vim (reading /etc/vimrc) displayed them fine. Mirror /etc/vimrc here.
 mkdir -p /etc/xdg/nvim
-cat > /etc/xdg/nvim/init.lua << 'EOF'
-vim.opt.fileencodings = "utf-8,gb18030,gbk,latin1"
-vim.opt.ambiwidth = "double"
-vim.opt.number = true
-vim.opt.expandtab = true
-vim.opt.tabstop = 4
-vim.opt.shiftwidth = 4
+cat > /etc/xdg/nvim/sysinit.lua << 'EOF'
+-- parity with /etc/vimrc (root cause #54)
+-- 'termencoding' does not exist in nvim (always utf-8); 't_Co' is
+-- obsolete there too - both skipped on purpose.
+vim.opt.encoding     = "utf-8"
+vim.opt.fileencodings = "utf-8,gb18030,gbk,gb2312,latin1"
+vim.opt.ambiwidth    = "double"
+vim.opt.number       = true
+vim.cmd("syntax enable")
+-- editor QoL from the old (never-loaded) init.lua
+vim.opt.expandtab    = true
+vim.opt.tabstop      = 4
+vim.opt.shiftwidth   = 4
 EOF
+rm -f /etc/xdg/nvim/init.lua
 
 # fbterm: Chinese-capable terminal + launcher script
 mkdir -p /etc/fbterm
@@ -1799,7 +1811,7 @@ pkg_register rust "$RUST_VER" "Rust toolchain (prebuilt)" \
 pkg_register powershell "$PWSH_VER" "PowerShell 7 (prebuilt)" \
     /opt/microsoft/powershell/7 /usr/local/bin/pwsh
 pkg_register neovim "$NVIM_VER" "Neovim editor (source build)" \
-    /usr/local/bin/nvim /usr/local/share/nvim
+    /usr/local/bin/nvim /usr/local/share/nvim /etc/xdg/nvim
 pkg_register networkmanager "$NM_VER" "NetworkManager (prebuilt)" \
     /usr/bin/NetworkManager /usr/bin/nm-* \
     /usr/lib/NetworkManager /usr/share/NetworkManager \

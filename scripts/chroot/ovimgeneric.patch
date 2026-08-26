@@ -276,16 +276,13 @@ index d4b8b9a..f6b3b88 100644
      GenericKeySequence keyseq;
      OVCandidateList candi;
 diff --git a/Modules/SharedLibrary/OVCIN.h b/Modules/SharedLibrary/OVCIN.h
-index 358f354..03df14b 100644
+index 358f354..23a065e 100644
 --- a/Modules/SharedLibrary/OVCIN.h
 +++ b/Modules/SharedLibrary/OVCIN.h
-@@ -110,7 +110,17 @@ public:
-     
-     // VXCIN::find()
+@@ -112,6 +112,16 @@ public:
      inline size_t getWordVectorByChar(const string& inKey, vector<string>& outStringVectorRef);
--	inline size_t getWordVectorByCharWithWildcardSupport(const string& inKey, vector<string>& outStringVectorRef, char matchOneChar = 0, char matchZeroOrMoreChar = 0);
-+    size_t getWordVectorByCharWithWildcardSupport(const string& inKey, vector<string>& outStringVectorRef, char matchOneChar = 0, char matchZeroOrMoreChar = 0);
-+
+ 	inline size_t getWordVectorByCharWithWildcardSupport(const string& inKey, vector<string>& outStringVectorRef, char matchOneChar = 0, char matchZeroOrMoreChar = 0);
+ 
 +    // LFS-CN: direct chardef-key enumeration for fuzzy/typo matching.
 +    // getWordVectorByChar* only answers exact keys; ranking every key
 +    // against a typed sequence needs read access to the whole map.
@@ -295,6 +292,7 @@ index 358f354..03df14b 100644
 +        { return maps[_OVCIN::M_CHAR][i].first; }
 +    inline void getWordsForKeyAt(size_t i, vector<string>& out) const
 +        { out = maps[_OVCIN::M_CHAR][i].second; }
- 
++
      void show(const CinMap &m, int x);
      void runtest(const string &s);
+     void test();

@@ -3,6 +3,16 @@
 ## 目标
 在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**run#90（only-packages 首跑）实证：根因四十四的 /pkgrepo 路径修复生效（169 文件被找到），但暴露根因四十五（epoch 冒号文件名致 upload-artifact 拒绝）与根因四十六（Yaru meson 选项失效）；另按用户需求将 VS Code 从 extras 迁移到 packages job（不再打入 ISO）**。
 
+## 根因五十三（run#92 from-base 实证，已修）：重生成补丁丢失 inline → multiple definition 链接失败
+**重新生成 ovimgeneric.patch 时，OVCIN.h 类内声明 `inline size_t getWordVectorByCharWithWildcardSupport(...)` 的 `inline` 关键字被意外抹掉——声明失去 inline 后，头文件里第 204 行的类外定义在每个包含 OVCIN.h 的编译单元（OVCIN.cpp / OVCandidateList.cpp / OVIMGeneric.cpp）都发射**强符号**，OVIMGeneric.la 链接 libSharedLibrary.a 时 ld 报 multiple definition。旧补丁从未改过 OVCIN.h，此雷是本次重写引入。**
+- 修复：恢复 `inline`（v3 补丁对该行零改动）；本地验证升级为三件套：git apply --check ✓ + g++ -fsyntax-only ✓ + **双 TU -O2 实编 nm 检查无强符号泄漏** ✓。
+- 教训：**手改头文件类内声明时，inline/static/constexpr 修饰符与默认实参是高危资产；对声明行的 diff 必须为零或逐字符核对。**
+
+## 根因五十四（用户实测报告，已修）：nvim 无中文且配置与 vim 不一致
+**Neovim 的系统级初始化只认 `$XDG_CONFIG_DIRS/nvim/sysinit.vim|sysinit.lua`；脚本写的 `/etc/xdg/nvim/init.lua` 是无效文件名，nvim 从未读取过 → 一直裸默认运行：'fileencodings' 默认值不含 gb18030/gbk → GBK 文件中文乱码（"没有中文"），而 vim 正常读 /etc/vimrc → "配置不一样"。**
+- 修复（05-extras.sh）：改写 `/etc/xdg/nvim/sysinit.lua` 与 /etc/vimrc 完全对齐（encoding/fileencodings 五编码链/ambiwidth/number/syntax enable + 原有 expandtab/tabstop/shiftwidth）；删除死文件 init.lua；pkg_register neovim 增加 /etc/xdg/nvim 纳入包管理。
+- 说明：nvim 已移除 'termencoding'/'t_Co' 选项，属有意跳过而非遗漏。
+
 ## 根因五十二（2026-08-26 用户反馈，已修）：Deploy to Pages 永远 skipped
 **deploy-pages job 条件为 `github.event_name == 'workflow_dispatch' && needs.packages.result == 'success'`——push 触发的运行（包括 [iso:only-packages]）一律跳过 Pages 部署，与用户预期（包仓库构建成功即自动发布 Pages）相悖。**
 - 修复：条件改为 `needs.packages.result == 'success'`，push 与手动触发一视同仁；full/from-base 模式下 config-extras 成功后 packages 也会跑，随后同样自动部署。
