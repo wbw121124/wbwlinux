@@ -41,7 +41,8 @@
 
 ## 根因六十五（run#120 实证，已修）：kmscon 构建期缺 xkbcommon——Arch 导入在 extras 之后
 **kmscon 硬依赖 xkbcommon；上一轮虽把它加进 arch-resolve.py 种子，但那个导入发生在 **06-xorg-xfce（extras 之后）**，kmscon 在 extras 内构建时 pkg-config 依然找不到 → `Dependency "xkbcommon" not found`。第三次踩中"构建顺序 vs 依赖提供方"陷阱（同根因三十七/kmsconvt 搬迁）。**
-- 修复：extras 内**源码构建最小化 libxkbcommon**（xkbcommon-1.13.2 稳定 tag）：`-Denable-x11/tools/wayland/xkbregistry=false`（零额外依赖）+ `-Denable-parser-auto-generation=false`（用源码树预生成文件——**LFS 没有 bison**）；以 `/usr/lib/pkgconfig/xkbcommon.pc` 存在为门控与断言。06-xorg 的 Arch 导入稍后会以发行版版本覆盖，无害。
+- 修复：extras 内**源码构建最小化 libxkbcommon**（xkbcommon-1.13.2 稳定 tag）：`-Denable-x11/tools/wayland/xkbregistry=false`（零额外依赖）；以 `/usr/lib/pkgconfig/xkbcommon.pc` 存在为门控与断言。06-xorg 的 Arch 导入稍后会以发行版版本覆盖，无害。
+- 追修（run#121 实证）：`-Denable-parser-auto-generation` 是 **1.14.0 才新增**的选项——我读的是 beta 的 meson.options 却 pin 了 1.13.2 → Unknown option。1.13 起解析器预生成是默认行为，直接删该旗标（其余四个选项已对 1.13.2 的 meson_options.txt 逐项核实存在）。
 - 教训：**新增"构建期依赖"时必须回答"它在当前阶段存在吗"**；跨阶段依赖一律就近源码最小化构建或调整阶段归属。
 
 ## 根因六十四（run#119 实证，已修）：kmscon v10 feature 型选项不接受 true/false

@@ -1765,7 +1765,6 @@ if [ ! -e /usr/bin/kmscon ]; then
             -Denable-tools=false \
             -Denable-wayland=false \
             -Denable-xkbregistry=false \
-            -Denable-parser-auto-generation=false \
             || die "extras: libxkbcommon meson setup failed"
         ninja -C /tmp/xkbcommon-src/build || die "extras: libxkbcommon build failed"
         ninja -C /tmp/xkbcommon-src/build install || die "extras: libxkbcommon install failed"
