@@ -235,67 +235,35 @@ if [ ! -e /usr/bin/fbterm ]; then
     tar xf fbterm-1.7.tar.gz
     cd fbterm-1.7
     sed -i 's/#include <termios.h>/#include <termios.h>\n#include <sys\/select.h>/' src/fbterm.cpp
-    # PATCH: Intercept Ctrl+Alt+Fn in raw key handler so VT switching works
-    # even when ucimf input method is loaded. ucimf reads keyboard events
-    # before the shell can process them; without this patch, Ctrl+Alt+Fn
-    # never reaches the kernel's VT layer. We inject a handler that detects
-    # the combination and calls ioctl(VT_ACTIVATE) directly.
+    # PATCH: Ctrl+Alt+F1-F6 → VT_ACTIVATE instead of switchCodec.
+    # fbterm remaps these keys to custom action codes (CTRL_ALT_F1..F6)
+    # and calls switchCodec() (character encoding switch). We replace it
+    # with ioctl(VT_ACTIVATE) so the kernel switches virtual consoles.
+    # F7-F12 already work through the kernel's KT_CONS path.
+    sed -i '/#include <unistd.h>/a #include <fcntl.h>' src/fbterm.cpp
     python3 - << 'PYEOF'
-import re
-with open("src/input.cpp", "r") as f:
+with open("src/fbterm.cpp", "r") as f:
     src = f.read()
-# 1) Add required includes after #include <linux/kd.h>
-if "#include <linux/vt.h>" not in src:
-    src = src.replace(
-        '#include <linux/kd.h>',
-        '#include <linux/kd.h>\n#include <linux/vt.h>\n#include <sys/ioctl.h>\n#include <fcntl.h>\n#include <unistd.h>'
-    )
-# 2) Inject VT switch handler before processRawKeys()
-handler = """
-// LFS-CN: Ctrl+Alt+Fn VT switching with ucimf input method.
-// Without this, ucimf intercepts keyboard events before the shell
-// can process Ctrl+Alt+Fn for VT switching.
-static bool lfsCnVtSwitch(unsigned int key, bool down)
-{
-\tstatic const int ctrlAlt = (1 << KG_CTRL) | (1 << KG_ALT);
-\tstatic unsigned int shift = 0;
-\tif (key == KEY_LEFTCTRL || key == KEY_RIGHTCTRL) {
-\t\tif (down) shift |= (1 << KG_CTRL);
-\t\telse shift &= ~(1 << KG_CTRL);
-\t\treturn false;
-\t}
-\tif (key == KEY_LEFTALT || key == KEY_RIGHTALT) {
-\t\tif (down) shift |= (1 << KG_ALT);
-\t\telse shift &= ~(1 << KG_ALT);
-\t\treturn false;
-\t}
-\tif (down && (shift & ctrlAlt) == ctrlAlt
-\t    && key >= KEY_F1 && key <= KEY_F12) {
-\t\tint fd = open("/dev/tty0", O_RDWR | O_NONBLOCK);
-\t\tif (fd >= 0) {
-\t\t\tioctl(fd, VT_ACTIVATE, key - KEY_F1 + 1);
-\t\t\tclose(fd);
-\t\t}
-\t\treturn true;
-\t}
-\treturn false;
-}
-"""
-if "lfsCnVtSwitch" not in src:
-    src = src.replace(
-        "void TtyInputVT::processRawKeys()",
-        handler + "void TtyInputVT::processRawKeys()"
-    )
-# 3) Add call after processKey() result — insert after the processKey line
-if "lfsCnVtSwitch(key, pressed)" not in src:
-    src = re.sub(
-        r'(bool pressed = processKey\(code, &key, &value\);)',
-        r'\1\n\t\tif (lfsCnVtSwitch(key, pressed)) continue;',
-        src
-    )
-with open("src/input.cpp", "w") as f:
-    f.write(src)
-print("fbterm-vt-switch: patch applied to src/input.cpp")
+old = """	case CTRL_ALT_F1 ... CTRL_ALT_F6:
+		if (manager->activeShell()) {
+			manager->activeShell()->switchCodec(key - CTRL_ALT_F1);
+		}
+		break;"""
+new = """	case CTRL_ALT_F1 ... CTRL_ALT_F6: {
+			int fd = open("/dev/tty0", O_RDWR | O_NONBLOCK);
+			if (fd >= 0) {
+				ioctl(fd, VT_ACTIVATE, key - CTRL_ALT_F1 + 1);
+				close(fd);
+			}
+		}
+		break;"""
+if old in src and "VT_ACTIVATE" not in src:
+    src = src.replace(old, new)
+    with open("src/fbterm.cpp", "w") as f:
+        f.write(src)
+    print("fbterm-vt-switch: patched processSysKey() in src/fbterm.cpp")
+else:
+    print("fbterm-vt-switch: WARN - pattern not found or already patched")
 PYEOF
     ./configure --prefix=/usr CXXFLAGS="-O2 -Wno-narrowing"
     make -j"$NPROC"
