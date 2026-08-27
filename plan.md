@@ -1,7 +1,7 @@
 # LFS-CN Live ISO 构建计划
 
 ## 目标
-在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**Phase 1 修复（fbterm 重入/startx 卡死/nvim 配置/pacman 回退/packages-repo 自动提交）已实施，待 from-base 验证**。
+在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**Phase 1 修复（fbterm 重入/startx 卡死/nvim 配置/pacman 回退/packages-repo 自动提交/fbterm-kmscon 共存）已实施，待 from-base 验证**。
 
 ## 根因六十八（Phase 1 用户实测，已修）：Ctrl+Alt+F1 返回 TTY1 后 fbterm 不启动
 **`.bashrc` 中 `FBTTERM` 守卫变量在 fbterm 首次 `exec` 后被导出（`export FBTTERM=1`），但 getty respawn 的新 bash 仍继承旧环境 → `[ -z "$FBTTERM" ]` 永远为 false → fbterm 无法重启。用户从 Xorg 按 Ctrl+Alt+F1 返回 TTY1 后看到裸 vconsole（CJK 方块字）。**
@@ -17,6 +17,13 @@
 **CI 的 packages job 产出 `/mnt/lfs/pkgrepo/` 仅上传为 artifact + 部署到 GitHub Pages，从未推送到 `repo` git 分支。Pages 部署异步且无版本历史，artifact 30 天过期。**
 - 修复：新增 `push-repo` job（Job 6）——下载 packages-repo artifact，checkout `repo` 分支（不存在时 git init orphan），全量覆盖后 commit + push。`[skip ci]` 防止分支推送触发循环构建。
 - 教训：**Pages 部署是 artifact-based（不可回滚），git 分支提供版本历史和直接克隆能力，两者应并行维护。**
+
+## 根因七十一（Phase 1 用户实测，已修）：fbterm 内 Ctrl+Alt+Fn 无法切换 TTY
+**fbterm-zh 默认启动时加载 ucimf 输入法（`-i fbterm_ucimf`），ucimf 从 `/dev/input/event*` 读取原始键盘事件 → 拦截 Ctrl+Alt+Fn VT 切换序列 → 内核 VT 层收不到切换信号 → tty1 锁死。**
+- 修复：fbterm-zh 拆分为两个入口：
+  1. `fbterm-zh`（默认）：plain fbterm，不加载 ucimf → Ctrl+Alt+Fn 正常工作；
+  2. `fbterm-im`：symlink 到 fbterm-zh，通过 `basename "$0"` 检测 → 加载 ucimf → 需 `chvt N` 或 `exit` 切换。
+- 教训：**ucimf 的原始 input 读取会劫持内核 VT 切换；CJK 输入法与 VT 切换不可兼得，必须由用户显式选择。**
 
 ## 根因五十三（run#92 from-base 实证，已修）：重生成补丁丢失 inline → multiple definition 链接失败
 **重新生成 ovimgeneric.patch 时，OVCIN.h 类内声明 `inline size_t getWordVectorByCharWithWildcardSupport(...)` 的 `inline` 关键字被意外抹掉——声明失去 inline 后，头文件里第 204 行的类外定义在每个包含 OVCIN.h 的编译单元（OVCIN.cpp / OVCandidateList.cpp / OVIMGeneric.cpp）都发射**强符号**，OVIMGeneric.la 链接 libSharedLibrary.a 时 ld 报 multiple definition。旧补丁从未改过 OVCIN.h，此雷是本次重写引入。**
@@ -105,17 +112,33 @@
 - **pkg_register**：新增 kmscon 包（二进制/配置/单元/libtsm）。
 - 待 QEMU 验收清单：tty2-6 出现图形控制台且中文正常；Ctrl+Alt+F1 回 fbterm；XFCE startx 与 kmscon 的 DRM 交接；`pacman -Sy` 无 SSL 错误。
 
-## KMSCON 替换 fbterm（2026-08-26 用户决策：方案 C 完全替换+自研IM；autologin=bash --login）
-**三阶段计划：P1 kmscon 落地(tty2-6 并存布局) → P2 IM 桥接(内嵌 libucimf) → P3 全量切换+移除 fbterm。每阶段一次 `[iso:from-base]` 验证。版本 pin：kmscon v10.0.2（github.com/kmscon/kmscon，2026 复活官方仓）/ libtsm v4.7.1。内核 DRM 已就绪（fragment 有 DRM=y + virtio-gpu/bochs/i915(m)），P1 补 CONFIG_DRM_SIMPLEDRM=y。**
+## KMSCON 与 fbterm 共存方案（2026-08-27 用户决策）
+**kmscon 与 fbterm 长期共存，不再计划移除 fbterm。布局：tty1 = fbterm（中文终端），tty2-6 = kmscon（图形控制台）。**
 
-### Phase 0 侦察结论（2026-08-26 本地源码实证，GO）
-1. **libucimf 显示后端可注入、零补丁**：`GraphDev`（display/graphdev.h）为纯虚接口（PutPixel/FillRect/RevRect/SaveRect/RstrRect 五个纯虚），单例指针 `static GraphDev *mpGraphDev` 是 **public**——桥接子类直接赋值即可接管全部绘制；不调用 `GraphDev::Open()` 就永远不会碰 /dev/fb0。
-2. 注入时序硬约束：`GraphPort` 构造函数在创建时抓取 `gdev = GraphDev::mpGraphDev`（graphport.cpp:37）→ 必须在 `ucimf_init()` 之前完成注入。
-3. 字体链独立于设备：libucimf font.cpp 走 fontconfig+freetype 自绘位图，OutChar(graphdev.cpp:128) 经 PutPixel 落地 → 现有 /etc/ucimf.conf 的 Fira Code,WQY 配置原样复用。
-4. kmscon v10.0.2 结构映射：键输入 `src/input/input_uxkb.c`（IM 拦截点，xkb keysym 后、喂 pty 前）；渲染 `src/render/text.c` + bbulk.c（IM 窗口叠加钩点）；会话 `src/terminal.c`；DRM/VT 抽象 `src/uterm/`。
-5. kmscon.conf 可用项（man 实证）：login / font-name / font-size / font-engine / term / vt / xkb-keymap|layout|model|variant|options|repeat-delay|repeat-rate / palette / sb-size。
-6. 遗留未知（P2 spike 解决）：渲染完成后回调的确切挂点；K_RAW 扫描码流与 ucimf 键表的编码对齐（ISO 已含 kbd 的 /usr/share/keymaps，正向信号）。
-7. P2 设计定稿：桥接 = GraphDev 子类（像素级 PutPixel/FillRect 直写 kmscon 渲染缓冲）+ input_uxkb 拦截（Ctrl+Space/Ctrl+Shift 热键 + K_RAW 合成流）+ terminal 光标位置回灌 ucimf_cursor_position；复用整套 OVIMGeneric v2（连续匹配/编辑距离/cs-oi 表）。
+### TTY 布局
+| TTY | 服务 | 说明 |
+|-----|------|------|
+| tty1 | fbterm-zh | 默认启动，plain fbterm（无 ucimf），Ctrl+Alt+Fn 正常工作 |
+| tty1 | fbterm-im | 手动启动（`fbterm-im`），带 ucimf 中文输入法，需 `chvt`/`exit` 切换 |
+| tty2-6 | kmscon | 图形控制台，中文渲染，Ctrl+Alt+Fn 正常工作 |
+| tty7+ | Xorg/XFCE | startx 启动 |
+
+### TTY 切换机制
+- **fbterm-zh（默认）**：plain fbterm，Ctrl+Alt+Fn 直接切换，无需额外操作。
+- **fbterm-im（带输入法）**：ucimf 拦截原始键盘事件，Ctrl+Alt+Fn 被输入法消费 → 无法直接切换。解决方案：
+  1. `chvt N` 命令切换（如 `chvt 2` 切到 kmscon）
+  2. `exit` 退出 fbterm 回到 vconsole，再用 Ctrl+Alt+Fn
+- **kmscon**：Ctrl+Alt+Fn 正常工作（无输入法拦截）。
+
+### 实施状态
+- ✅ **Phase 1 已完成**：kmscon 落地 tty2-6（libtsm/kmscon 构建、kmsconvt 单元启用、console-autoshell、kmscon.conf）
+- ✅ **fbterm 共存修复**：fbterm-zh 默认无 ucimf（Ctrl+Alt+Fn 可用），fbterm-im 带 ucimf（需 chvt/exit）
+- ✅ **内核 DRM**：CONFIG_DRM_SIMPLEDRM=y 已补
+- ✅ **pkg_register**：kmscon 包已注册
+
+### 版本 pin
+- kmscon v10.0.2（github.com/kmscon/kmscon，2026 复活官方仓）
+- libtsm v4.7.1
 
 ## 根因五十六（run#111 实证，已修）：Deploy to Pages 在 from-base 下仍被跳过——needs 门控沿链传递
 **GitHub Actions 文档明确："a failure or skip applies to all jobs in the dependency chain"。不含状态函数的 `if` 会被自动前置隐式 `success()`，而 `success()` 对依赖链上任意祖先的 skip/fail 都返回 false。from-base 模式下 toolchain/base 被 skip → 沿 mode→toolchain→base→config-extras→packages→deploy-pages 链路污染：packages 因 `always()` 豁免正常执行，deploy-pages 的 `if: needs.packages.result == 'success'` 前面的隐式 success() 却因祖先 skip 判假 → 秒跳过（API 实证 started/completed 同秒、零 step）。**

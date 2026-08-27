@@ -1768,7 +1768,7 @@ font-hinting=1
 font-embedbitmap=0
 EOF
 
-cat > /usr/local/bin/fbterm-zh << 'EOF'
+cat > /usr/local/bin/fbterm-zh << 'FBTERM_EOF'
 #!/bin/sh
 # Chinese-capable framebuffer terminal. Falls back to a plain shell if the
 # framebuffer or CJK font is unavailable so the session never dies silently.
@@ -1776,7 +1776,12 @@ cat > /usr/local/bin/fbterm-zh << 'EOF'
 # localized text outside fbterm would render as boxes. Fallback shells stay
 # on the inherited C.UTF-8 environment.
 #
-# Input Method (ucimf) keybindings:
+# TTY switching: run 'fbterm-zh' (default) for plain fbterm where
+# Ctrl+Alt+Fn works normally. Run 'fbterm-im' to start fbterm with the
+# ucimf Chinese input method — in that mode, use 'chvt N' or type 'exit'
+# to return to vconsole for TTY switching.
+#
+# Input Method (ucimf) keybindings (fbterm-im only):
 #   Ctrl+Space    Toggle input method ON/OFF
 #   Ctrl+Shift    Switch between input methods (OVIMGeneric, OVIMChewing, etc.)
 #   Space         Confirm/insert selected candidate
@@ -1802,20 +1807,29 @@ fi
 if [ -z "$(ls /var/cache/fontconfig 2>/dev/null)" ]; then
     timeout 60 fc-cache -f >/dev/null 2>&1 || true
 fi
-if command -v fbterm_ucimf >/dev/null 2>&1; then
+# Decide whether to load ucimf input method: 'fbterm-im' enables it,
+# 'fbterm-zh' (default) skips it so Ctrl+Alt+Fn VT switching works.
+USE_IM=0
+case "$(basename "$0")" in
+    fbterm-im) USE_IM=1 ;;
+esac
+if [ "$USE_IM" = "1" ] && command -v fbterm_ucimf >/dev/null 2>&1; then
     # ucimf input method: Ctrl+Space on/off, Ctrl+Shift switch IMs
+    # NOTE: ucimf intercepts raw keyboard events, blocking Ctrl+Alt+Fn
+    # from reaching the kernel VT layer. Use 'chvt N' or 'exit' to leave.
     if LANG=zh_CN.UTF-8 LC_ALL=zh_CN.UTF-8 fbterm --font-names="$FONT_NAMES" --font-size=16 -i fbterm_ucimf 2>/dev/null; then
-        exit 0
+        exec bash -i
     fi
 fi
 if LANG=zh_CN.UTF-8 LC_ALL=zh_CN.UTF-8 fbterm --font-names="$FONT_NAMES" --font-size=16 2>/dev/null; then
-    exit 0
+    exec bash -i
 fi
 echo "fbterm-zh: fbterm failed (font/device), staying on plain console" >&2
 export FBTTERM=1
 exec bash -i
-EOF
+FBTERM_EOF
 chmod +x /usr/local/bin/fbterm-zh
+ln -sfv fbterm-zh /usr/local/bin/fbterm-im
 
 # root login shell convenience (auto fbterm on tty1)
 cat > /root/.bashrc << 'EOF'
@@ -2006,7 +2020,7 @@ pkg_register fbterm-ucimf-stack "$UCIMF_VER" \
     /usr/bin/fbterm /usr/bin/fbterm_ucimf /usr/bin/ucimf_start \
     /usr/lib/libucimf.so* /usr/lib/ucimf /usr/lib/openvanilla \
     /usr/share/openvanilla /etc/ucimf.conf /etc/fbterm \
-    /usr/local/bin/fbterm-zh /usr/share/man/man1/fbterm.1
+    /usr/local/bin/fbterm-zh /usr/local/bin/fbterm-im /usr/share/man/man1/fbterm.1
 pkg_register kmscon "$KMSCON_VER" \
     "KMS/DRM graphical console (tty2-6, Phase 1)" \
     /usr/bin/kmscon /etc/kmscon /usr/local/bin/console-autoshell \
@@ -2079,6 +2093,7 @@ for f in /usr/bin/fbterm /usr/bin/fbterm_ucimf \
          /usr/bin/sudo /usr/sbin/visudo /etc/sudoers \
          /usr/bin/git \
          /usr/share/themes/Rea-Dark/index.theme \
+         /usr/local/bin/fbterm-zh /usr/local/bin/fbterm-im \
          /root/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml \
          /root/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml \
          /usr/local/repo/lfscn/lfscn.db.tar.gz; do
