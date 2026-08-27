@@ -414,10 +414,12 @@ jobs:
 
       - name: Commit and push to repo branch
         run: |
+          mkdir -p repo-branch
           cd repo-branch
           # If checkout created an empty dir (branch didn't exist), init
           if [ ! -d .git ]; then
-            git init -b repo
+            git init
+            git checkout -b repo
             git remote add origin "https://github.com/${{ github.repository }}.git"
           fi
           rm -rf ./*
