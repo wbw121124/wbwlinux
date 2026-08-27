@@ -422,6 +422,11 @@ jobs:
           git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" || true
           rm -rf ./*
           cp -a ../repo-content/. ./
+          # GitHub hard-rejects files >100MB on push (pre-receive hook
+          # GH001). Any oversized packages are excluded from the git branch
+          # (kept in Pages as flat files). This branch keeps only the
+          # <100MB subset as a versioned backup.
+          find . -type f -size +100M -printf 'excluding (>100MB, Pages-hosted): %P\n' -delete
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A

@@ -21,6 +21,7 @@ export MAKEFLAGS="-j$((NPROC >= 2 ? NPROC + 1 : NPROC))"
 # Package versions for extras (BLFS 13.0 / upstream binaries)
 export NODE_VER=v24.19.0
 export RUST_VER=1.93.1
+export GO_VER=1.27.0
 export NANO_VER=8.7.1
 export ICU_VER=78.2
 export FREETYPE_VER=2.14.1
@@ -30,6 +31,7 @@ export FONTCONFIG_VER=2.17.1
 export LFS_BOOK_URL=https://www.linuxfromscratch.org/lfs/downloads/13.0-systemd
 export NODE_URL=https://nodejs.org/dist/$NODE_VER
 export RUST_URL=https://static.rust-lang.org/dist
+export GO_URL=https://go.dev/dl
 export POWERSHELL_URL=https://github.com/PowerShell/PowerShell/releases/download
 export NEOVIM_URL=https://github.com/neovim/neovim/archive/refs/tags
 export NVIM_VER=0.12.5
@@ -41,12 +43,10 @@ export VIMCDOC_COMMIT=bc2469b2752c9e2d89beca07d0c7faab4e1f1869
 # does not include cmake since it is a build-time-only dep)
 export CMAKE_VER=3.31.6
 # Lua 5.1 (neovim cmake needs Lua 5.1 interpreter; built from source before
-# neovim because Arch closure is imported later in 06-xorg-xfce.sh)
+# neovim because Arch closure is imported later in 07-packages.sh)
 export LUA_VER=5.1.5
 # NetworkManager (prebuilt from Arch repo; pacman 7.1 needs it for Wi-Fi)
 export NM_VER=1.58.1
-# VS Code (prebuilt from Microsoft; not installed by default)
-export VSCODE_VER=1.134.0
 export ICU_URL=https://github.com/unicode-org/icu/releases/download/release-78.2
 
 # Powershell 7.6.4 (linux-x64 tarball)
@@ -140,8 +140,9 @@ export LIBEVENT_VER=2.1.13-stable
 # the Pages repo ships a full-featured git which needs libexpat
 export EXPAT_VER=2.7.1
 
-# Arch binary stack (X.Org + XFCE) imported from repo databases at build
-# time by chroot/06-xorg-xfce.sh; rolling release, pinned per run only.
+# Arch binary stack (X.Org + XFCE) imported into the pacman repo
+# by chroot/07-packages.sh (not baked into the ISO); rolling release,
+# pinned per run only.
 export ARCH_MIRRORS="https://geo.mirror.pkgbuild.com https://mirror.rackspace.com/archlinux https://mirrors.kernel.org/archlinux"
 
 # Host side of the chroot filesystems

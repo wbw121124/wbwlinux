@@ -3,6 +3,9 @@
 在 GitHub Actions 上从零编译 Linux From Scratch 13.0-systemd，产出 x86_64
 Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
 
+ISO 是一个**文本精简基础系统**（fbterm 中文终端 + LFS 全部基础包），不包含图形桌面。
+图形桌面（X.Org + XFCE4）及 9 个精选开发工具可通过 pacman 从 packages-repo 按需安装。
+
 ## 包含软件
 
 | 软件 | 版本 | 来源 |
@@ -14,11 +17,12 @@ Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
 | Bash | 5.3 | LFS 源码编译 |
 | Node.js | 24.19.0 | 官方预编译二进制 |
 | Rust | 1.93.1 | 官方预编译二进制 |
+| Go | 1.27.0 | 官方预编译 tarball（`pacman -S go` 从 packages-repo 安装） |
 | PowerShell | 7.6.4 | 官方 tarball |
 | Neovim | 0.12.5 | 源码编译（cmake 构建，安装到 /usr/local） |
 | Nano | 8.7.1 | BLFS 源码编译（UTF-8） |
 | ICU | 78.2 | BLFS 源码编译 |
-| fbterm + 文泉驿微米黑 | 1.7 / 0.2.0-beta | 源码/字体 |
+| fbterm + 文泉驿微米黑 | 1.7 / 0.2.0-beta | 源码/字体（tty1 中文终端） |
 | Fira Code | 6.2 | 官方 release（等宽编程字体） |
 | ucimf + fbterm-ucimf | 2.3.8 / 0.2.9 | 源码编译（控制台输入法框架） |
 | OVIMGeneric + zh_CN 码表 | openvanilla-modules | 源码编译（拼音/双拼/五笔/郑码等） |
@@ -30,15 +34,29 @@ Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
 | git | 2.55.0 | 源码编译（NO_TCLTK/NO_PERL/NO_PYTHON，仅核心功能） |
 | fd / ripgrep / bat | 10.4.2 / 15.2.0 / 0.26.1 | 官方 musl 静态二进制（零依赖直接运行） |
 | htop | 3.5.3 | Debian 预编译（仅依赖 ncurses/libc） |
-| sudo | 1.9.17p2 | 源码编译（BLFS 风格，shadow 认证 + `/etc/sudoers` + wheel 组，visudo 在 `/usr/sbin`） |
+| sudo | 1.9.17p2 | 源码编译（BLFS 风格，shadow 认证 + `/etc/sudoers` + wheel 组） |
 | which | — | 最小 POSIX sh 脚本实现 |
-| NetworkManager | 1.58.1 | Arch 预编译包解包（pacman 7.1 需要，`[lfscn]` 仓库可安装） |
-| VS Code | 1.134.0 | 微软官方 tarball，`pacman -S vscode` 从 Pages 仓库安装（ISO 不再内置） |
-| Firefox | 154.0 | Mozilla 官方 tarball 解包（`[lfscn]` 仓库可安装，默认未安装） |
-| X.Org Server + XFCE4 | xorg-server / xfce4 全家桶 | Arch 二进制仓库依赖闭包导入（构建期解析，LFS 已有库全部跳过） |
-| Rea-Dark 主题 | 1a422b0 (2026-02-24) | GitHub orchyn/XFCE（GTK2/GTK3/xfwm4，默认暗色主题，compositing 关闭） |
-| Yaru 主题 | 26.04.5.1ubuntu | Ubuntu 26.04 LTS 源码编译（GTK2/GTK3/GTK4/icons/cursor/shell，pacman 包） |
-| fcitx5 输入法 | Arch extra 预编译 | Arch Linux extra 仓库预编译包（fcitx5 + fcitx5-gtk + fcitx5-chinese-addons + 依赖闭包） |
+| NetworkManager | 1.58.1 | Arch 预编译包（`[lfscn]` 仓库可安装） |
+
+**packages-repo 内容**（GitHub Pages + repo git 分支托管，`pacman -S <包名>` 安装）：
+
+| 软件 | 版本 | 来源 |
+|---|---|---|
+| X.Org Server + XFCE4 | xorg-server / xfce4 全家桶 | Arch 二进制仓库依赖闭包导入（`pacman -S xorg-server xfce4`） |
+| fcitx5 输入法 | Arch extra 预编译 | fcitx5 + fcitx5-gtk + fcitx5-chinese-addons |
+| Go | 1.27.0 | 官方预编译 tarball |
+| fzf | Arch extra | 模糊搜索神器 |
+| lazygit | Arch extra | Git TUI |
+| btop | Arch extra | 系统监控 |
+| nnn | Arch extra | 极速文件管理器 |
+| mtr | Arch extra | traceroute + ping |
+| strace | Arch core | 系统调用追踪 |
+| socat | Arch extra | 网络瑞士军刀 |
+| nmap | Arch extra | 网络扫描 |
+| valgrind | Arch extra | 内存调试 |
+| Rea-Dark 主题 | 1a422b0 | GTK2/GTK3/xfwm4 暗色主题 |
+| Yaru 主题 | 26.04.5 | Ubuntu 26.04 LTS 源码编译 |
+| expat / git-full / astroterm / typst / tdf / tmux / ddd | 各自版本 | 源码/预编译打包 |
 
 以及 LFS 书中全部基础包（glibc、systemd、perl、openssl、util-linux 等）。
 
@@ -59,14 +77,13 @@ Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
 
 - 预装 pacman 7.1.0，配置文件 `/etc/pacman.conf`：
   - 数据库放在 `/usr/local/lib/pacman`（`/var` 在 live 系统是 tmpfs，不能存状态）
-  - 内置本地仓库 `[lfscn]`：nodejs、rust、powershell、neovim、fira-code-fonts、
+  - `[lfscn]` 本地仓库（ISO 内置包）：nodejs、rust、powershell、neovim、fira-code-fonts、
     wqy-microhei-fonts、fbterm-ucimf-stack、man-pages-zh、curl、wget、fd、ripgrep、
-    bat、htop 十四个包已注册，
-    可用 `pacman -Q`/`pacman -Qi <包名>` 查询、`pacman -R <包名>` 卸载
+    bat、htop 十四个包已注册
+  - `[lfscn]` 远程源（packages-repo，GitHub Pages + repo git 分支托管）：X.Org、XFCE4、fcitx5、
+    Go、精选工具（fzf/lazygit/btop/nnn/mtr/strace/socat/nmap/valgrind）等
   - Arch 官方源默认注释禁用——运行期 pacman 不可直接安装 Arch 包（滚动版二进制
-    链接最新 glibc，与本系统的 LFS 13.0 工具链不匹配）。X.Org+XFCE 是**构建期**
-    受控导入：依赖闭包解析时 LFS 已提供的库全部跳过（绝不引入 Arch 的 glibc/gcc-libs），
-    解包用 tar `--skip-old-files` 保证已有文件以 LFS 版本为准，仅新增文件落盘
+    链接最新 glibc，与本系统的 LFS 13.0 工具链不匹配）
 - **会话持久化**：引导时 initramfs 自动探测各分区
   - 分区根目录含 `upper/` 目录 → 直接作为 overlay 上层（建议 ext4 并设卷标 `LFS-CN-PERSIST`）
   - 或分区根目录含 `lfs-cn-persistence.img` 文件（ext4 镜像，FAT/exFAT U 盘也可用）→ loop 挂载后作为上层
@@ -74,15 +91,18 @@ Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
   - GRUB 第二菜单项「volatile session」加 `persist=off` 强制关闭探测
   - 制作镜像文件示例（在任意 FAT32 U 盘上）：`truncate -s 8G lfs-cn-persistence.img && mkfs.ext4 -F lfs-cn-persistence.img`
 
-## 流水线结构（4 个串行 job + 1 个可选 job）
+## 流水线结构（4 个串行 job + 2 个可选 job）
 
 1. **toolchain** — 宿主依赖 + 下载校验全部源码 + ch5/ch6 交叉工具链
 2. **base** — 进入 chroot 构建 ch7.5–7.13 + ch8 全部基础包
 3. **config+extras** — 系统配置（中文 locale/网络/时区）+ 预编译软件 + ICU/nano/fbterm/字体
-   + CLI 工具包（fd/rg/bat/htop/wget/which）+ X.Org+XFCE 二进制闭包导入
+   + CLI 工具包（fd/rg/bat/htop/wget/which）+ pacman 本地仓库构建
 4. **iso** — 内核（defconfig + 定制 fragment）+ initramfs + squashfs + GRUB live ISO
-5. **packages**（可选，与 iso 并行）— 构建 free software pacman 包（Yaru 主题 + fcitx5）
-   + repo-add 数据库生成，发布到 GitHub Pages（手动触发 `workflow_dispatch`）
+5. **packages**（可选，与 iso 并行）— 构建 free software pacman 包
+   + X.Org/XFCE/精选工具 Arch 闭包导入到 packages-repo
+   + repo-add 数据库生成，推送到 `repo` git 分支 + Pages（`pacman -S` 安装）
+6. **push-repo**（可选，packages 后运行）— 推送 <100MB 包到 `repo` git 分支（版本备份）
+   + 部署全部包到 Pages（超 100MB 文件自动排除，保留 <100MB 子集）
 
 每 job 结束把 `/mnt/lfs` 打成 `tar.zst` 快照，经 artifact 传给下一 job，
 失败重跑只需从上一个快照继续。
@@ -104,7 +124,7 @@ Live ISO（GRUB 双引导 BIOS/UEFI，中文终端环境）。
 ## 目录结构
 
 ```
-.github/workflows/build-lfs-iso.yml   # 4 job 流水线
+.github/workflows/build-lfs-iso.yml   # 6 job 流水线
 scripts/
   env.sh                              # 全局版本/路径
   common.sh                           # pkg_run/shell_run/chroot/快照 等
@@ -117,11 +137,10 @@ scripts/
   06-kernel-iso.sh                    # 内核 + initramfs + squashfs + GRUB ISO
   chroot/                             # chroot 内执行的脚本
     05-extras.sh                      #   extras 安装（含 cs-oi.cin 码表、pacman tmpfiles 修复）
-    06-xorg-xfce.sh                   #   Arch 二进制闭包导入 X.Org+XFCE
-    07-packages.sh                    #   free software pacman 包构建（Yaru + fcitx5 + repo-add）
-    arch-resolve.py                   #   依赖闭包解析器（SKIP LFS 已有库）
-    arch-resolve-fcitx5.py            #   fcitx5 依赖闭包解析器（SKIP LFS+X.Org+XFCE 已有库）
-  stages/                             # 由 LFS 书自动生成的构建块（tools/gen_stage_scripts.py）
+    07-packages.sh                    #   pacman 包构建 + Arch 闭包导入（X.Org/XFCE/精选工具）
+    arch-resolve.py                   #   X.Org+XFCE+精选工具 依赖闭包解析器
+    arch-resolve-fcitx5.py            #   fcitx5 依赖闭包解析器
+  stages/                             # 由 LFS 书自动生成的构建块
 tools/
   gen_stage_scripts.py                # 从 LFS 书 HTML 提取命令生成 stages
   x86_64/wget-list, md5sums           # LFS 13.0 源码清单

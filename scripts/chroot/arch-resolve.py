@@ -30,6 +30,9 @@ SEEDS = [
     "luajit",
     # aria2 (download utility with multi-protocol support)
     "aria2",
+    # curated open-source tools (packages-repo only, not baked into the ISO)
+    "fzf", "lazygit", "mtr", "btop", "nnn", "strace", "socat",
+    "nmap", "valgrind",
 ]
 
 # Everything LFS 13.0 already provides (ch8 + extras builds). NEVER pull

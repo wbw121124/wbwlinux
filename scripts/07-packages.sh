@@ -12,18 +12,6 @@ source common.sh
 
 [ "$(id -u)" -eq 0 ] || die "must run as root"
 
-# Pre-download VS Code tarball into $LFS_ROOT/root/downloads so the chroot
-# can find it at /root/downloads/code-$VSCODE_VER-linux-x64.tar.gz.
-mkdir -p "$LFS_ROOT/root/downloads"
-VS_DL="$LFS_ROOT/root/downloads/code-$VSCODE_VER-linux-x64.tar.gz"
-if [ ! -f "$VS_DL" ]; then
-    log "==> downloading VS Code $VSCODE_VER"
-    curl -fSL --retry 3 --max-time 300 \
-        -o "$VS_DL" \
-        "https://update.code.visualstudio.com/$VSCODE_VER/linux-x64/stable" \
-        || warn "VS Code download failed — build_vscode will skip"
-fi
-
 # Pre-download sassc/libsass for the Yaru build (root cause #57): the
 # config snapshot may predate these entries in the extras download map.
 for pair in "libsass-$LIBSASS_VER|https://github.com/sass/libsass/archive/refs/tags/$LIBSASS_VER.tar.gz" \
@@ -33,7 +21,8 @@ for pair in "libsass-$LIBSASS_VER|https://github.com/sass/libsass/archive/refs/t
             "typst-x86_64-unknown-linux-musl|https://github.com/typst/typst/releases/download/$TYPST_VER/typst-x86_64-unknown-linux-musl.tar.xz" \
             "tdf-$TDF_VER|https://codeload.github.com/itsjunetime/tdf/tar.gz/$TDF_VER" \
             "tmux-$TMUX_VER|https://github.com/tmux/tmux/releases/download/$TMUX_VER/tmux-$TMUX_VER.tar.gz" \
-            "libevent-$LIBEVENT_VER|https://github.com/libevent/libevent/releases/download/release-$LIBEVENT_VER/libevent-$LIBEVENT_VER.tar.gz"; do
+            "libevent-$LIBEVENT_VER|https://github.com/libevent/libevent/releases/download/release-$LIBEVENT_VER/libevent-$LIBEVENT_VER.tar.gz" \
+            "go$GO_VER.linux-amd64.tar.gz|$GO_URL/go$GO_VER.linux-amd64.tar.gz"; do
     name="${pair%%|*}"; url="${pair#*|}"
     tgt="$LFS_ROOT/root/downloads/$name"
     if [ ! -f "$tgt" ]; then
@@ -49,6 +38,7 @@ mount_kernfs
 mkdir -p "$LFS_ROOT/build/chroot"
 cp -v env.sh common.sh "$LFS_ROOT/build/"
 cp -v chroot/07-packages.sh chroot/arch-resolve-fcitx5.py \
+      chroot/arch-resolve.py \
       "$LFS_ROOT/build/chroot/"
 
 chroot "$LFS_ROOT" /usr/bin/env -i \

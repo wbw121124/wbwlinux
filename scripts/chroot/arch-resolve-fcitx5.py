@@ -38,7 +38,8 @@ SKIP = {
     "libcom_err", "libcrypto", "libdbus", "libexpat", "libffi",
     "libmount", "libncursesw", "libreadline", "libss", "libsystemd",
     "libudev", "libz",
-    # X.Org / GTK / GLib already imported from Arch by 06-xorg-xfce.sh
+    # X.Org / GTK / GLib already in the pacman repo (imported by
+    # import_xfce in 07-packages.sh; fcitx5 deps resolved at install time)
     "libx11", "libxkbcommon", "libxkbcommon-x11", "libxcb",
     "libxinerama", "libxrandr", "libxext", "libxfixes", "libxi",
     "libxtst", "libxrender", "libxcomposite", "libxdamage",
@@ -121,7 +122,7 @@ def skip_hit(base):
 
 def main():
     dbdir, outdir = sys.argv[1], sys.argv[2]
-    # Optional third arg: comma-separated extra seeds (e.g. "nss,nspr" for VS Code deps)
+    # Optional third arg: comma-separated extra seeds
     extra = sys.argv[3].split(",") if len(sys.argv) > 3 and sys.argv[3] else []
     all_pkgs, provides = {}, {}
     for repo in ("core", "extra"):

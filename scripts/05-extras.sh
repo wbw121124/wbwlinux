@@ -68,10 +68,6 @@ declare -A urls=(
   # sassc + libsass (Yaru meson hard-requires the sassc program)
   ["libsass-$LIBSASS_VER.tar.gz"]="https://github.com/sass/libsass/archive/refs/tags/$LIBSASS_VER.tar.gz"
   ["sassc-$SASSC_VER.tar.gz"]="https://github.com/sass/sassc/archive/refs/tags/$SASSC_VER.tar.gz"
-  # kmscon + libtsm (Phase 1: KMS/DRM console on tty2-6; built in
-  # 06-xorg-xfce after the Arch import provides pango/xkbcommon)
-  ["libtsm-$LIBTSM_VER.tar.gz"]="https://github.com/kmscon/libtsm/archive/refs/tags/$LIBTSM_VER.tar.gz"
-  ["kmscon-$KMSCON_VER.tar.gz"]="https://github.com/kmscon/kmscon/archive/refs/tags/$KMSCON_VER.tar.gz"
   # CA bundle (Mozilla-derived; pacman/git need real TLS verification)
   ["cacert.pem"]="$CACERT_URL"
   # astroterm (prebuilt static binary from release asset)
@@ -123,7 +119,7 @@ mount_kernfs
 
 mkdir -p "$LFS_ROOT/build/chroot"
 cp -v env.sh common.sh "$LFS_ROOT/build/"
-cp -v chroot/05-extras.sh chroot/06-xorg-xfce.sh chroot/07-packages.sh \
+cp -v chroot/05-extras.sh chroot/07-packages.sh \
       chroot/arch-resolve.py chroot/arch-resolve-fcitx5.py \
       chroot/ovimgeneric.patch chroot/zhuyin.cin \
       "$LFS_ROOT/build/chroot/"
@@ -134,13 +130,6 @@ chroot "$LFS_ROOT" /usr/bin/env -i \
     PATH=/usr/bin:/usr/sbin:/usr/local/bin \
     MAKEFLAGS="$MAKEFLAGS" \
     /bin/bash --login /build/chroot/05-extras.sh
-
-# X.Org + XFCE from the Arch binary repos (needs curl/zstd/python3 from
-# the extras run just above); baked into the squashfs, startx -> XFCE
-chroot "$LFS_ROOT" /usr/bin/env -i \
-    HOME=/root TERM="$TERM" PS1='(lfs chroot) \u:\w\$ ' \
-    PATH=/usr/bin:/usr/sbin:/usr/local/bin \
-    /bin/bash --login /build/chroot/06-xorg-xfce.sh
 
 touch "$LFS_ROOT/opt/.extras-complete"
 log "==> extras complete"

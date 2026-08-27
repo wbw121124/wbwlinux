@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 07 - Build free software packages + pacman repo for GitHub Pages.
-# Runs INSIDE the LFS chroot, after chroot/06-xorg-xfce.sh.
+# Runs INSIDE the LFS chroot, after chroot/05-extras.sh.
 #
 # Builds Yaru theme from source and imports fcitx5 from Arch prebuilt,
 # producing pacman packages + source archives + repo-add database in
@@ -232,13 +232,8 @@ import_fcitx5() {
     done
 
     # Resolve dependency closure
-    # Pass VS Code deps as extra seeds so they are pulled from Arch
-    # alongside fcitx5. NOTE: Arch's X11 screensaver lib package is named
-    # "libxss" (provides libXss.so) - "libxscrnsaver" does not exist as a
-    # pkgname (root cause #58).
-    log "  resolving fcitx5+vscode dependency closure"
-    local vscode_seeds="nss,nspr,libxss,libxkbfile,libcups,libsecret,openssh,poppler,fpc,gdb,mc,gcc"
-    python3 "$SCRIPTS_DIR/chroot/arch-resolve-fcitx5.py" "$work/db" "$work" "$vscode_seeds" \
+    log "  resolving fcitx5 dependency closure"
+    python3 "$SCRIPTS_DIR/chroot/arch-resolve-fcitx5.py" "$work/db" "$work" "" \
         > "$work/resolve.log" 2>&1 || {
         cat "$work/resolve.log" >&2
         warn "fcitx5 resolver failed — skipping"
@@ -275,52 +270,113 @@ import_fcitx5() {
 import_fcitx5 || warn "fcitx5 import failed (continuing)"
 
 # =====================================================================
-# Package: VS Code (prebuilt from Microsoft; pacman package for Pages)
+# Import X.Org Server + XFCE4 + curated tools into the packages repo.
+#
+# Previously the ISO baked this stack in via chroot/06-xorg-xfce.sh
+# (extracted straight into /). That made the ISO ~500MB heavier and the
+# desktop was permanently welded to the squashfs. Now the desktop is NOT
+# part of the base system: boot lands on fbterm text consoles (Chinese
+# terminals), and the user installs the GUI with `pacman -S xorg-server
+# xfce4` from the Pages repo.
+#
+# We reuse arch-resolve.py (the same dependency-closure resolver the old
+# ISO import used): it computes the closure of the X.Org+XFCE+curated seed
+# set, treating everything LFS base already provides as satisfied, so
+# Arch's glibc/gcc-libs/coreutils are NEVER pulled. Each package archive
+# is downloaded as-is into the repo rather than extracted into /.
 # =====================================================================
-log '==> building VS Code package'
-build_vscode() {
-    local tarball="$DL/code-$VSCODE_VER-linux-x64.tar.gz"
+log '==> importing X.Org + XFCE + curated tools from Arch'
+import_xfce() {
+    local work="/tmp/xfce-import"
+    rm -rf "$work"
+    mkdir -p "$work/db"
+
+    log "  downloading Arch repo databases"
+    for repo in core extra; do
+        local got=0
+        for m in $ARCH_MIRRORS; do
+            if curl -kfSL --retry 2 --max-time 120 -o "$work/db/$repo.db" \
+                    "$m/$repo/os/x86_64/$repo.db" 2>/dev/null && [ -s "$work/db/$repo.db" ]; then
+                got=1
+                break
+            fi
+        done
+        [ "$got" -eq 1 ] || { warn "Cannot download $repo.db — skipping X.Org/XFCE"; return 0; }
+    done
+
+    log "  resolving X.Org + XFCE + curated dependency closure"
+    python3 "$SCRIPTS_DIR/chroot/arch-resolve.py" "$work/db" "$work" \
+        > "$work/resolve.log" 2>&1 || {
+        cat "$work/resolve.log" >&2
+        warn "X.Org/XFCE resolver failed — skipping"
+        return 0
+    }
+    cat "$work/summary.txt"
+    grep '^WARN' "$work/resolve.log" || true
+
+    local total
+    total=$(wc -l < "$work/dl.txt")
+    [ "$total" -gt 50 ] || { warn "X.Org/XFCE resolver produced unexpected closure ($total pkgs)"; return 0; }
+    log "  X.Org/XFCE closure: $total packages to import"
+
+    local n=0
+    while read -r repo filename; do
+        [ -n "$filename" ] || continue
+        n=$((n + 1))
+        local got=0
+        for m in $ARCH_MIRRORS; do
+            if curl -kfSL --retry 2 --max-time 300 -o "$REPO_DIR/$filename" \
+                    "$m/$repo/os/x86_64/$filename" 2>/dev/null && [ -s "$REPO_DIR/$filename" ]; then
+                got=1
+                break
+            fi
+        done
+        [ "$got" -eq 1 ] || warn "  download failed: $repo/$filename"
+        [ $((n % 25)) -eq 0 ] && log "    $n/$total done"
+    done < "$work/dl.txt"
+    log "  imported $n X.Org/XFCE/curated packages into pkgrepo"
+
+    rm -rf "$work"
+}
+import_xfce || warn "X.Org/XFCE import failed (continuing)"
+
+# =====================================================================
+# Package: Go toolchain (official binary distribution).
+# Ships the full Go toolchain (go/gofmt + stdlib + pkg tool) to
+# /usr/local/go, symlinked into /usr/local/bin. Same prebuilt pattern as
+# the Rust/nodejs toolchains. Static-ish: depends on nothing in the repo.
+# =====================================================================
+log '==> building Go toolchain package'
+build_go() {
+    local tarball="$DL/go$GO_VER.linux-amd64.tar.gz"
     if [ ! -f "$tarball" ]; then
-        warn "VS Code tarball not found: $tarball — skipping"
+        warn "Go toolchain tarball not found: $tarball — skipping"
         return 0
     fi
-
-    local stage="$STAGING/vscode-pkg"
+    local stage="$STAGING/go-pkg"
     rm -rf "$stage"
-    mkdir -p "$stage/opt" "$stage/usr/local/bin"
+    mkdir -p "$stage/usr/local"
+    # tarball has top-level dir go/; extract into usr/local so we get
+    # usr/local/go/<bin|pkg|src|...>
+    tar xf "$tarball" -C "$stage/usr/local"
 
-    # tarball has top-level dir VSCode-linux-x64/; extract then move
-    tar xf "$tarball" -C "$stage/opt"
-    if [ -d "$stage/opt/VSCode-linux-x64" ]; then
-        : # single level, correct
-    elif [ -d "$stage/opt/VSCode-linux-x64/VSCode-linux-x64" ]; then
-        # double-nested: strip one level
-        mv "$stage/opt/VSCode-linux-x64/VSCode-linux-x64" "$stage/opt/VSCode-linux-x64-tmp"
-        rm -rf "$stage/opt/VSCode-linux-x64"
-        mv "$stage/opt/VSCode-linux-x64-tmp" "$stage/opt/VSCode-linux-x64"
-    fi
+    [ -x "$stage/usr/local/go/bin/go" ] || { warn "Go binary missing after extract"; return 0; }
 
-    ln -sf /opt/VSCode-linux-x64/bin/code "$stage/usr/local/bin/code"
+    # symlink the two main binaries into /usr/local/bin (PATH already covers it)
+    mkdir -p "$stage/usr/local/bin"
+    ln -sf /usr/local/go/bin/go "$stage/usr/local/bin/go"
+    ln -sf /usr/local/go/bin/gofmt "$stage/usr/local/bin/gofmt"
 
     cat > "$stage/.PKGINFO" << PKGEOF
-pkgname = vscode
-pkgver = ${VSCODE_VER}-1
-pkgdesc = Visual Studio Code editor (prebuilt, installed from Pages repo)
+pkgname = go
+pkgver = $GO_VER-1
+pkgdesc = Go programming language toolchain (official binary distribution)
 arch = x86_64
 builddate = $(date +%s)
 packager = LFS-CN Build System <lfs-cn@build>
-license = MIT
-depends = nss
-depends = nspr
-depends = gtk3
-depends = alsa-lib
-depends = libsecret
-depends = libxss
-depends = libxkbfile
-depends = libcups
+license = BSD-3-Clause
 PKGEOF
-
-    local archive="$REPO_DIR/vscode-${VSCODE_VER}-1-x86_64.pkg.tar.zst"
+    local archive="$REPO_DIR/go-$GO_VER-1-x86_64.pkg.tar.zst"
     (
         cd "$stage"
         : > "/tmp/pkgfiles.$$"
@@ -330,9 +386,9 @@ PKGEOF
         rm -f "/tmp/pkgfiles.$$"
     )
     rm -rf "$stage"
-    log "  package: vscode-${VSCODE_VER}-1-x86_64.pkg.tar.zst"
+    log "  package: go-$GO_VER-1-x86_64.pkg.tar.zst"
 }
-build_vscode || warn "VS Code build failed (continuing)"
+build_go || warn "Go toolchain build failed (continuing)"
 
 # =====================================================================
 # Package: expat (runtime dep of the full-featured git package below;

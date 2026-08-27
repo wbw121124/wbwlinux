@@ -1,7 +1,29 @@
 # LFS-CN Live ISO 构建计划
 
 ## 目标
-在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**Phase 1 修复（fbterm 重入/startx 卡死/nvim 配置/pacman 回退/packages-repo 自动提交/fbterm-kmscon 共存）已实施，待 from-base 验证**。
+在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**Phase 2 架构重构（X.Org/XFCE 移出 ISO、packages-repo 托管到 GitHub Pages + repo git 分支、新增 Go/9个精选工具）已实施，待 from-base 验证**。
+
+## Phase 2 架构重构（2026-08-27）：X.Org/XFCE 移出 ISO → packages-repo
+
+### 背景
+ISO 从4.8GB→2.5GB（移除 X.Org/XFCE 闭包约500MB+），图形桌面改为按需安装。
+packages-repo 托管到 GitHub Pages + repo git 分支（超 100MB 文件自动排除）。
+
+### 架构变更
+| 变更 | 前 | 后 |
+|---|---|---|
+| ISO 内容 | LFS + X.Org/XFCE + kmscon + fcitx5 | LFS + fbterm（文本精简基础） |
+| 图形桌面 | 内置，开机 startx | `pacman -S xorg-server xfce4` 从 packages-repo 安装 |
+| packages-repo 托管 | GitHub Pages + repo git 分支 | GitHub Pages + repo git 分支（不变） |
+| 新增包 | — | Go 1.27.0、fzf、lazygit、btop、nnn、mtr、strace、socat、nmap、valgrind |
+
+### 文件变更
+- **删除** `chroot/06-xorg-xfce.sh`（X.Org/XFCE Arch 导入 + kmscon 构建 + session bootstrap）
+- **修改** `chroot/07-packages.sh`：新增 `import_xfce()` 函数（Arch 闭包导入到 repo）+ `build_go()` 函数
+- **修改** `chroot/arch-resolve.py`：SEEDS 新增9个精选工具
+- **修改** `scripts/05-extras.sh`：移除06-xorg-xfce 调用 + kmscon/libtsm 下载条目
+- **修改** `scripts/07-packages.sh`：新增 Go 下载 + arch-resolve.py 复制
+- **修改** `.github/workflows/build-lfs-iso.yml`：push-repo job >100MB 文件排除
 
 ## 根因六十八（Phase 1 用户实测，已修）：Ctrl+Alt+F1 返回 TTY1 后 fbterm 不启动
 **`.bashrc` 中 `FBTTERM` 守卫变量在 fbterm 首次 `exec` 后被导出（`export FBTTERM=1`），但 getty respawn 的新 bash 仍继承旧环境 → `[ -z "$FBTTERM" ]` 永远为 false → fbterm 无法重启。用户从 Xorg 按 Ctrl+Alt+F1 返回 TTY1 后看到裸 vconsole（CJK 方块字）。**

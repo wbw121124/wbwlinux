@@ -428,23 +428,14 @@ LocalFileSigLevel = Never
 ParallelDownloads = 5
 
 [lfscn]
-Server = https://wbw121124.github.io/wbwlinux/
 Server = file:///usr/local/repo/lfscn
-
-#[core]
-#Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch
-#[extra]
-#Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch
+Server = https://wbw121124.github.io/wbwlinux/
 EOF
 pacman-conf DBPath > /dev/null || die "extras: pacman.conf parse failed"
-# NOTE: pacman-conf's first argument is the SECTION name ('lfscn'), not
-# the word 'repo' - 'pacman-conf repo lfscn Server' queries a nonexistent
-# section and always came back empty (root cause #61). Grep the file
-# directly: deterministic and independent of CLI semantics.
-grep -q 'Server = https://wbw121124.github.io/wbwlinux/' /etc/pacman.conf \
-    || die "extras: [lfscn] Pages server missing from pacman.conf"
 grep -q 'Server = file:///usr/local/repo/lfscn' /etc/pacman.conf \
     || die "extras: [lfscn] local file server missing from pacman.conf"
+grep -q 'Server = https://wbw121124.github.io/wbwlinux/' /etc/pacman.conf \
+    || die "extras: [lfscn] Pages server missing from pacman.conf"
 
 # ---------------------------------------------------------------------
 # CA trust store (root cause #59): the base system has NO certificates,
@@ -1776,9 +1767,11 @@ else
     die "extras: vimcdoc tarball missing ($VIMCDOC_DL)"
 fi
 
-# kmscon (KMSCON Phase 1) moved to 06-xorg-xfce.sh: it needs pango/
-# xkbcommon/freetype from the Arch import, which runs AFTER extras
-# (root cause #66 - fourth variant of the ordering trap).
+# kmscon removed from the ISO: it depends on pango/xkbcommon/freetype
+# which came from the Arch X.Org import; since X.Org/XFCE are now
+# installed from the packages-repo on demand, kmscon is also available
+# as a packages-repo install (root cause #66 - fourth variant of the
+# ordering trap).
 
 # fbterm: Chinese-capable terminal + launcher script
 mkdir -p /etc/fbterm
@@ -2040,11 +2033,6 @@ pkg_register fbterm-ucimf-stack "$UCIMF_VER" \
     /usr/lib/libucimf.so* /usr/lib/ucimf /usr/lib/openvanilla \
     /usr/share/openvanilla /etc/ucimf.conf /etc/fbterm \
     /usr/local/bin/fbterm-zh /usr/share/man/man1/fbterm.1
-pkg_register kmscon "$KMSCON_VER" \
-    "KMS/DRM graphical console (tty2-6, Phase 1)" \
-    /usr/bin/kmscon /etc/kmscon /usr/local/bin/console-autoshell \
-    /usr/lib/systemd/system/kmscon* /usr/lib/libtsm.so* \
-    /usr/include/tsm /usr/lib/pkgconfig/tsm.pc
 # strip the Debian revision: pacman pkgver allows exactly one hyphen
 pkg_register man-pages-zh "${MANPAGES_ZH_VER%-*}" "Chinese man pages (zh_CN)" \
     /usr/share/man/zh_CN
