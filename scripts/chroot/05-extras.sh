@@ -413,6 +413,8 @@ pacman-conf DBPath > /dev/null || die "extras: pacman.conf parse failed"
 # directly: deterministic and independent of CLI semantics.
 grep -q 'Server = https://wbw121124.github.io/wbwlinux/' /etc/pacman.conf \
     || die "extras: [lfscn] Pages server missing from pacman.conf"
+grep -q 'Server = file:///usr/local/repo/lfscn' /etc/pacman.conf \
+    || die "extras: [lfscn] local file server missing from pacman.conf"
 
 # ---------------------------------------------------------------------
 # CA trust store (root cause #59): the base system has NO certificates,
@@ -435,11 +437,14 @@ cat > /etc/profile.d/zz-ca-bundle.sh << 'EOF'
 export SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
 export SSL_CERT_DIR=/etc/ssl/certs
 export CURL_CA_BUNDLE=/etc/ssl/certs/ca-bundle.crt
+# Ensure neovim finds /etc/xdg/nvim/sysinit.lua (root cause #54/#68)
+export XDG_CONFIG_DIRS="/etc/xdg${XDG_CONFIG_DIRS:+:$XDG_CONFIG_DIRS}"
 EOF
 # /etc/environment covers non-login sessions (systemd units, kmscon, sshd)
 grep -q '^SSL_CERT_FILE=' /etc/environment 2>/dev/null || cat >> /etc/environment << 'EOF'
 SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
 SSL_CERT_DIR=/etc/ssl/certs
+XDG_CONFIG_DIRS=/etc/xdg
 EOF
 [ -s /etc/ssl/certs/ca-bundle.crt ] || die "extras: CA bundle missing"
 # Smoke test: TLS handshake to the Pages host must SUCCEED; any HTTP code
@@ -1820,6 +1825,10 @@ cat > /root/.bashrc << 'EOF'
 # PATH missing /usr/local/bin or the /opt tool dirs (root cause #23)
 export PATH="/usr/local/sbin:/usr/local/bin:/opt/rust/bin:/opt/microsoft/powershell/7:/usr/sbin:/usr/bin:/sbin:/bin"
 alias ls='ls --color=auto'
+# Reset FBTTERM guard on every shell init so fbterm can restart after
+# crash/exit — without this, getty respawned bash still sees the old
+# value and the [ -z "$FBTTERM" ] check blocks re-entry (root cause #68).
+unset FBTTERM
 # kmscon sessions (tty2-6, Phase 1): graphical UTF-8 console -> enable
 # zh_CN so localized messages/:help work there too (fbterm sets its own
 # env below; the raw vconsole must stay C.UTF-8).
@@ -1829,7 +1838,7 @@ fi
 # colored prompt: red user@host for root, blue path; works on vconsole,
 # fbterm and serial alike (plain ANSI)
 PS1='\[\e[01;31m\]\u@\h\[\e[0m\]:\[\e[01;34m\]\w\[\e[0m\]\$ '
-if [ "$TERM" = "linux" ] && [ -x /usr/local/bin/fbterm-zh ] && [ -z "$FBTTERM" ] && [ "$(tty)" = "/dev/tty1" ]; then
+if [ "$TERM" = "linux" ] && [ -x /usr/local/bin/fbterm-zh ] && [ "$(tty)" = "/dev/tty1" ]; then
     export FBTTERM=1
     exec /usr/local/bin/fbterm-zh
 fi

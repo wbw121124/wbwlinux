@@ -104,13 +104,22 @@ done
 # ---------------------------------------------------------------------
 # session bootstrap: startx reads ~/.xinitrc
 # ---------------------------------------------------------------------
-cat > /root/.xinitrc << 'EOF'
+cat > /root/.xinitrc << 'XINITRC_EOF'
 # XFCE via startx; dbus-launch supplies the session bus when available
+# Preflight: verify Xorg can reach the display before starting the
+# desktop session — if the GPU/driver is broken, fail fast instead of
+# hanging inside startxfce4 (root cause #69).
+if ! xdpyinfo >/dev/null 2>&1; then
+    echo "startx: X display not ready (xdpyinfo failed)" >&2
+    exit 1
+fi
+# Ensure the session bus is available; without it many XFCE components
+# (xfce4-panel, xfdesktop) silently hang on D-Bus activation.
 if command -v dbus-launch >/dev/null 2>&1; then
     exec dbus-launch --exit-with-session startxfce4
 fi
 exec startxfce4
-EOF
+XINITRC_EOF
 chmod 755 /root/.xinitrc
 
 # ---------------------------------------------------------------------

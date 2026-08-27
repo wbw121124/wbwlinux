@@ -1,7 +1,22 @@
 # LFS-CN Live ISO 构建计划
 
 ## 目标
-在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**run#92（from-base）实证：根因六十七（06-xorg-xfce.sh 缺 DL 变量致 libtsm 构建失败）已修**。
+在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**Phase 1 修复（fbterm 重入/startx 卡死/nvim 配置/pacman 回退/packages-repo 自动提交）已实施，待 from-base 验证**。
+
+## 根因六十八（Phase 1 用户实测，已修）：Ctrl+Alt+F1 返回 TTY1 后 fbterm 不启动
+**`.bashrc` 中 `FBTTERM` 守卫变量在 fbterm 首次 `exec` 后被导出（`export FBTTERM=1`），但 getty respawn 的新 bash 仍继承旧环境 → `[ -z "$FBTTERM" ]` 永远为 false → fbterm 无法重启。用户从 Xorg 按 Ctrl+Alt+F1 返回 TTY1 后看到裸 vconsole（CJK 方块字）。**
+- 修复：`.bashrc` 顶部 `unset FBTTERM`（每次 shell 初始化重置守卫），条件删除 `[ -z "$FBTTERM" ]` 检查。
+- 教训：**`exec` 替换进程后父环境消亡，但 getty 通过 `/bin/login -f` 重登时继承的是 systemd 环境（含旧 export）；守卫变量必须在每次 shell 启动时显式重置。**
+
+## 根因六十九（Phase 1 用户实测，已修）：startx 卡死 + Rea-Dark 主题未生效
+**startx 在 GPU/驱动异常时无预检，Xorg 挂起后 startxfce4 永远等待 X 就绪 → 用户看到黑屏/卡死。Rea-Dark 主题 xfconf 写入正确但 Xfce 首次启动时 xfsettingsd 覆盖了预写配置。**
+- 修复：`.xinitrc` 添加 `xdpyinfo` 预检——X display 不可用时立即 exit 1 而非卡死；增加 dbus-launch 必要性注释。xfconf XML 格式验证（`type="empty"` 为合法容器类型，保持不变）。
+- 教训：**live 环境 GPU 驱动不确定性高，X session 启动前必须验证 display 可达性。**
+
+## 根因七十（Phase 1 设计缺口，已修）：packages-repo 仅部署 Pages 无 git 分支备份
+**CI 的 packages job 产出 `/mnt/lfs/pkgrepo/` 仅上传为 artifact + 部署到 GitHub Pages，从未推送到 `repo` git 分支。Pages 部署异步且无版本历史，artifact 30 天过期。**
+- 修复：新增 `push-repo` job（Job 6）——下载 packages-repo artifact，checkout `repo` 分支（不存在时 git init orphan），全量覆盖后 commit + push。`[skip ci]` 防止分支推送触发循环构建。
+- 教训：**Pages 部署是 artifact-based（不可回滚），git 分支提供版本历史和直接克隆能力，两者应并行维护。**
 
 ## 根因五十三（run#92 from-base 实证，已修）：重生成补丁丢失 inline → multiple definition 链接失败
 **重新生成 ovimgeneric.patch 时，OVCIN.h 类内声明 `inline size_t getWordVectorByCharWithWildcardSupport(...)` 的 `inline` 关键字被意外抹掉——声明失去 inline 后，头文件里第 204 行的类外定义在每个包含 OVCIN.h 的编译单元（OVCIN.cpp / OVCandidateList.cpp / OVIMGeneric.cpp）都发射**强符号**，OVIMGeneric.la 链接 libSharedLibrary.a 时 ld 报 multiple definition。旧补丁从未改过 OVCIN.h，此雷是本次重写引入。**

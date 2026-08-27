@@ -387,7 +387,53 @@ jobs:
           retention-days: 30
 
   # ---------------------------------------------------------------
-  # Job 6: deploy pacman repo to GitHub Pages
+  # Job 6: push pacman repo to 'repo' branch (root cause #70)
+  # ---------------------------------------------------------------
+  push-repo:
+    name: Push to repo branch
+    needs: packages
+    if: ${{ !cancelled() && needs.packages.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        continue-on-error: true
+        id: checkout-repo
+        with:
+          ref: repo
+          fetch-depth: 1
+          path: repo-branch
+          token: ${{ github.token }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages-repo
+          path: repo-content
+          github-token: ${{ github.token }}
+
+      - name: Commit and push to repo branch
+        run: |
+          cd repo-branch
+          # If checkout created an empty dir (branch didn't exist), init
+          if [ ! -d .git ]; then
+            git init -b repo
+            git remote add origin "https://github.com/${{ github.repository }}.git"
+          fi
+          rm -rf ./*
+          cp -a ../repo-content/. ./
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update packages repo [skip ci]"
+            git push origin repo
+          fi
+
+  # ---------------------------------------------------------------
+  # Job 7: deploy pacman repo to GitHub Pages
   # ---------------------------------------------------------------
   deploy-pages:
     name: Deploy to Pages
