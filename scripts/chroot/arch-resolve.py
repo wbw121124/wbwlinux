@@ -28,6 +28,8 @@ SEEDS = [
     "thunar", "thunar-volman", "tumbler", "xfce4-terminal", "mousepad",
     # LuaJIT (neovim cmake build needs Lua 5.1 interpreter; luajit is preferred)
     "luajit",
+    # aria2 (download utility with multi-protocol support)
+    "aria2",
 ]
 
 # Everything LFS 13.0 already provides (ch8 + extras builds). NEVER pull
