@@ -15,6 +15,7 @@
 #
 # The result is baked into the squashfs: boot -> tty1 -> startx -> XFCE.
 set -euo pipefail
+export DL=/root/downloads
 export SOURCES=/sources
 export SCRIPTS_DIR=/build
 export STAGES_DIR=/build/stages

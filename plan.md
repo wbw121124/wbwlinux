@@ -1,7 +1,7 @@
 # LFS-CN Live ISO 构建计划
 
 ## 目标
-在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**run#90（only-packages 首跑）实证：根因四十四的 /pkgrepo 路径修复生效（169 文件被找到），但暴露根因四十五（epoch 冒号文件名致 upload-artifact 拒绝）与根因四十六（Yaru meson 选项失效）；另按用户需求将 VS Code 从 extras 迁移到 packages job（不再打入 ISO）**。
+在 GitHub Actions 上构建 LFS-CN Live ISO。当前阶段：**run#92（from-base）实证：根因六十七（06-xorg-xfce.sh 缺 DL 变量致 libtsm 构建失败）已修**。
 
 ## 根因五十三（run#92 from-base 实证，已修）：重生成补丁丢失 inline → multiple definition 链接失败
 **重新生成 ovimgeneric.patch 时，OVCIN.h 类内声明 `inline size_t getWordVectorByCharWithWildcardSupport(...)` 的 `inline` 关键字被意外抹掉——声明失去 inline 后，头文件里第 204 行的类外定义在每个包含 OVCIN.h 的编译单元（OVCIN.cpp / OVCandidateList.cpp / OVIMGeneric.cpp）都发射**强符号**，OVIMGeneric.la 链接 libSharedLibrary.a 时 ld 报 multiple definition。旧补丁从未改过 OVCIN.h，此雷是本次重写引入。**
@@ -48,6 +48,11 @@
 **修完 xkbcommon 后下一个失败点是 `Dependency "pangoft2" not found`：pango 由 XFCE 闭包（gtk3→pango）带入，同样在 06-xorg 导入。逐个源码构建 pango 链（glib→pixman→cairo→harfbuzz→fribidi→pango）不现实——正解是承认 **kmscon 属于 X 栈生态，整个构建块从 05-extras 搬到 06-xorg-xfce 的 arch-import 之后**（第四变体，最终形态）。**
 - 修复：libxkbcommon 源码构建子块删除（导入版自带 xkbcommon.pc，加硬断言）；libtsm/kmscon 构建、kmsconvt 启用、console-autoshell、kmscon.conf 全部迁至 06-xorg-xfce.sh 末尾；宿主下载表与 env.sh 清掉 libxkbcommon 条目。
 - 教训（终极版）：**依赖 X/GLib 生态的组件必须放在 06-xorg 之后构建**；"就近源码最小化构建"只适用于叶子依赖（libxkbcommon 这种），对 pango 这种生态核心是反模式。
+
+## 根因六十七（run#122 from-base 实证，已修）：06-xorg-xfce.sh 缺 DL 变量致 libtsm 构建失败
+**kmscon 构建块从 05-extras.sh 迁至 06-xorg-xfce.sh（根因六十六）时，仅搬运了构建逻辑，遗漏了 `DL=/root/downloads` 变量定义。06-xorg-xfce.sh 顶部有 `set -euo pipefail`（-u=nounset），line 165 `tar xf "$DL/$LIBTSM_TARBALL"` 立即触发 unbound variable 错误终止。**
+- 修复：`chroot/06-xorg-xfce.sh` 第 18 行新增 `export DL=/root/downloads`（与 05-extras.sh、07-packages.sh 一致）。
+- 教训：**迁移代码块时必须同步迁移其依赖的环境变量定义**；nounset 模式下任何遗漏的变量都是硬错误而非静默空串。
 
 ## 根因六十四（run#119 实证，已修）：kmscon v10 feature 型选项不接受 true/false
 **kmscon v10 的 meson.options 里 docs/libseat/video_drm3d/renderer_gltex/font_* 均为 **feature 类型**（合法值 enabled/disabled/auto），传 `=false/=true` 直接 ERROR；且 **multi_seat 选项已不存在**（被 libseat 取代）——不删还会撞 unknown option。libtsm 的 tests 是 boolean 型所以上轮 `-Dtests=false` 有效。**
