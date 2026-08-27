@@ -156,8 +156,7 @@ rm -rf "$WORK"
 log '==> X.Org + XFCE imported (startx starts an XFCE session)'
 
 # =====================================================================
-# kmscon (KMSCON Phase 1: KMS/DRM graphical consoles on tty2-6).
-# tty1 keeps the fbterm+ucimf autologin until Phase 3 cut-over.
+# kmscon (KMS/DRM graphical consoles on tty2-6, coexists with fbterm on tty1).
 # Lives HERE, after the Arch import: kmscon needs pangoft2/xkbcommon/
 # freetype2 at BUILD time and those come from the imported stack
 # (root cause #66 - fourth variant of the ordering trap).

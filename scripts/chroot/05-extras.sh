@@ -235,6 +235,68 @@ if [ ! -e /usr/bin/fbterm ]; then
     tar xf fbterm-1.7.tar.gz
     cd fbterm-1.7
     sed -i 's/#include <termios.h>/#include <termios.h>\n#include <sys\/select.h>/' src/fbterm.cpp
+    # PATCH: Intercept Ctrl+Alt+Fn in raw key handler so VT switching works
+    # even when ucimf input method is loaded. ucimf reads keyboard events
+    # before the shell can process them; without this patch, Ctrl+Alt+Fn
+    # never reaches the kernel's VT layer. We inject a handler that detects
+    # the combination and calls ioctl(VT_ACTIVATE) directly.
+    python3 - << 'PYEOF'
+import re
+with open("src/input.cpp", "r") as f:
+    src = f.read()
+# 1) Add required includes after #include <linux/kd.h>
+if "#include <linux/vt.h>" not in src:
+    src = src.replace(
+        '#include <linux/kd.h>',
+        '#include <linux/kd.h>\n#include <linux/vt.h>\n#include <sys/ioctl.h>\n#include <fcntl.h>\n#include <unistd.h>'
+    )
+# 2) Inject VT switch handler before processRawKeys()
+handler = """
+// LFS-CN: Ctrl+Alt+Fn VT switching with ucimf input method.
+// Without this, ucimf intercepts keyboard events before the shell
+// can process Ctrl+Alt+Fn for VT switching.
+static bool lfsCnVtSwitch(unsigned int key, bool down)
+{
+\tstatic const int ctrlAlt = (1 << KG_CTRL) | (1 << KG_ALT);
+\tstatic unsigned int shift = 0;
+\tif (key == KEY_LEFTCTRL || key == KEY_RIGHTCTRL) {
+\t\tif (down) shift |= (1 << KG_CTRL);
+\t\telse shift &= ~(1 << KG_CTRL);
+\t\treturn false;
+\t}
+\tif (key == KEY_LEFTALT || key == KEY_RIGHTALT) {
+\t\tif (down) shift |= (1 << KG_ALT);
+\t\telse shift &= ~(1 << KG_ALT);
+\t\treturn false;
+\t}
+\tif (down && (shift & ctrlAlt) == ctrlAlt
+\t    && key >= KEY_F1 && key <= KEY_F12) {
+\t\tint fd = open("/dev/tty0", O_RDWR | O_NONBLOCK);
+\t\tif (fd >= 0) {
+\t\t\tioctl(fd, VT_ACTIVATE, key - KEY_F1 + 1);
+\t\t\tclose(fd);
+\t\t}
+\t\treturn true;
+\t}
+\treturn false;
+}
+"""
+if "lfsCnVtSwitch" not in src:
+    src = src.replace(
+        "void TtyInputVT::processRawKeys()",
+        handler + "void TtyInputVT::processRawKeys()"
+    )
+# 3) Add call after processKey() result — insert after the processKey line
+if "lfsCnVtSwitch(key, pressed)" not in src:
+    src = re.sub(
+        r'(bool pressed = processKey\(code, &key, &value\);)',
+        r'\1\n\t\tif (lfsCnVtSwitch(key, pressed)) continue;',
+        src
+    )
+with open("src/input.cpp", "w") as f:
+    f.write(src)
+print("fbterm-vt-switch: patch applied to src/input.cpp")
+PYEOF
     ./configure --prefix=/usr CXXFLAGS="-O2 -Wno-narrowing"
     make -j"$NPROC"
     make install
@@ -1776,12 +1838,10 @@ cat > /usr/local/bin/fbterm-zh << 'FBTERM_EOF'
 # localized text outside fbterm would render as boxes. Fallback shells stay
 # on the inherited C.UTF-8 environment.
 #
-# TTY switching: run 'fbterm-zh' (default) for plain fbterm where
-# Ctrl+Alt+Fn works normally. Run 'fbterm-im' to start fbterm with the
-# ucimf Chinese input method — in that mode, use 'chvt N' or type 'exit'
-# to return to vconsole for TTY switching.
+# Ctrl+Alt+Fn works for TTY switching even with ucimf loaded (fbterm
+# source patched to intercept the combination and call VT_ACTIVATE).
 #
-# Input Method (ucimf) keybindings (fbterm-im only):
+# Input Method (ucimf) keybindings:
 #   Ctrl+Space    Toggle input method ON/OFF
 #   Ctrl+Shift    Switch between input methods (OVIMGeneric, OVIMChewing, etc.)
 #   Space         Confirm/insert selected candidate
@@ -1807,16 +1867,8 @@ fi
 if [ -z "$(ls /var/cache/fontconfig 2>/dev/null)" ]; then
     timeout 60 fc-cache -f >/dev/null 2>&1 || true
 fi
-# Decide whether to load ucimf input method: 'fbterm-im' enables it,
-# 'fbterm-zh' (default) skips it so Ctrl+Alt+Fn VT switching works.
-USE_IM=0
-case "$(basename "$0")" in
-    fbterm-im) USE_IM=1 ;;
-esac
-if [ "$USE_IM" = "1" ] && command -v fbterm_ucimf >/dev/null 2>&1; then
+if command -v fbterm_ucimf >/dev/null 2>&1; then
     # ucimf input method: Ctrl+Space on/off, Ctrl+Shift switch IMs
-    # NOTE: ucimf intercepts raw keyboard events, blocking Ctrl+Alt+Fn
-    # from reaching the kernel VT layer. Use 'chvt N' or 'exit' to leave.
     if LANG=zh_CN.UTF-8 LC_ALL=zh_CN.UTF-8 fbterm --font-names="$FONT_NAMES" --font-size=16 -i fbterm_ucimf 2>/dev/null; then
         exec bash -i
     fi
@@ -1829,7 +1881,6 @@ export FBTTERM=1
 exec bash -i
 FBTERM_EOF
 chmod +x /usr/local/bin/fbterm-zh
-ln -sfv fbterm-zh /usr/local/bin/fbterm-im
 
 # root login shell convenience (auto fbterm on tty1)
 cat > /root/.bashrc << 'EOF'
@@ -2020,7 +2071,7 @@ pkg_register fbterm-ucimf-stack "$UCIMF_VER" \
     /usr/bin/fbterm /usr/bin/fbterm_ucimf /usr/bin/ucimf_start \
     /usr/lib/libucimf.so* /usr/lib/ucimf /usr/lib/openvanilla \
     /usr/share/openvanilla /etc/ucimf.conf /etc/fbterm \
-    /usr/local/bin/fbterm-zh /usr/local/bin/fbterm-im /usr/share/man/man1/fbterm.1
+    /usr/local/bin/fbterm-zh /usr/share/man/man1/fbterm.1
 pkg_register kmscon "$KMSCON_VER" \
     "KMS/DRM graphical console (tty2-6, Phase 1)" \
     /usr/bin/kmscon /etc/kmscon /usr/local/bin/console-autoshell \
@@ -2093,7 +2144,7 @@ for f in /usr/bin/fbterm /usr/bin/fbterm_ucimf \
          /usr/bin/sudo /usr/sbin/visudo /etc/sudoers \
          /usr/bin/git \
          /usr/share/themes/Rea-Dark/index.theme \
-         /usr/local/bin/fbterm-zh /usr/local/bin/fbterm-im \
+         /usr/local/bin/fbterm-zh \
          /root/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml \
          /root/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml \
          /usr/local/repo/lfscn/lfscn.db.tar.gz; do

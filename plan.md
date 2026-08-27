@@ -19,11 +19,9 @@
 - 教训：**Pages 部署是 artifact-based（不可回滚），git 分支提供版本历史和直接克隆能力，两者应并行维护。**
 
 ## 根因七十一（Phase 1 用户实测，已修）：fbterm 内 Ctrl+Alt+Fn 无法切换 TTY
-**fbterm-zh 默认启动时加载 ucimf 输入法（`-i fbterm_ucimf`），ucimf 从 `/dev/input/event*` 读取原始键盘事件 → 拦截 Ctrl+Alt+Fn VT 切换序列 → 内核 VT 层收不到切换信号 → tty1 锁死。**
-- 修复：fbterm-zh 拆分为两个入口：
-  1. `fbterm-zh`（默认）：plain fbterm，不加载 ucimf → Ctrl+Alt+Fn 正常工作；
-  2. `fbterm-im`：symlink 到 fbterm-zh，通过 `basename "$0"` 检测 → 加载 ucimf → 需 `chvt N` 或 `exit` 切换。
-- 教训：**ucimf 的原始 input 读取会劫持内核 VT 切换；CJK 输入法与 VT 切换不可兼得，必须由用户显式选择。**
+**fbterm-zh 默认启动时加载 ucimf 输入法（`-i fbterm_ucimf`），ucimf 读取键盘事件 → 拦截 Ctrl+Alt+Fn VT 切换序列 → 内核 VT 层收不到切换信号 → tty1 锁死。**
+- 修复：**patch fbterm 1.7 源码**——在 `src/input.cpp` 的 `processRawKeys()` 中注入 `lfsCnVtSwitch()` 函数，检测 Ctrl+Alt+F1-F12 组合后直接调用 `ioctl(VT_ACTIVATE, n)` 切换 TTY，不喂给 ucimf。
+- 教训：**ucimf 读取键盘事件在 shell 处理之前；VT 切换必须在 input 层拦截，不能依赖终端层。**
 
 ## 根因五十三（run#92 from-base 实证，已修）：重生成补丁丢失 inline → multiple definition 链接失败
 **重新生成 ovimgeneric.patch 时，OVCIN.h 类内声明 `inline size_t getWordVectorByCharWithWildcardSupport(...)` 的 `inline` 关键字被意外抹掉——声明失去 inline 后，头文件里第 204 行的类外定义在每个包含 OVCIN.h 的编译单元（OVCIN.cpp / OVCandidateList.cpp / OVIMGeneric.cpp）都发射**强符号**，OVIMGeneric.la 链接 libSharedLibrary.a 时 ld 报 multiple definition。旧补丁从未改过 OVCIN.h，此雷是本次重写引入。**
@@ -118,21 +116,17 @@
 ### TTY 布局
 | TTY | 服务 | 说明 |
 |-----|------|------|
-| tty1 | fbterm-zh | 默认启动，plain fbterm（无 ucimf），Ctrl+Alt+Fn 正常工作 |
-| tty1 | fbterm-im | 手动启动（`fbterm-im`），带 ucimf 中文输入法，需 `chvt`/`exit` 切换 |
+| tty1 | fbterm-zh | 默认启动，fbterm + ucimf 中文输入法（已 patch 源码支持 Ctrl+Alt+Fn VT 切换） |
 | tty2-6 | kmscon | 图形控制台，中文渲染，Ctrl+Alt+Fn 正常工作 |
 | tty7+ | Xorg/XFCE | startx 启动 |
 
 ### TTY 切换机制
-- **fbterm-zh（默认）**：plain fbterm，Ctrl+Alt+Fn 直接切换，无需额外操作。
-- **fbterm-im（带输入法）**：ucimf 拦截原始键盘事件，Ctrl+Alt+Fn 被输入法消费 → 无法直接切换。解决方案：
-  1. `chvt N` 命令切换（如 `chvt 2` 切到 kmscon）
-  2. `exit` 退出 fbterm 回到 vconsole，再用 Ctrl+Alt+Fn
-- **kmscon**：Ctrl+Alt+Fn 正常工作（无输入法拦截）。
+- **fbterm-zh（tty1）**：fbterm 源码已 patch，Ctrl+Alt+Fn 在 `processRawKeys()` 中被拦截并调用 `ioctl(VT_ACTIVATE)` → 直接切换，不受 ucimf 影响。
+- **kmscon（tty2-6）**：Ctrl+Alt+Fn 正常工作（无输入法拦截）。
 
 ### 实施状态
 - ✅ **Phase 1 已完成**：kmscon 落地 tty2-6（libtsm/kmscon 构建、kmsconvt 单元启用、console-autoshell、kmscon.conf）
-- ✅ **fbterm 共存修复**：fbterm-zh 默认无 ucimf（Ctrl+Alt+Fn 可用），fbterm-im 带 ucimf（需 chvt/exit）
+- ✅ **fbterm VT 切换修复**：patch fbterm 1.7 源码，Ctrl+Alt+Fn 在 processRawKeys() 中拦截并 ioctl(VT_ACTIVATE)，ucimf 正常加载
 - ✅ **内核 DRM**：CONFIG_DRM_SIMPLEDRM=y 已补
 - ✅ **pkg_register**：kmscon 包已注册
 
