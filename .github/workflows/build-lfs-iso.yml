@@ -419,7 +419,7 @@ jobs:
           rm -rf .git
           git init
           git checkout -b repo
-          git remote add origin "https://github.com/${{ github.repository }}.git" || true
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" || true
           rm -rf ./*
           cp -a ../repo-content/. ./
           git config user.name "github-actions[bot]"
