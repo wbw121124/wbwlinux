@@ -21,11 +21,11 @@ KERNEL_URL="https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-$LFS_KERNEL_VER.t
 if [ ! -s "$KERNEL_TARBALL" ] || [ "$(sha256sum "$KERNEL_TARBALL" | awk '{print $1}')" != "$LFS_KERNEL_SHA256" ]; then
     rm -f "$KERNEL_TARBALL"
     log "==> downloading Linux $LFS_KERNEL_VER source for ISO/resume build"
-    wget -q --timeout=30 --tries=3 -O "$KERNEL_TARBALL" "$KERNEL_URL" || \\
-        wget -q --timeout=30 --tries=3 -O "$KERNEL_TARBALL" "https://www.kernel.org/pub/linux/kernel/v7.x/linux-$LFS_KERNEL_VER.tar.xz" || \\
+    wget -q --timeout=30 --tries=3 -O "$KERNEL_TARBALL" "$KERNEL_URL" || \
+        wget -q --timeout=30 --tries=3 -O "$KERNEL_TARBALL" "https://www.kernel.org/pub/linux/kernel/v7.x/linux-$LFS_KERNEL_VER.tar.xz" || \
         die "kernel tarball download failed"
 fi
-printf '%s  %s\\n' "$LFS_KERNEL_SHA256" "$KERNEL_TARBALL" | sha256sum -c - || die "Linux kernel SHA-256 verification failed"
+printf '%s  %s\n' "$LFS_KERNEL_SHA256" "$KERNEL_TARBALL" | sha256sum -c - || die "Linux kernel SHA-256 verification failed"
 
 umount_kernfs || true
 mount_kernfs
