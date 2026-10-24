@@ -12,20 +12,32 @@ cd "$(dirname "$0")"
 source env.sh
 source common.sh
 
+# Re-resolve the selected kernel track for resumed builds and persist the
+# exact release + checksum into the restored snapshot for the chroot.
+mkdir -p "$LFS_ROOT/build"
+bash "$SCRIPTS_DIR/resolve-kernel.sh" "$LFS_ROOT/build/kernel-version.env"
+source "$LFS_ROOT/build/kernel-version.env"
+
 [ "$(id -u)" -eq 0 ] || die "must run as root"
 
 # Resume builds may restore a snapshot made before the kernel version bump.
 # Ensure the exact requested tarball is present and matches kernel.org SHA-256.
 KERNEL_TARBALL="$LFS_ROOT/sources/linux-$LFS_KERNEL_VER.tar.xz"
-KERNEL_URL="https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-$LFS_KERNEL_VER.tar.xz"
+KERNEL_URL="$LFS_KERNEL_URL"
+# Older snapshots may predate the installer dependencies.
+[ -s "$LFS_ROOT/sources/dialog_1.3-20250116.orig.tar.gz" ] || wget -q --timeout=30 --tries=3 -O "$LFS_ROOT/sources/dialog_1.3-20250116.orig.tar.gz" "https://deb.debian.org/debian/pool/main/d/dialog/dialog_1.3-20250116.orig.tar.gz"
+[ -s "$LFS_ROOT/sources/dosfstools-4.2.tar.gz" ] || wget -q --timeout=30 --tries=3 -O "$LFS_ROOT/sources/dosfstools-4.2.tar.gz" "https://github.com/dosfstools/dosfstools/releases/download/v4.2/dosfstools-4.2.tar.gz"
 if [ ! -s "$KERNEL_TARBALL" ] || [ "$(sha256sum "$KERNEL_TARBALL" | awk '{print $1}')" != "$LFS_KERNEL_SHA256" ]; then
     rm -f "$KERNEL_TARBALL"
     log "==> downloading Linux $LFS_KERNEL_VER source for ISO/resume build"
     wget -q --timeout=30 --tries=3 -O "$KERNEL_TARBALL" "$KERNEL_URL" || \
-        wget -q --timeout=30 --tries=3 -O "$KERNEL_TARBALL" "https://www.kernel.org/pub/linux/kernel/v7.x/linux-$LFS_KERNEL_VER.tar.xz" || \
+        wget -q --timeout=30 --tries=3 -O "$KERNEL_TARBALL" "${LFS_KERNEL_URL/cdn.kernel.org/www.kernel.org}" || \
         die "kernel tarball download failed"
 fi
 printf '%s  %s\n' "$LFS_KERNEL_SHA256" "$KERNEL_TARBALL" | sha256sum -c - || die "Linux kernel SHA-256 verification failed"
+
+printf 'd58d058105cdd976d21ec4dd069b57d3  %s\n' "$LFS_ROOT/sources/dialog_1.3-20250116.orig.tar.gz" | md5sum -c - || die "dialog source checksum failed"
+printf '49c8e457327dc61efab5b115a27b087a  %s\n' "$LFS_ROOT/sources/dosfstools-4.2.tar.gz" | md5sum -c - || die "dosfstools source checksum failed"
 
 umount_kernfs || true
 mount_kernfs
@@ -47,6 +59,8 @@ umount_kernfs || true
 
 ISO_ROOT="$SCRIPTS_DIR/../iso"
 mkdir -p "$ISO_ROOT/boot/grub" "$ISO_ROOT/live"
+# Stage the installer before packing the rootfs so it is present in the ISO.
+install -Dm755 "$SCRIPTS_DIR/install-lfs-cn.sh" "$LFS_ROOT/usr/sbin/lfs-cn-installer"
 log "==> packing rootfs.squashfs (xz, this takes a while)"
 mksquashfs "$LFS_ROOT" "$ISO_ROOT/live/rootfs.squashfs" \
     -comp xz -noappend \

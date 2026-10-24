@@ -10,7 +10,7 @@ ISO 是一个**文本精简基础系统**（fbterm 中文终端 + LFS 全部基�
 
 | 软件 | 版本 | 来源 |
 |---|---|---|
-| Linux 内核 | 7.1.13 | kernel.org 官方源码（SHA-256 校验） |
+| Linux 内核 | 最新 stable（构建时解析） | kernel.org `releases.json` + 官方 SHA-256 校验 |
 | GCC | 15.2.0 | LFS 源码编译 |
 | Python | 3.14.3 | LFS 源码编译 |
 | Vim | 9.2.0078 | LFS 源码编译 |
@@ -63,10 +63,24 @@ ISO 是一个**文本精简基础系统**（fbterm 中文终端 + LFS 全部基�
 
 ## NTFS 原生读写
 
-- 内核 7.1.13 同时启用 `CONFIG_NTFS_FS=y`（Linux 7.1 新增的原生读写驱动）和 `CONFIG_NTFS3_FS=y`（NTFS3 驱动）。
-- 使用新驱动时显式指定文件系统类型：`mount -t ntfs -o rw /dev/sdX1 /mnt`；NTFS3 可用 `mount -t ntfs3 -o rw /dev/sdX1 /mnt`。
+- 内核跟踪 kernel.org 最新 stable（构建时解析），同时启用 `CONFIG_NTFS_FS=y`（Linux 7.1 起的原生读写驱动）和 `CONFIG_NTFS3_FS=y`（NTFS3 驱动）。
+- Linux 7.1 及更新内核可使用原生 `ntfs` 读写驱动：`mount -t ntfs -o rw /dev/sdX1 /mnt`；选择较旧的 `longterm` 内核时，请使用支持读写的 NTFS3：`mount -t ntfs3 -o rw /dev/sdX1 /mnt`。
 - 挂载前应确保 Windows 已完整关机、卷未处于休眠/快速启动状态，并在卸载前执行 `sync` 后正常 `umount`。
-- **维护提示：Linux 7.1.y 已于 7.1.13 结束维护（EOL）**。此版本按项目需求固定，但不再接收该系列的常规安全修复。
+- **内核更新策略：** 默认跟踪 kernel.org 最新 `stable` 系列；在 GitHub Actions 的手动运行界面可选择 `stable`、`mainline` 或 `longterm`。本地构建也可设置 `LFS_KERNEL_TRACK`。每次 ISO 阶段构建都会解析版本，并从 kernel.org 的 SHA-256 清单校验源码。
+
+## 硬盘安装器（UEFI）
+
+Live ISO 内置 `lfs-cn-installer`，提供 `dialog` 文本窗口（兼容 `whiptail`）：
+
+```bash
+sudo lfs-cn-installer
+```
+
+- 目前支持 x86_64 UEFI 启动；传统 BIOS/CSM 模式会明确拒绝安装。启用 Secure Boot 时，除非自行签名 GRUB，否则需先关闭 Secure Boot。
+- 自动分区会清空所选整块磁盘：GPT + 512 MiB EFI System Partition（FAT32）+ 剩余空间 ext4。
+- 有两道破坏性操作保护：先确认目标磁盘和数据删除警告，再输入大写 `ERASE` 才会写入分区表。
+- 安装器将 ISO 的 `rootfs.squashfs`、内核、initramfs 复制到目标盘，安装可移动介质路径的 GRUB EFI 启动文件；目标 ext4 分区会创建 `upper/` 和 `work/` 作为 Live overlay 持久化层。与当前 Live 系统一样，`/var` 和 `/home` 仍是 tmpfs，不保证跨重启保留。
+- 安装器不会尝试自动判断“哪块磁盘是安全的”。请仔细核对磁盘型号和容量；选择错误的磁盘会导致数据丢失。
 
 ## 中文终端体验
 

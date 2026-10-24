@@ -66,8 +66,13 @@ log "==> ccache wrappers ready"
 
 # --- directory layout (LFS 4.2) ---------------------------------------
 mkdir -pv "$LFS_ROOT"
-mkdir -pv "$SOURCES" "$LFS_ROOT"/{etc,var,usr,opt,tools}
+mkdir -pv "$SOURCES" "$LFS_ROOT"/{etc,var,usr,opt,tools} "$LFS_ROOT/build"
 chmod -v a+wt "$SOURCES"
+
+# Resolve and pin the newest release for this build/snapshot chain.
+bash "$SCRIPTS_DIR/resolve-kernel.sh" "$LFS_ROOT/build/kernel-version.env"
+source "$LFS_ROOT/build/kernel-version.env"
+log "==> selected Linux $LFS_KERNEL_VER ($LFS_KERNEL_TRACK)"
 
 # 64-bit layout symlinks
 for i in bin lib sbin; do
@@ -77,9 +82,8 @@ mkdir -pv "$LFS_ROOT/lib64"
 ln -sv usr/bin "$LFS_ROOT/bin" 2>/dev/null || true
 
 # --- download all sources (skip if already present, e.g. restored) ----
-# 95 of 96 files are bundled in tools/x86_64/sources (checked into git);
-# only the linux kernel tarball (147 MB, over GitHub's 100 MB file limit)
-# is downloaded here from kernel.org's CDN.
+# Most LFS source tarballs are bundled in tools/x86_64/sources (checked into git).
+# Linux is resolved dynamically; dialog and dosfstools are pinned installer sources.
 if [ -z "${SKIP_DOWNLOAD:-}" ] && [ ! -f "$SOURCES/.downloaded" ]; then
     log "==> copying bundled sources from repository"
     cp -v "$SCRIPTS_DIR"/../tools/x86_64/sources/* "$SOURCES/" 2>/dev/null || true
@@ -87,9 +91,9 @@ if [ -z "${SKIP_DOWNLOAD:-}" ] && [ ! -f "$SOURCES/.downloaded" ]; then
     if [ ! -s "$SOURCES/linux-$LFS_KERNEL_VER.tar.xz" ]; then
         log "==> downloading linux-$LFS_KERNEL_VER.tar.xz (~151 MiB, exceeds git limit)"
         wget -q --timeout=30 --tries=3 -O "$SOURCES/linux-$LFS_KERNEL_VER.tar.xz" \
-            "https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-$LFS_KERNEL_VER.tar.xz" \
+            "$LFS_KERNEL_URL" \
             || wget -q -O "$SOURCES/linux-$LFS_KERNEL_VER.tar.xz" \
-                "https://www.kernel.org/pub/linux/kernel/v7.x/linux-$LFS_KERNEL_VER.tar.xz" \
+                "${LFS_KERNEL_URL/cdn.kernel.org/www.kernel.org}" \
             || true
     fi
     [ -s "$SOURCES/linux-$LFS_KERNEL_VER.tar.xz" ] || \
@@ -98,6 +102,12 @@ if [ -z "${SKIP_DOWNLOAD:-}" ] && [ ! -f "$SOURCES/.downloaded" ]; then
     log "==> verifying Linux kernel SHA-256"
     printf '%s  %s\n' "$LFS_KERNEL_SHA256" "$SOURCES/linux-$LFS_KERNEL_VER.tar.xz" | sha256sum -c - || \
         die "Linux kernel SHA-256 verification failed"
+
+    # Installer-only target tools; their hashes are pinned in md5sums.
+    wget -q --timeout=30 --tries=3 -O "$SOURCES/dialog_1.3-20250116.orig.tar.gz" \
+        "https://deb.debian.org/debian/pool/main/d/dialog/dialog_1.3-20250116.orig.tar.gz"
+    wget -q --timeout=30 --tries=3 -O "$SOURCES/dosfstools-4.2.tar.gz" \
+        "https://github.com/dosfstools/dosfstools/releases/download/v4.2/dosfstools-4.2.tar.gz"
 
     log "==> verifying md5sums"
     if ! ( cd "$SOURCES" && md5sum -c "$SCRIPTS_DIR/../tools/x86_64/md5sums" > md5.log ); then

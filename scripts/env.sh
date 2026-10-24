@@ -3,13 +3,29 @@
 
 set -euo pipefail
 
+# Preserve an explicit environment override when a restored snapshot contains
+# a previously generated kernel pin.
+_LFS_KERNEL_TRACK_OVERRIDE="${LFS_KERNEL_TRACK:-}"
+
 export LFS_ROOT=/mnt/lfs
 export LFS_TGT="$(uname -m)-lfs-linux-gnu"
 export LFS_VERSION=13.0-systemd
 export LFS_DISTRO_NAME="LFS-CN"
-export LFS_KERNEL_VER=7.1.13
-# SHA-256 from kernel.org's signed v7.x/sha256sums.asc
-export LFS_KERNEL_SHA256=614d95fafdcb5cce2b6620e7edc6afbb606bffd4655405586815d84687841ad7
+# Resolve the latest maintained kernel.org release at build time.
+export LFS_KERNEL_TRACK="${LFS_KERNEL_TRACK:-stable}"
+export LFS_KERNEL_VER="${LFS_KERNEL_VER:-7.2.12}"
+export LFS_KERNEL_SHA256="${LFS_KERNEL_SHA256:-}"
+export LFS_KERNEL_URL="${LFS_KERNEL_URL:-https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-$LFS_KERNEL_VER.tar.xz}"
+# Generated pin is copied into /build for scripts running inside the chroot.
+if [ -r "$LFS_ROOT/build/kernel-version.env" ]; then
+    source "$LFS_ROOT/build/kernel-version.env"
+elif [ -r /build/kernel-version.env ]; then
+    source /build/kernel-version.env
+fi
+if [ -n "$_LFS_KERNEL_TRACK_OVERRIDE" ]; then
+    export LFS_KERNEL_TRACK="$_LFS_KERNEL_TRACK_OVERRIDE"
+fi
+unset _LFS_KERNEL_TRACK_OVERRIDE
 
 export SOURCES="$LFS_ROOT/sources"
 export SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

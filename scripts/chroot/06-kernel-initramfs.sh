@@ -71,6 +71,49 @@ sysfs           /sys            sysfs   nosuid,noexec,nodev             0 0
 EOF
 
 # ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# Disk-installer runtime: dialog, dosfstools, and UEFI GRUB.
+# Source archives are fetched and checksum-verified by the host stage.
+# ---------------------------------------------------------------------
+cd /sources
+if [ ! -x /usr/bin/dialog ]; then
+    log "==> building dialog TUI"
+    rm -rf dialog-1.3-20250116
+    tar xf dialog_1.3-20250116.orig.tar.gz
+    cd dialog-1.3-20250116
+    ./configure --prefix=/usr --with-ncursesw
+    make -j"$NPROC"
+    make install
+    cd /sources
+    rm -rf dialog-1.3-20250116
+fi
+if [ ! -x /usr/bin/mkfs.fat ]; then
+    log "==> building dosfstools"
+    rm -rf dosfstools-4.2
+    tar xf dosfstools-4.2.tar.gz
+    cd dosfstools-4.2
+    ./configure --prefix=/usr --enable-compat-symlinks
+    make -j"$NPROC"
+    make install
+    cd /sources
+    rm -rf dosfstools-4.2
+fi
+if [ ! -x /usr/sbin/grub-install ] && [ ! -x /usr/bin/grub-install ]; then
+    log "==> building UEFI GRUB for the disk installer"
+    rm -rf grub-2.14 grub-build-efi
+    tar xf grub-2.14.tar.xz
+    mkdir -p /sources/grub-build-efi
+    cd /sources/grub-build-efi
+    ../grub-2.14/configure --prefix=/usr --with-platform=efi --target=x86_64 --disable-werror
+    make -j"$NPROC"
+    make install
+    cd /sources
+    rm -rf grub-2.14 grub-build-efi
+fi
+command -v dialog >/dev/null 2>&1 || die "installer TUI dependency dialog was not installed"
+command -v mkfs.fat >/dev/null 2>&1 || die "installer dependency dosfstools was not installed"
+command -v grub-install >/dev/null 2>&1 || die "installer dependency UEFI GRUB was not installed"
+
 # initramfs: minimal root with live init
 # ---------------------------------------------------------------------
 INITRAMFS_DIR=/boot/initramfs-lfs-cn
@@ -152,34 +195,338 @@ mount -t devtmpfs devtmpfs /dev
 mkdir -p /dev/pts /dev/shm
 mount -t devpts devpts /dev/pts
 
-# wait for the ISO device to appear (poll with retries; USB/CD probing can lag)
+# Installed systems pass lfs_root=UUID=<uuid>; live boots keep the ISO scan.
+# blkid resolves UUIDs before a userspace udev daemon is available.
+live_store=""
 iso_dev=""
-attempt=0
-while [ $attempt -lt 30 ]; do
-    attempt=$((attempt+1))
-    for dev in $(cat /proc/partitions | awk '{print $4}' | grep -E '^(sr|sd)[a-z0-9]+$'); do
-        if mount -t iso9660 -r "/dev/$dev" /mnt 2>/dev/null; then
+root_spec=""
+for arg in $(cat /proc/cmdline); do
+    case "$arg" in lfs_root=*) root_spec="${arg#lfs_root=}" ;; esac
+done
+
+if [ -n "$root_spec" ]; then
+    attempt=0
+    while [ $attempt -lt 30 ]; do
+        attempt=$((attempt+1))
+        case "$root_spec" in
+            UUID=*) root_dev="$(blkid -U "${root_spec#UUID=}" 2>/dev/null)" ;;
+            LABEL=*) root_dev="$(blkid -L "${root_spec#LABEL=}" 2>/dev/null)" ;;
+            /dev/*) root_dev="$root_spec" ;;
+            *) root_dev="" ;;
+        esac
+        if [ -n "$root_dev" ] && mount -t ext4 -o rw "$root_dev" /mnt 2>/dev/null; then
             if [ -f /mnt/live/rootfs.squashfs ]; then
-                iso_dev="/dev/$dev"
+                live_store=/mnt
+                echo "live: installed payload found on $root_dev" > /dev/console
                 break
             fi
             umount /mnt 2>/dev/null
         fi
+        sleep 1
     done
-    [ -n "$iso_dev" ] && break
-    sleep 1
-done
-
-if [ -z "$iso_dev" ]; then
-    echo "ERROR: cannot find the LFS-CN live medium" > /dev/console
-    echo "No ISO with /live/rootfs.squashfs found" > /dev/console
-    exec /bin/sh
+    if [ -z "$live_store" ]; then
+        echo "ERROR: lfs_root=$root_spec has no /live/rootfs.squashfs" > /dev/console
+        exec /bin/sh
+    fi
+else
+    attempt=0
+    while [ $attempt -lt 30 ]; do
+        attempt=$((attempt+1))
+        for dev in $(cat /proc/partitions | awk '{print $4}' | grep -E '^(sr|sd)[a-z0-9]+
+# ROOT CAUSE FIX: the overlay upper+work MUST live inside the dedicated
+# /run/overlay tmpfs (not on the initramfs root). switch_root relocates the
+# initramfs root and this fstab then stacks a fresh tmpfs on /run, but the
+# /run/overlay tmpfs mount stays alive underneath; the overlay pins its
+# upperdir dentry, so the whole merged root (/etc, /var, /home, ...) remains
+# writable via overlay copy-up. Without this the writable upper was detached,
+# dropping /etc and /var to the read-only squashfs lower, and
+# systemd-timesyncd/logind/journal-catalog-update failed at STATE_DIRECTORY
+# (ENOENT) plus hwdb-update/update-done failed writing /etc.
+#
+# ---- persistence (W4): reuse an upperdir across boots ------------------
+# Unless persist=off is on the cmdline, probe partitions for either:
+#   a) a filesystem whose root contains an upper/ directory (dedicated
+#      persistence fs; label it LFS-CN-PERSIST for convenience), or
+#   b) a file lfs-cn-persistence.img in its root - an ext4 image attached
+#      via loop0 (works from FAT/exFAT sticks too).
+# With no medium found the boot falls back to the stock volatile tmpfs.
+PERSIST_UPPER=""
+if ! grep -q 'persist=off' /proc/cmdline; then
+    mkdir -p /run/persist
+    for dev in $(cat /proc/partitions | awk '{print $4}' | grep -E '^(sd|vd|hd|nvme|mmcblk|mtd)[a-z0-9]*p?[0-9]+ | sort -u); do
+        if [ "/dev/$dev" = "$iso_dev" ]; then continue; fi
+        if mount -t ext4 -o rw "/dev/$dev" /run/persist 2>/dev/null; then
+            :
+        elif mount -t vfat -o rw,umask=000 "/dev/$dev" /run/persist 2>/dev/null; then
+            :
+        else
+            continue
+        fi
+        if [ -d /run/persist/upper ]; then
+            mkdir -p /run/persist/work
+            PERSIST_UPPER=/run/persist/upper
+            PERSIST_WORK=/run/persist/work
+            echo "live: persistent session on /dev/$dev" > /dev/console
+            break
+        fi
+        if [ -f /run/persist/lfs-cn-persistence.img ]; then
+            [ -e /dev/loop-control ] || mknod /dev/loop-control c 10 237 2>/dev/null
+            [ -e /dev/loop0 ] || mknod /dev/loop0 b 7 0 2>/dev/null
+            if losetup /dev/loop0 /run/persist/lfs-cn-persistence.img 2>/dev/null \
+               && mount -t ext4 -o rw /dev/loop0 /run/persist 2>/dev/null; then
+                mkdir -p /run/persist/upper /run/persist/work
+                PERSIST_UPPER=/run/persist/upper
+                PERSIST_WORK=/run/persist/work
+                echo "live: persistent session via lfs-cn-persistence.img on /dev/$dev" > /dev/console
+                break
+            fi
+        fi
+        umount /run/persist 2>/dev/null
+    done
 fi
 
-echo "live: ISO found on $iso_dev" > /dev/console
+mkdir -p /run/overlay
+if [ -n "$PERSIST_UPPER" ]; then
+    # persistent store already mounted under /run; like the tmpfs case the
+    # overlay pins its dentries so it survives switch_root + fstab's /run
+    :
+else
+    mount -t tmpfs tmpfs /run/overlay
+    mkdir -p /run/overlay/upper /run/overlay/work
+    PERSIST_UPPER=/run/overlay/upper
+    PERSIST_WORK=/run/overlay/work
+    echo "live: volatile session (no persistence medium found)" > /dev/console
+fi
+mount -t overlay overlay -o lowerdir=/run/rootfs,upperdir=$PERSIST_UPPER,workdir=$PERSIST_WORK /newroot
+
+mkdir -p /newroot/proc /newroot/sys /newroot/dev /newroot/run /newroot/mnt
+mount -t proc proc /newroot/proc
+mount -t sysfs sysfs /newroot/sys
+mount -t devtmpfs devtmpfs /newroot/dev
+
+# /var and /home are also covered by tmpfs as belt-and-suspenders so they
+# stay writable even if the overlay upper were ever detached again.
+mkdir -p /newroot/var /newroot/home
+mount -t tmpfs tmpfs /newroot/var
+mount -t tmpfs tmpfs /newroot/home
+
+echo "live: switching root" > /dev/console
+exec switch_root /newroot /sbin/init
+EOF
+chmod +x "$INITRAMFS_DIR/init"
+
+# NOTE: the initramfs image is packed on the HOST in 06-kernel-iso.sh
+# (cpio is a BLFS package, not available inside this chroot)
+log '==> kernel + initramfs tree done'
+
+# free the kernel build tree (excluded from squashfs, but wastes runner disk)
+cd /sources
+rm -rf "linux-$KERNEL_VER"
+); do
+            if mount -t iso9660 -r "/dev/$dev" /mnt 2>/dev/null; then
+                if [ -f /mnt/live/rootfs.squashfs ]; then
+                    iso_dev="/dev/$dev"
+                    live_store=/mnt
+                    break
+                fi
+                umount /mnt 2>/dev/null
+            fi
+        done
+        [ -n "$live_store" ] && break
+        sleep 1
+    done
+    if [ -z "$live_store" ]; then
+        echo "ERROR: cannot find the LFS-CN live medium" > /dev/console
+        echo "No ISO with /live/rootfs.squashfs found" > /dev/console
+        exec /bin/sh
+    fi
+    echo "live: ISO found on $iso_dev" > /dev/console
+fi
 
 mkdir -p /run/rootfs
-mount -t squashfs -o loop /mnt/live/rootfs.squashfs /run/rootfs
+mount -t squashfs -o loop "$live_store/live/rootfs.squashfs" /run/rootfs
+
+# ROOT CAUSE FIX: the overlay upper+work MUST live inside the dedicated
+# /run/overlay tmpfs (not on the initramfs root). switch_root relocates the
+# initramfs root and this fstab then stacks a fresh tmpfs on /run, but the
+# /run/overlay tmpfs mount stays alive underneath; the overlay pins its
+# upperdir dentry, so the whole merged root (/etc, /var, /home, ...) remains
+# writable via overlay copy-up. Without this the writable upper was detached,
+# dropping /etc and /var to the read-only squashfs lower, and
+# systemd-timesyncd/logind/journal-catalog-update failed at STATE_DIRECTORY
+# (ENOENT) plus hwdb-update/update-done failed writing /etc.
+#
+# ---- persistence (W4): reuse an upperdir across boots ------------------
+# Unless persist=off is on the cmdline, probe partitions for either:
+#   a) a filesystem whose root contains an upper/ directory (dedicated
+#      persistence fs; label it LFS-CN-PERSIST for convenience), or
+#   b) a file lfs-cn-persistence.img in its root - an ext4 image attached
+#      via loop0 (works from FAT/exFAT sticks too).
+# With no medium found the boot falls back to the stock volatile tmpfs.
+PERSIST_UPPER=""
+if ! grep -q 'persist=off' /proc/cmdline; then
+    mkdir -p /run/persist
+    for dev in $(cat /proc/partitions | awk '{print $4}' | grep -E '^(sd|vd|hd|nvme|mtd)[a-z0-9]*p?[0-9]+$' | sort -u); do
+        if [ "/dev/$dev" = "$iso_dev" ]; then continue; fi
+        if mount -t ext4 -o rw "/dev/$dev" /run/persist 2>/dev/null; then
+            :
+        elif mount -t vfat -o rw,umask=000 "/dev/$dev" /run/persist 2>/dev/null; then
+            :
+        else
+            continue
+        fi
+        if [ -d /run/persist/upper ]; then
+            mkdir -p /run/persist/work
+            PERSIST_UPPER=/run/persist/upper
+            PERSIST_WORK=/run/persist/work
+            echo "live: persistent session on /dev/$dev" > /dev/console
+            break
+        fi
+        if [ -f /run/persist/lfs-cn-persistence.img ]; then
+            [ -e /dev/loop-control ] || mknod /dev/loop-control c 10 237 2>/dev/null
+            [ -e /dev/loop0 ] || mknod /dev/loop0 b 7 0 2>/dev/null
+            if losetup /dev/loop0 /run/persist/lfs-cn-persistence.img 2>/dev/null \
+               && mount -t ext4 -o rw /dev/loop0 /run/persist 2>/dev/null; then
+                mkdir -p /run/persist/upper /run/persist/work
+                PERSIST_UPPER=/run/persist/upper
+                PERSIST_WORK=/run/persist/work
+                echo "live: persistent session via lfs-cn-persistence.img on /dev/$dev" > /dev/console
+                break
+            fi
+        fi
+        umount /run/persist 2>/dev/null
+    done
+fi
+
+mkdir -p /run/overlay
+if [ -n "$PERSIST_UPPER" ]; then
+    # persistent store already mounted under /run; like the tmpfs case the
+    # overlay pins its dentries so it survives switch_root + fstab's /run
+    :
+else
+    mount -t tmpfs tmpfs /run/overlay
+    mkdir -p /run/overlay/upper /run/overlay/work
+    PERSIST_UPPER=/run/overlay/upper
+    PERSIST_WORK=/run/overlay/work
+    echo "live: volatile session (no persistence medium found)" > /dev/console
+fi
+mount -t overlay overlay -o lowerdir=/run/rootfs,upperdir=$PERSIST_UPPER,workdir=$PERSIST_WORK /newroot
+
+mkdir -p /newroot/proc /newroot/sys /newroot/dev /newroot/run /newroot/mnt
+mount -t proc proc /newroot/proc
+mount -t sysfs sysfs /newroot/sys
+mount -t devtmpfs devtmpfs /newroot/dev
+
+# /var and /home are also covered by tmpfs as belt-and-suspenders so they
+# stay writable even if the overlay upper were ever detached again.
+mkdir -p /newroot/var /newroot/home
+mount -t tmpfs tmpfs /newroot/var
+mount -t tmpfs tmpfs /newroot/home
+
+echo "live: switching root" > /dev/console
+exec switch_root /newroot /sbin/init
+EOF
+chmod +x "$INITRAMFS_DIR/init"
+
+# NOTE: the initramfs image is packed on the HOST in 06-kernel-iso.sh
+# (cpio is a BLFS package, not available inside this chroot)
+log '==> kernel + initramfs tree done'
+
+# free the kernel build tree (excluded from squashfs, but wastes runner disk)
+cd /sources
+rm -rf "linux-$KERNEL_VER"
+ | sort -u); do
+        if [ "/dev/$dev" = "$iso_dev" ]; then continue; fi
+        if mount -t ext4 -o rw "/dev/$dev" /run/persist 2>/dev/null; then
+            :
+        elif mount -t vfat -o rw,umask=000 "/dev/$dev" /run/persist 2>/dev/null; then
+            :
+        else
+            continue
+        fi
+        if [ -d /run/persist/upper ]; then
+            mkdir -p /run/persist/work
+            PERSIST_UPPER=/run/persist/upper
+            PERSIST_WORK=/run/persist/work
+            echo "live: persistent session on /dev/$dev" > /dev/console
+            break
+        fi
+        if [ -f /run/persist/lfs-cn-persistence.img ]; then
+            [ -e /dev/loop-control ] || mknod /dev/loop-control c 10 237 2>/dev/null
+            [ -e /dev/loop0 ] || mknod /dev/loop0 b 7 0 2>/dev/null
+            if losetup /dev/loop0 /run/persist/lfs-cn-persistence.img 2>/dev/null \
+               && mount -t ext4 -o rw /dev/loop0 /run/persist 2>/dev/null; then
+                mkdir -p /run/persist/upper /run/persist/work
+                PERSIST_UPPER=/run/persist/upper
+                PERSIST_WORK=/run/persist/work
+                echo "live: persistent session via lfs-cn-persistence.img on /dev/$dev" > /dev/console
+                break
+            fi
+        fi
+        umount /run/persist 2>/dev/null
+    done
+fi
+
+mkdir -p /run/overlay
+if [ -n "$PERSIST_UPPER" ]; then
+    # persistent store already mounted under /run; like the tmpfs case the
+    # overlay pins its dentries so it survives switch_root + fstab's /run
+    :
+else
+    mount -t tmpfs tmpfs /run/overlay
+    mkdir -p /run/overlay/upper /run/overlay/work
+    PERSIST_UPPER=/run/overlay/upper
+    PERSIST_WORK=/run/overlay/work
+    echo "live: volatile session (no persistence medium found)" > /dev/console
+fi
+mount -t overlay overlay -o lowerdir=/run/rootfs,upperdir=$PERSIST_UPPER,workdir=$PERSIST_WORK /newroot
+
+mkdir -p /newroot/proc /newroot/sys /newroot/dev /newroot/run /newroot/mnt
+mount -t proc proc /newroot/proc
+mount -t sysfs sysfs /newroot/sys
+mount -t devtmpfs devtmpfs /newroot/dev
+
+# /var and /home are also covered by tmpfs as belt-and-suspenders so they
+# stay writable even if the overlay upper were ever detached again.
+mkdir -p /newroot/var /newroot/home
+mount -t tmpfs tmpfs /newroot/var
+mount -t tmpfs tmpfs /newroot/home
+
+echo "live: switching root" > /dev/console
+exec switch_root /newroot /sbin/init
+EOF
+chmod +x "$INITRAMFS_DIR/init"
+
+# NOTE: the initramfs image is packed on the HOST in 06-kernel-iso.sh
+# (cpio is a BLFS package, not available inside this chroot)
+log '==> kernel + initramfs tree done'
+
+# free the kernel build tree (excluded from squashfs, but wastes runner disk)
+cd /sources
+rm -rf "linux-$KERNEL_VER"
+); do
+            if mount -t iso9660 -r "/dev/$dev" /mnt 2>/dev/null; then
+                if [ -f /mnt/live/rootfs.squashfs ]; then
+                    iso_dev="/dev/$dev"
+                    live_store=/mnt
+                    break
+                fi
+                umount /mnt 2>/dev/null
+            fi
+        done
+        [ -n "$live_store" ] && break
+        sleep 1
+    done
+    if [ -z "$live_store" ]; then
+        echo "ERROR: cannot find the LFS-CN live medium" > /dev/console
+        echo "No ISO with /live/rootfs.squashfs found" > /dev/console
+        exec /bin/sh
+    fi
+    echo "live: ISO found on $iso_dev" > /dev/console
+fi
+
+mkdir -p /run/rootfs
+mount -t squashfs -o loop "$live_store/live/rootfs.squashfs" /run/rootfs
 
 # ROOT CAUSE FIX: the overlay upper+work MUST live inside the dedicated
 # /run/overlay tmpfs (not on the initramfs root). switch_root relocates the
