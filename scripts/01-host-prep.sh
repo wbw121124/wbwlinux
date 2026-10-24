@@ -84,6 +84,25 @@ ln -sv usr/bin "$LFS_ROOT/bin" 2>/dev/null || true
 # --- download all sources (skip if already present, e.g. restored) ----
 # Most LFS source tarballs are bundled in tools/x86_64/sources (checked into git).
 # Linux is resolved dynamically; dialog and dosfstools are pinned installer sources.
+# LFS 13.0 chapter 5.4 uses this pinned source for Linux API headers.
+# This is separate from the dynamically selected kernel built into the ISO.
+ensure_lfs_headers_source() {
+    local tarball="$SOURCES/linux-6.18.10.tar.xz"
+    local expected="660e706a43f634b1fcd911f8839d2f61"
+    if [ ! -s "$tarball" ] || [ "$(md5sum "$tarball" 2>/dev/null | awk '{print $1}')" != "$expected" ]; then
+        rm -f "$tarball"
+        log "==> downloading LFS 13.0 Linux API-header source linux-6.18.10.tar.xz"
+        wget -q --timeout=30 --tries=3 -O "$tarball" \
+            "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.18.10.tar.xz" || \
+        wget -q --timeout=30 --tries=3 -O "$tarball" \
+            "https://www.kernel.org/pub/linux/kernel/v6.x/linux-6.18.10.tar.xz" || \
+            die "LFS Linux API-header source download failed"
+    fi
+    printf '%s  %s\\n' "$expected" "$tarball" | md5sum -c - || \
+        die "LFS Linux API-header source MD5 verification failed"
+}
+
+
 if [ -z "${SKIP_DOWNLOAD:-}" ] && [ ! -f "$SOURCES/.downloaded" ]; then
     log "==> copying bundled sources from repository"
     cp -v "$SCRIPTS_DIR"/../tools/x86_64/sources/* "$SOURCES/" 2>/dev/null || true
@@ -119,24 +138,6 @@ if [ -z "${SKIP_DOWNLOAD:-}" ] && [ ! -f "$SOURCES/.downloaded" ]; then
     fi
     touch "$SOURCES/.downloaded"
 fi
-# LFS 13.0 chapter 5.4 uses this pinned source for Linux API headers.
-# This is separate from the dynamically selected kernel built into the ISO.
-ensure_lfs_headers_source() {
-    local tarball="$SOURCES/linux-6.18.10.tar.xz"
-    local expected="660e706a43f634b1fcd911f8839d2f61"
-    if [ ! -s "$tarball" ] || [ "$(md5sum "$tarball" 2>/dev/null | awk '{print $1}')" != "$expected" ]; then
-        rm -f "$tarball"
-        log "==> downloading LFS 13.0 Linux API-header source linux-6.18.10.tar.xz"
-        wget -q --timeout=30 --tries=3 -O "$tarball" \
-            "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.18.10.tar.xz" || \
-        wget -q --timeout=30 --tries=3 -O "$tarball" \
-            "https://www.kernel.org/pub/linux/kernel/v6.x/linux-6.18.10.tar.xz" || \
-            die "LFS Linux API-header source download failed"
-    fi
-    printf '%s  %s\\n' "$expected" "$tarball" | md5sum -c - || \
-        die "LFS Linux API-header source MD5 verification failed"
-}
-
 # Also run outside the .downloaded guard: restored snapshots may predate this
 # source file even when their marker says source preparation already completed.
 ensure_lfs_headers_source
