@@ -85,7 +85,7 @@ if [ -z "${SKIP_DOWNLOAD:-}" ] && [ ! -f "$SOURCES/.downloaded" ]; then
     cp -v "$SCRIPTS_DIR"/../tools/x86_64/sources/* "$SOURCES/" 2>/dev/null || true
 
     if [ ! -s "$SOURCES/linux-$LFS_KERNEL_VER.tar.xz" ]; then
-        log "==> downloading linux-$LFS_KERNEL_VER.tar.xz (147 MB, exceeds git limit)"
+        log "==> downloading linux-$LFS_KERNEL_VER.tar.xz (~151 MiB, exceeds git limit)"
         wget -q --timeout=30 --tries=3 -O "$SOURCES/linux-$LFS_KERNEL_VER.tar.xz" \
             "https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-$LFS_KERNEL_VER.tar.xz" \
             || wget -q -O "$SOURCES/linux-$LFS_KERNEL_VER.tar.xz" \
