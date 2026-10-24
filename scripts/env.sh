@@ -7,7 +7,9 @@ export LFS_ROOT=/mnt/lfs
 export LFS_TGT="$(uname -m)-lfs-linux-gnu"
 export LFS_VERSION=13.0-systemd
 export LFS_DISTRO_NAME="LFS-CN"
-export LFS_KERNEL_VER=6.18.10
+export LFS_KERNEL_VER=7.1.13
+# SHA-256 from kernel.org's signed v7.x/sha256sums.asc
+export LFS_KERNEL_SHA256=614d95fafdcb5cce2b6620e7edc6afbb606bffd4655405586815d84687841ad7
 
 export SOURCES="$LFS_ROOT/sources"
 export SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

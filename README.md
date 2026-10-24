@@ -10,7 +10,7 @@ ISO 是一个**文本精简基础系统**（fbterm 中文终端 + LFS 全部基�
 
 | 软件 | 版本 | 来源 |
 |---|---|---|
-| Linux 内核 | 6.18.10 | LFS 源码编译 |
+| Linux 内核 | 7.1.13 | kernel.org 官方源码（SHA-256 校验） |
 | GCC | 15.2.0 | LFS 源码编译 |
 | Python | 3.14.3 | LFS 源码编译 |
 | Vim | 9.2.0078 | LFS 源码编译 |
@@ -60,6 +60,13 @@ ISO 是一个**文本精简基础系统**（fbterm 中文终端 + LFS 全部基�
 | expat / git-full / astroterm / typst / tdf / tmux / ddd | 各自版本 | 源码/预编译打包 |
 
 以及 LFS 书中全部基础包（glibc、systemd、perl、openssl、util-linux 等）。
+
+## NTFS 原生读写
+
+- 内核 7.1.13 同时启用 `CONFIG_NTFS_FS=y`（Linux 7.1 新增的原生读写驱动）和 `CONFIG_NTFS3_FS=y`（NTFS3 驱动）。
+- 使用新驱动时显式指定文件系统类型：`mount -t ntfs -o rw /dev/sdX1 /mnt`；NTFS3 可用 `mount -t ntfs3 -o rw /dev/sdX1 /mnt`。
+- 挂载前应确保 Windows 已完整关机、卷未处于休眠/快速启动状态，并在卸载前执行 `sync` 后正常 `umount`。
+- **维护提示：Linux 7.1.y 已于 7.1.13 结束维护（EOL）**。此版本按项目需求固定，但不再接收该系列的常规安全修复。
 
 ## 中文终端体验
 
