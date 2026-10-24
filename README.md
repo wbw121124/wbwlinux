@@ -34,6 +34,7 @@ ISO 是一个**文本精简基础系统**（fbterm 中文终端 + LFS 全部基�
 | git | 2.55.0 | 源码编译（NO_TCLTK/NO_PERL/NO_PYTHON，仅核心功能） |
 | fd / ripgrep / bat | 10.4.2 / 15.2.0 / 0.26.1 | 官方 musl 静态二进制（零依赖直接运行） |
 | htop | 3.5.3 | Debian 预编译（仅依赖 ncurses/libc） |
+| BusyBox | 1.37.0 | 源码编译，提供独立多调用二进制 `/usr/bin/busybox`（不覆盖现有 GNU 工具） |
 | sudo | 1.9.17p2 | 源码编译（BLFS 风格，shadow 认证 + `/etc/sudoers` + wheel 组） |
 | which | — | 最小 POSIX sh 脚本实现 |
 | NetworkManager | 1.58.1 | Arch 预编译包（`[lfscn]` 仓库可安装） |
@@ -79,14 +80,14 @@ ISO 是一个**文本精简基础系统**（fbterm 中文终端 + LFS 全部基�
   - 数据库放在 `/usr/local/lib/pacman`（`/var` 在 live 系统是 tmpfs，不能存状态）
   - `[lfscn]` 本地仓库（ISO 内置包）：nodejs、rust、powershell、neovim、fira-code-fonts、
     wqy-microhei-fonts、fbterm-ucimf-stack、man-pages-zh、curl、wget、fd、ripgrep、
-    bat、htop 十四个包已注册
+    bat、htop、busybox 十五个包已注册
   - `[lfscn]` 远程源（packages-repo，GitHub Pages + repo git 分支托管）：X.Org、XFCE4、fcitx5、
     Go、精选工具（fzf/lazygit/btop/nnn/mtr/strace/socat/nmap/valgrind）等
   - Arch 官方源默认注释禁用——运行期 pacman 不可直接安装 Arch 包（滚动版二进制
     链接最新 glibc，与本系统的 LFS 13.0 工具链不匹配）
 - **会话持久化**：引导时 initramfs 自动探测各分区
   - 分区根目录含 `upper/` 目录 → 直接作为 overlay 上层（建议 ext4 并设卷标 `LFS-CN-PERSIST`）
-  - 或分区根目录含 `lfs-cn-persistence.img` 文件（ext4 镜像，FAT/exFAT U 盘也可用）→ loop 挂载后作为上层
+  - 或分区根目录含 `lfs-cn-persistence.img` 文件（ext4 镜像，FAT32 U 盘也可用（initramfs 当前只自动挂载 ext4/vfat，不支持 exFAT））→ loop 挂载后作为上层
   - 找到任一介质即「持久会话」：写入 /etc、/root 等在重启后保留（`/var`、`/home` 仍为 tmpfs）
   - GRUB 第二菜单项「volatile session」加 `persist=off` 强制关闭探测
   - 制作镜像文件示例（在任意 FAT32 U 盘上）：`truncate -s 8G lfs-cn-persistence.img && mkfs.ext4 -F lfs-cn-persistence.img`
@@ -96,7 +97,7 @@ ISO 是一个**文本精简基础系统**（fbterm 中文终端 + LFS 全部基�
 1. **toolchain** — 宿主依赖 + 下载校验全部源码 + ch5/ch6 交叉工具链
 2. **base** — 进入 chroot 构建 ch7.5–7.13 + ch8 全部基础包
 3. **config+extras** — 系统配置（中文 locale/网络/时区）+ 预编译软件 + ICU/nano/fbterm/字体
-   + CLI 工具包（fd/rg/bat/htop/wget/which）+ pacman 本地仓库构建
+   + CLI 工具包（fd/rg/bat/htop/wget/which/BusyBox）+ pacman 本地仓库构建
 4. **iso** — 内核（defconfig + 定制 fragment）+ initramfs + squashfs + GRUB live ISO
 5. **packages**（可选，与 iso 并行）— 构建 free software pacman 包
    + X.Org/XFCE/精选工具 Arch 闭包导入到 packages-repo
@@ -133,7 +134,7 @@ scripts/
   03-chroot-base.sh                   # ch7.5-7.13 + ch8（chroot 内）
   04-sysconfig.sh                     # 系统配置（zh_CN/网络/自动登录）
   05-extras.sh                        # Node/Rust/PowerShell/Neovim/ICU/nano/fbterm/字体
-                                      # + fd/rg/bat/htop/wget/which 下载与分发
+                                      # + fd/rg/bat/htop/wget/which/BusyBox 下载与分发
   06-kernel-iso.sh                    # 内核 + initramfs + squashfs + GRUB ISO
   chroot/                             # chroot 内执行的脚本
     05-extras.sh                      #   extras 安装（含 cs-oi.cin 码表、pacman tmpfiles 修复）

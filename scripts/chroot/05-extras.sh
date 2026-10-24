@@ -46,6 +46,22 @@ EOF
 fi
 
 # =====================================================================
+# BusyBox: install the multi-call binary without applet symlinks.
+# Existing GNU utilities remain unchanged; use `busybox <applet>`.
+# =====================================================================
+if [ ! -x /usr/bin/busybox ] || ! /usr/bin/busybox --help >/dev/null 2>&1; then
+    log "==> BusyBox $BUSYBOX_VER"
+    tar xf "busybox-$BUSYBOX_VER.tar.bz2"
+    cd "busybox-$BUSYBOX_VER"
+    make defconfig
+    make -j"$NPROC"
+    install -m 755 busybox /usr/bin/busybox
+    cd "$DL"
+    rm -rf "busybox-$BUSYBOX_VER"
+fi
+/usr/bin/busybox --list >/dev/null
+
+# =====================================================================
 # Node.js (official prebuilt, x86_64)
 # =====================================================================
 if [ ! -e /usr/local/bin/node ]; then
@@ -2042,6 +2058,8 @@ pkg_register curl "$CURL_VER" "curl command line tool and library" \
     /usr/bin/curl /usr/bin/curl-config /usr/include/curl /usr/lib/libcurl.so*
 pkg_register wget "$WGET_VER" "GNU Wget network downloader" \
     /usr/bin/wget /usr/share/man/man1/wget.1.gz
+pkg_register busybox "$BUSYBOX_VER" "BusyBox multi-call binary" \
+    /usr/bin/busybox
 pkg_register fd "$FD_VER" "fd - simple, fast, user-friendly find alternative" \
     /usr/bin/fd
 pkg_register ripgrep "$RIPGREP_VER" "ripgrep recursively searches dirs with regex" \
@@ -2096,7 +2114,7 @@ for f in /usr/bin/fbterm /usr/bin/fbterm_ucimf \
          /usr/local/lib/meson/meson.py /usr/local/bin/ninja \
          /usr/bin/curl /usr/lib/libarchive.so \
          /usr/bin/which /usr/bin/wget /usr/bin/fd /usr/bin/rg \
-         /usr/bin/bat /usr/bin/htop \
+         /usr/bin/bat /usr/bin/htop /usr/bin/busybox \
          /usr/bin/sudo /usr/sbin/visudo /etc/sudoers \
          /usr/bin/git \
          /usr/share/themes/Rea-Dark/index.theme \
