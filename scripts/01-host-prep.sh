@@ -98,7 +98,7 @@ ensure_lfs_headers_source() {
             "https://www.kernel.org/pub/linux/kernel/v6.x/linux-6.18.10.tar.xz" || \
             die "LFS Linux API-header source download failed"
     fi
-    printf '%s  %s\\n' "$expected" "$tarball" | md5sum -c - || \
+    printf '%s  %s\n' "$expected" "$tarball" | md5sum -c - || \
         die "LFS Linux API-header source MD5 verification failed"
 }
 
