@@ -2058,7 +2058,7 @@ pkg_register curl "$CURL_VER" "curl command line tool and library" \
     /usr/bin/curl /usr/bin/curl-config /usr/include/curl /usr/lib/libcurl.so*
 pkg_register wget "$WGET_VER" "GNU Wget network downloader" \
     /usr/bin/wget /usr/share/man/man1/wget.1.gz
-pkg_register busybox "$BUSYBOX_VER" "BusyBox multi-call binary" \\
+pkg_register busybox "$BUSYBOX_VER" "BusyBox multi-call binary" \
     /usr/bin/busybox
 pkg_register fd "$FD_VER" "fd - simple, fast, user-friendly find alternative" \
     /usr/bin/fd
