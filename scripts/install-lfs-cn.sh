@@ -58,11 +58,12 @@ ISO_PARENT=$(lsblk -no PKNAME "$ISO_DEV" 2>/dev/null | head -n1)
 if [[ -n "$ISO_PARENT" ]]; then ISO_PARENT="/dev/$ISO_PARENT"; else ISO_PARENT="$ISO_DEV"; fi
 
 # Offer only whole disks; never use the current live optical device.
-mapfile -t DISKS < <(lsblk -dpno NAME,SIZE,MODEL,TYPE | awk '$4=="disk" {print $1 "|" $2 "|" $3}')
+mapfile -t DISKS < <(lsblk -dpno NAME,SIZE,TYPE | awk '$3=="disk" {print $1 "|" $2}')
 (("${#DISKS[@]}" > 0)) || die "没有发现可安装的整块磁盘。"
 MENU=()
 for entry in "${DISKS[@]}"; do
-    IFS='|' read -r dev size model <<< "$entry"
+    IFS='|' read -r dev size <<< "$entry"
+    model=$(lsblk -dnpo MODEL "$dev" | sed 's/[[:space:]]*$//')
     model=${model:-Unknown}
     MENU+=("$dev" "$size — $model")
 done
