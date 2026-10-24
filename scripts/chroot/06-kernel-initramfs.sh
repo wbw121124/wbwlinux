@@ -78,6 +78,7 @@ EOF
 cd /sources
 if [ ! -x /usr/bin/dialog ]; then
     log "==> building dialog TUI"
+    rm -rf dialog-1.3-20250116
     tar xf dialog_1.3-20250116.orig.tar.gz
     cd dialog-1.3-20250116
     ./configure --prefix=/usr --with-ncursesw
@@ -88,6 +89,7 @@ if [ ! -x /usr/bin/dialog ]; then
 fi
 if [ ! -x /usr/bin/mkfs.fat ]; then
     log "==> building dosfstools"
+    rm -rf dosfstools-4.2
     tar xf dosfstools-4.2.tar.gz
     cd dosfstools-4.2
     ./configure --prefix=/usr --enable-compat-symlinks
@@ -98,6 +100,7 @@ if [ ! -x /usr/bin/mkfs.fat ]; then
 fi
 if [ ! -x /usr/sbin/grub-install ] && [ ! -x /usr/bin/grub-install ]; then
     log "==> building UEFI GRUB for the disk installer"
+    rm -rf grub-2.14 grub-build-efi
     tar xf grub-2.14.tar.xz
     mkdir -p /sources/grub-build-efi
     cd /sources/grub-build-efi
