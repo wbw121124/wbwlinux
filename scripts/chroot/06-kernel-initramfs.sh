@@ -26,7 +26,9 @@ make mrproper
 make defconfig
 cat /config/kernel-live.fragment >> .config
 make olddefconfig
-grep -E 'CONFIG_(SQUASHFS|OVERLAY_FS|ISO9660|BLK_DEV_LOOP|FB_VESA|FB_EFI|FRAMEBUFFER_CONSOLE|DEVTMPFS|UNICODE|NLS_UTF8|NLS_ASCII|EXT4_FS|VFAT_FS|USB|AHCI|ATA|VIRTIO|NETDEVICES|E1000|PCNET|8139|VIRTIO_NET|XFS)=' .config | sort > /tmp/kernel-config-verified.txt
+grep -qx "CONFIG_NTFS_FS=y" .config || die "kernel config: native read-write NTFS driver (CONFIG_NTFS_FS) is not enabled"
+grep -qx "CONFIG_NTFS3_FS=y" .config || die "kernel config: NTFS3 driver is not enabled"
+grep -E 'CONFIG_(SQUASHFS|OVERLAY_FS|ISO9660|BLK_DEV_LOOP|FB_VESA|FB_EFI|FRAMEBUFFER_CONSOLE|DEVTMPFS|UNICODE|NLS_UTF8|NLS_ASCII|EXT4_FS|VFAT_FS|NTFS_FS|NTFS3_FS|USB|AHCI|ATA|VIRTIO|NETDEVICES|E1000|PCNET|8139|VIRTIO_NET|XFS)=' .config | sort > /tmp/kernel-config-verified.txt
 wc -l /tmp/kernel-config-verified.txt
 
 log "==> building kernel (this takes a while)"
