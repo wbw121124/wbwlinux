@@ -18,6 +18,22 @@ DL="$LFS_ROOT/root/downloads"
 mkdir -p "$DL"
 
 log "==> downloading extras (host side)"
+
+# Arch's rolling repositories replace old package filenames. Resolve the current
+# x86_64 NetworkManager package from Arch's official package JSON endpoint.
+# Keep the filename and version from the same response so mirror URLs cannot
+# silently drift from the pinned filename.
+NM_ARCH_META="$(curl -fsSL --retry 3 --retry-all-errors --connect-timeout 15 --max-time 60 \
+    "https://archlinux.org/packages/extra/x86_64/networkmanager/json/" | \
+    python3 -c 'import json,sys; p=json.load(sys.stdin); print(p["pkgver"]); print(p["pkgrel"]); print(p["filename"])')"
+mapfile -t NM_ARCH_FIELDS <<< "$NM_ARCH_META"
+[ "${#NM_ARCH_FIELDS[@]}" -eq 3 ] || die "could not resolve NetworkManager package metadata from Arch"
+NM_ARCH_PKGVER="${NM_ARCH_FIELDS[0]}"
+NM_ARCH_PKGREL="${NM_ARCH_FIELDS[1]}"
+NM_ARCH_FILE="${NM_ARCH_FIELDS[2]}"
+[[ "$NM_ARCH_FILE" =~ ^networkmanager-[0-9][A-Za-z0-9.+_-]*-x86_64\.pkg\.tar\.zst$ ]] || \
+    die "unexpected NetworkManager package filename from Arch: $NM_ARCH_FILE"
+log "==> selected Arch NetworkManager $NM_ARCH_PKGVER-$NM_ARCH_PKGREL ($NM_ARCH_FILE)"
 declare -A urls=(
   ["node-$NODE_VER-linux-x64.tar.xz"]="$NODE_URL/node-$NODE_VER-linux-x64.tar.xz"
   ["rust-$RUST_VER-x86_64-unknown-linux-gnu.tar.xz"]="$RUST_URL/rust-$RUST_VER-x86_64-unknown-linux-gnu.tar.xz"
@@ -61,7 +77,7 @@ declare -A urls=(
   # Firefox (prebuilt binary; packaged but not installed by default)
   ["firefox-$FIREFOX_VER.tar.xz"]="https://download-installer.cdn.mozilla.net/pub/firefox/releases/$FIREFOX_VER/linux-x86_64/en-US/firefox-$FIREFOX_VER.tar.xz"
   # NetworkManager (prebuilt from Arch core repo; pacman 7.1 needs it for Wi-Fi)
-  ["networkmanager-$NM_VER-1-x86_64.pkg.tar.zst"]="https://geo.mirror.pkgbuild.com/extra/os/x86_64/networkmanager-$NM_VER-1-x86_64.pkg.tar.zst"
+  ["$NM_ARCH_FILE"]="https://geo.mirror.pkgbuild.com/extra/os/x86_64/$NM_ARCH_FILE"
   # Rea-Dark XFCE theme (orchyn/XFCE, pinned to commit)
   ["orchyn-XFCE-main.tar.gz"]="https://codeload.github.com/orchyn/XFCE/tar.gz/$REA_COMMIT"
   # vimcdoc: Chinese help docs (*.cnx) for vim + nvim (pinned commit)
@@ -106,7 +122,14 @@ download_with_retry() {
 for f in "${!urls[@]}"; do
     if [ ! -s "$DL/$f" ]; then
         log "==> downloading $f"
-        if ! download_with_retry "$f" "${urls[$f]}" \
+        if [ "$f" = "$NM_ARCH_FILE" ]; then
+            # Mirrors may lag behind Arch's package database during sync.
+            if ! download_with_retry "$f" "${urls[$f]}" \
+                && ! download_with_retry "$f" "https://mirror.rackspace.com/archlinux/extra/os/x86_64/$f" \
+                && ! download_with_retry "$f" "https://mirrors.kernel.org/archlinux/extra/os/x86_64/$f"; then
+                die "download failed from all Arch mirrors: $f"
+            fi
+        elif ! download_with_retry "$f" "${urls[$f]}" \
             && { [ -z "${mirrors[$f]:-}" ] || ! download_with_retry "$f" "${mirrors[$f]}"; }; then
             die "download failed after retries: $f"
         fi
@@ -130,6 +153,9 @@ chroot "$LFS_ROOT" /usr/bin/env -i \
     HOME=/root TERM="$TERM" PS1='(lfs chroot) \u:\w\$ ' \
     PATH=/usr/bin:/usr/sbin:/usr/local/bin \
     MAKEFLAGS="$MAKEFLAGS" \
+    NM_ARCH_PKGVER="$NM_ARCH_PKGVER" \
+    NM_ARCH_PKGREL="$NM_ARCH_PKGREL" \
+    NM_ARCH_FILE="$NM_ARCH_FILE" \
     /bin/bash --login /build/chroot/05-extras.sh
 
 touch "$LFS_ROOT/opt/.extras-complete"
