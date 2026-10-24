@@ -14,12 +14,21 @@ on:
           - from-base
           - from-config
           - only-packages
+      kernel_track:
+        description: 'Linux 发布轨道：stable=最新稳定版（推荐）；mainline=最新主线；longterm=最新长期维护版'
+        type: choice
+        default: stable
+        options:
+          - stable
+          - mainline
+          - longterm
 
 permissions:
   contents: read
   actions: read
 
 env:
+  LFS_KERNEL_TRACK: ${{ inputs.kernel_track || 'stable' }}
   RUNNER_OS: ubuntu-latest
   CCACHE_DIR: /home/runner/ccache
   CCACHE_COMPILERCHECK: content
