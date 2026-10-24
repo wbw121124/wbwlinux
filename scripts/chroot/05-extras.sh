@@ -1954,7 +1954,7 @@ if [ ! -e /usr/bin/NetworkManager ]; then
         cp -a "$NM_TMP/usr/share/doc/NetworkManager" /usr/share/doc/ 2>/dev/null || true
         cp -a "$NM_TMP/etc/NetworkManager" /etc/ 2>/dev/null || true
         rm -rf "$NM_TMP"
-        log "==> NetworkManager $NM_VER OK"
+        log "==> NetworkManager $NM_ARCH_PKGVER OK"
     else
         warn "NetworkManager tarball not found, skipping"
     fi
