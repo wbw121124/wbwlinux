@@ -1939,8 +1939,10 @@ fi
 # Extracts the .pkg.tar.zst, registers as lfscn package, then removes
 # =====================================================================
 if [ ! -e /usr/bin/NetworkManager ]; then
-    log "==> NetworkManager $NM_VER (prebuilt from Arch)"
-    NM_PKG="$DL/networkmanager-$NM_VER-1-x86_64.pkg.tar.zst"
+    NM_ARCH_PKGVER="${NM_ARCH_PKGVER:-$NM_VER}"
+    NM_ARCH_FILE="${NM_ARCH_FILE:-networkmanager-$NM_VER-1-x86_64.pkg.tar.zst}"
+    log "==> NetworkManager $NM_ARCH_PKGVER (prebuilt from Arch)"
+    NM_PKG="$DL/$NM_ARCH_FILE"
     if [ -f "$NM_PKG" ]; then
         NM_TMP=$(mktemp -d)
         tar --use-compress-program=unzstd -xf "$NM_PKG" -C "$NM_TMP"
@@ -2035,7 +2037,7 @@ pkg_register powershell "$PWSH_VER" "PowerShell 7 (prebuilt)" \
 pkg_register neovim "$NVIM_VER" "Neovim editor (source build, zh_CN UI + help)" \
     /usr/local/bin/nvim /usr/local/share/nvim /etc/xdg/nvim \
     /usr/local/share/locale/zh_CN
-pkg_register networkmanager "$NM_VER" "NetworkManager (prebuilt)" \
+pkg_register networkmanager "${NM_ARCH_PKGVER:-$NM_VER}" "NetworkManager (prebuilt)" \
     /usr/bin/NetworkManager /usr/bin/nm-* \
     /usr/lib/NetworkManager /usr/share/NetworkManager \
     /usr/share/doc/NetworkManager /etc/NetworkManager
