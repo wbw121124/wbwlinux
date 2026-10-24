@@ -87,13 +87,17 @@ if [ -z "${SKIP_DOWNLOAD:-}" ] && [ ! -f "$SOURCES/.downloaded" ]; then
     if [ ! -s "$SOURCES/linux-$LFS_KERNEL_VER.tar.xz" ]; then
         log "==> downloading linux-$LFS_KERNEL_VER.tar.xz (147 MB, exceeds git limit)"
         wget -q --timeout=30 --tries=3 -O "$SOURCES/linux-$LFS_KERNEL_VER.tar.xz" \
-            "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-$LFS_KERNEL_VER.tar.xz" \
+            "https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-$LFS_KERNEL_VER.tar.xz" \
             || wget -q -O "$SOURCES/linux-$LFS_KERNEL_VER.tar.xz" \
-                "https://www.kernel.org/pub/linux/kernel/v6.x/linux-$LFS_KERNEL_VER.tar.xz" \
+                "https://www.kernel.org/pub/linux/kernel/v7.x/linux-$LFS_KERNEL_VER.tar.xz" \
             || true
     fi
     [ -s "$SOURCES/linux-$LFS_KERNEL_VER.tar.xz" ] || \
         die "kernel tarball download failed"
+
+    log "==> verifying Linux kernel SHA-256"
+    printf '%s  %s\n' "$LFS_KERNEL_SHA256" "$SOURCES/linux-$LFS_KERNEL_VER.tar.xz" | sha256sum -c - || \
+        die "Linux kernel SHA-256 verification failed"
 
     log "==> verifying md5sums"
     if ! ( cd "$SOURCES" && md5sum -c "$SCRIPTS_DIR/../tools/x86_64/md5sums" > md5.log ); then
