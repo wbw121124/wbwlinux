@@ -87,7 +87,7 @@ ISO 是一个**文本精简基础系统**（fbterm 中文终端 + LFS 全部基�
     链接最新 glibc，与本系统的 LFS 13.0 工具链不匹配）
 - **会话持久化**：引导时 initramfs 自动探测各分区
   - 分区根目录含 `upper/` 目录 → 直接作为 overlay 上层（建议 ext4 并设卷标 `LFS-CN-PERSIST`）
-  - 或分区根目录含 `lfs-cn-persistence.img` 文件（ext4 镜像，FAT/exFAT U 盘也可用）→ loop 挂载后作为上层
+  - 或分区根目录含 `lfs-cn-persistence.img` 文件（ext4 镜像，FAT32 U 盘也可用（initramfs 当前只自动挂载 ext4/vfat，不支持 exFAT））→ loop 挂载后作为上层
   - 找到任一介质即「持久会话」：写入 /etc、/root 等在重启后保留（`/var`、`/home` 仍为 tmpfs）
   - GRUB 第二菜单项「volatile session」加 `persist=off` 强制关闭探测
   - 制作镜像文件示例（在任意 FAT32 U 盘上）：`truncate -s 8G lfs-cn-persistence.img && mkfs.ext4 -F lfs-cn-persistence.img`
@@ -134,7 +134,7 @@ scripts/
   03-chroot-base.sh                   # ch7.5-7.13 + ch8（chroot 内）
   04-sysconfig.sh                     # 系统配置（zh_CN/网络/自动登录）
   05-extras.sh                        # Node/Rust/PowerShell/Neovim/ICU/nano/fbterm/字体
-                                      # + fd/rg/bat/htop/wget/which 下载与分发
+                                      # + fd/rg/bat/htop/wget/which/BusyBox 下载与分发
   06-kernel-iso.sh                    # 内核 + initramfs + squashfs + GRUB ISO
   chroot/                             # chroot 内执行的脚本
     05-extras.sh                      #   extras 安装（含 cs-oi.cin 码表、pacman tmpfiles 修复）
